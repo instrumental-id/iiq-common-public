@@ -20,6 +20,18 @@ apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: "org.jdrupes.mdoclet"
 
+def getVersion() {
+    def branch = System.getenv('GIT_BRANCH')
+
+    def date = new Date().format('yyyyMMddHHmmss')
+
+    if (branch == null || branch != "main") {
+        return date + "-SNAPSHOT"
+    } else {
+        return date
+    }
+}
+
 /* This is where the compiler finds its inputs */
 sourceSets {
     main {
@@ -56,7 +68,7 @@ publishing {
     }
     repositories {
         maven {
-            url "https://gitlab.example.com/api/v4/projects/157/packages/maven"
+            url "https://git.identityworksllc.com/api/v4/projects/157/packages/maven"
 
             credentials(HttpHeaderCredentials) {
                 name = 'Job-Token'
@@ -71,6 +83,7 @@ publishing {
 }
 
 group 'com.identityworksllc.iiq.common.minimal'
+version getVersion()
 
 tasks.withType(JavaCompile) {
     options.warnings = false
