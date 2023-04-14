@@ -27,18 +27,10 @@ build:
     - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
     - ./gradlew build javadoc
+    - ./gradlew publish
   artifacts:
     name: "iiqcommon-public-library"
     paths:
       - build/libs/*.jar
       - build/docs/javadoc/**
     # expire_in: 1 month
-
-deploy:
-  stage: publish
-  image: gradle:7.6.1-jdk11
-  script:
-    - 'gradle publish'
-#  only:
-#    - main
-    
