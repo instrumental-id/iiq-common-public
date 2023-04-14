@@ -8,6 +8,7 @@ image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure
 stages:
   - build
   - reporting
+  - publish
 
 variables:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
@@ -34,6 +35,7 @@ build:
     # expire_in: 1 month
 
 deploy:
+  stage: publish
   image: gradle:7.6.1-jdk11
   script:
     - 'gradle publish'
