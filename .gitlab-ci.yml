@@ -32,4 +32,11 @@ build:
       - build/libs/*.jar
       - build/docs/javadoc/**
     # expire_in: 1 month
+
+deploy:
+  image: gradle:7.6.1-jdk11
+  script:
+    - 'gradle publish'
+#  only:
+#    - main
     
