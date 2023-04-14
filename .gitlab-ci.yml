@@ -1,0 +1,35 @@
+image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure/idw-containers/iiq-8.1-w-ssd
+
+# Disable the Gradle daemon for Continuous Integration servers as correctness
+# is usually a priority over speed in CI environments. Using a fresh
+# runtime for each build is more reliable since the runtime is completely
+# isolated from any previous builds.
+
+stages:
+  - build
+  - reporting
+
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GIT_SUBMODULE_STRATEGY: recursive
+  DEFAULT_BRANCH_ROOT_URL: "$CI_PROJECT_URL/-/blob/$CI_DEFAULT_BRANCH"
+  
+before_script:
+  - export GRADLE_USER_HOME=`pwd`/.gradle
+  - export GIT_SSH_COMMAND=/usr/bin/ssh
+
+build:
+  stage: build
+  before_script:
+    - mkdir -p lib/sailpoint
+    - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
+    - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
+  script: 
+    - ./gradlew build javadoc
+  artifacts:
+    name: "iiqcommon-public-library"
+    paths:
+      - build/libs/*.jar
+      - build/docs/javadoc/**
+    # expire_in: 1 month
+    
