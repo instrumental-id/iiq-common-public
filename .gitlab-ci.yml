@@ -18,6 +18,7 @@ variables:
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
   - export GIT_SSH_COMMAND=/usr/bin/ssh
+  - git checkout "$CI_COMMIT_REF_NAME"
 
 build:
   stage: build
@@ -27,10 +28,19 @@ build:
     - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
     - ./gradlew build javadoc
-    - ./gradlew publish
   artifacts:
     name: "iiqcommon-public-library"
     paths:
-      - build/libs/*.jar
-      - build/docs/javadoc/**
+      - build/**
     # expire_in: 1 month
+
+deploy:
+  stage: publish
+  before_script:
+    - mkdir -p lib/sailpoint
+    - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
+    - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
+  script:
+    - ./gradlew publish
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

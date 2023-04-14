@@ -21,7 +21,9 @@ apply plugin: 'maven-publish'
 apply plugin: "org.jdrupes.mdoclet"
 
 def getVersion() {
-    def branch = System.getenv('GIT_BRANCH')
+    def branch = System.getenv('CI_COMMIT_BRANCH')
+
+    println "Git branch is " + branch;
 
     def date = new Date().format('yyyyMMddHHmmss')
 
