@@ -8,6 +8,7 @@ image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure
 stages:
   - build
   - reporting
+  - publish
 
 variables:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
@@ -26,10 +27,10 @@ build:
     - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
     - ./gradlew build javadoc
+    - ./gradlew publish
   artifacts:
     name: "iiqcommon-public-library"
     paths:
       - build/libs/*.jar
       - build/docs/javadoc/**
     # expire_in: 1 month
-    
