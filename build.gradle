@@ -17,6 +17,7 @@ buildscript {
 }
 
 apply plugin: 'java-library'
+apply plugin: 'maven-publish'
 apply plugin: "org.jdrupes.mdoclet"
 
 /* This is where the compiler finds its inputs */
@@ -44,6 +45,28 @@ repositories {
 
     flatDir {
         dirs "${libRoot}/sailpoint"
+    }
+}
+
+publishing {
+    publications {
+        library(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "https://gitlab.example.com/api/v4/projects/157/packages/maven"
+
+            credentials(HttpHeaderCredentials) {
+                name = 'Job-Token'
+                value = System.getenv("CI_JOB_TOKEN")
+            }
+            
+            authentication {
+                header(HttpHeaderAuthentication)
+            }
+        }
     }
 }
 
