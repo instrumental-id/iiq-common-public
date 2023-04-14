@@ -1,0 +1,37 @@
+= IIQ Common Public Repository
+:toc:
+
+== Introduction
+
+This repository contains a "minimal" subset of IDW's broader IIQCommon library. These utilities do not represent the full power of IIQCommon, but they should be sufficient to make IIQ development easier.
+
+== Building the library
+
+=== JDK version
+
+At this time, this library should be built using JDK 8. (I personally use Azure Zulu.)
+
+=== Supplying the IIQ dependencies
+
+IDW cannot distribute SailPoint's proprietary binaries, so you must supply them yourself.
+
+Insert the following JAR files from your IIQ version in the `lib/sailpoint` folder. (These files can be found in any IIQ WAR file at `WEB-INF/lib`.)
+
+* identityiq.jar
+* connector-bundle-identity.jar
+
+=== Library JAR build
+
+To build the library, execute `./gradlew build`. (On Windows, use `gradlew.bat build` instead.)
+
+The library will be assembled at `build/libs/iiq-common-public.jar`.
+
+=== Javadocs
+
+You can assemble the Javadocs for this library using the `./gradlew javadoc` command. The Javadocs will be rendered using the link:https://github.com/mnlipp/jdrupes-mdoclet[mdoclet] library.
+
+Files will be output to `build/docs/javadoc`.
+
+== Utilities included
+
+TODO: Expand this section

@@ -1,0 +1,9 @@
+build/
+classes
+**/*.bak
+lib/sailpoint/
+.gradle/
+.DS_Store
+.idea
+.eclipse
+.project
