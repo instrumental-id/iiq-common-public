@@ -11,6 +11,7 @@ import sailpoint.api.SailPointContext;
 import sailpoint.object.Capability;
 import sailpoint.object.CustomGlobal;
 import sailpoint.object.DynamicScope;
+import sailpoint.object.Filter;
 import sailpoint.object.Identity;
 import sailpoint.object.IdentitySelector;
 import sailpoint.object.Script;
@@ -339,7 +340,7 @@ public class ThingAccessUtils {
         if (result.isAllowed() && Util.isNotNullOrEmpty(config.getSettingOffSwitch())) {
             boolean isDisabled = pluginContext.getSettingBool(config.getSettingOffSwitch());
             if (isDisabled) {
-                result.denyMessage("Access denied to " + thingName + " because the feature is disabled in plugin settings");
+                result.denyMessage("Access denied to " + thingName + " because the feature " + config.getSettingOffSwitch() + " is disabled in plugin settings");
             }
         }
         if (result.isAllowed() && config.getAccessCheckScript() != null) {
@@ -471,9 +472,12 @@ public class ThingAccessUtils {
             }
         }
         if (result.isAllowed() && Util.isNotNullOrEmpty(config.getAccessCheckFilter())) {
-            MatchUtilities matchUtils = new MatchUtilities(pluginContext.getContext());
-            String filterString = config.getAccessCheckFilter();
-            if (!matchUtils.matches(currentUser, filterString)) {
+            String filterString = config.getValidTargetFilter();
+            Filter compiledFilter = Filter.compile(filterString);
+
+            HybridObjectMatcher hom = new HybridObjectMatcher(pluginContext.getContext(), compiledFilter);
+
+            if (!hom.matches(currentUser)) {
                 result.denyMessage("Access denied to " + thingName + " because subject user " + currentUserName + " does not match the access check filter");
             }
         }
@@ -538,9 +542,12 @@ public class ThingAccessUtils {
         }
 
         if (result.isAllowed() && Util.isNotNullOrEmpty(config.getInvalidTargetFilter())) {
-            MatchUtilities matchUtils = new MatchUtilities(pluginContext.getContext());
-            String filterString = config.getInvalidTargetFilter();
-            if (matchUtils.matches(target, filterString)) {
+            String filterString = config.getValidTargetFilter();
+            Filter compiledFilter = Filter.compile(filterString);
+
+            HybridObjectMatcher hom = new HybridObjectMatcher(pluginContext.getContext(), compiledFilter);
+
+            if (hom.matches(target)) {
                 result.denyMessage("Access denied to " + thingName + " because target user " + target.getName() + " matches the invalid target filter");
             }
         }
@@ -575,9 +582,12 @@ public class ThingAccessUtils {
             }
         }
         if (result.isAllowed() && Util.isNotNullOrEmpty(config.getValidTargetFilter())) {
-            MatchUtilities matchUtils = new MatchUtilities(pluginContext.getContext());
             String filterString = config.getValidTargetFilter();
-            if (!matchUtils.matches(target, filterString)) {
+            Filter compiledFilter = Filter.compile(filterString);
+
+            HybridObjectMatcher hom = new HybridObjectMatcher(pluginContext.getContext(), compiledFilter);
+
+            if (!hom.matches(target)) {
                 result.denyMessage("Access denied to " + thingName + " because target user " + target.getName() + " does not match the valid target filter");
             }
         }

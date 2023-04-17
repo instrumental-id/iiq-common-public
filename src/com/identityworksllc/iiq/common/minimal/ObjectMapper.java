@@ -137,6 +137,12 @@ public class ObjectMapper<T> {
 
     }
 
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    public @interface Aliases {
+        String[] value();
+    }
+
     /**
      * Annotation to indicate that the given field should be ignored and
      * not mapped.
@@ -181,6 +187,15 @@ public class ObjectMapper<T> {
     }
 
     /**
+     * A functional interface to translate a Class into its name. This may just
+     * be Class::getName, but may be a more complex behavior as needed.
+     */
+    @FunctionalInterface
+    public interface TypeNamer  {
+        String getTypeName(Class<?> type);
+    }
+
+    /**
      * The exception type thrown by all mapper methods
      */
     public static class ObjectMapperException extends Exception {
@@ -199,15 +214,6 @@ public class ObjectMapper<T> {
         public ObjectMapperException(Throwable cause) {
             super(cause);
         }
-    }
-
-    /**
-     * A functional interface to translate a Class into its name. This may just
-     * be Class::getName, but may be a more complex behavior as needed.
-     */
-    @FunctionalInterface
-    public interface TypeNamer  {
-        String getTypeName(Class<?> type);
     }
 
     /**
@@ -703,6 +709,27 @@ public class ObjectMapper<T> {
     }
 
     /**
+     * Gets the field names and any of its aliases from the {@link Aliases} annotation
+     * @param fieldName The field name
+     * @param field The field being analyzed
+     * @return The list of names for this field, including any aliases
+     */
+    private List<String> getNamesWithAliases(String fieldName, Field field) {
+        List<String> names = new ArrayList<>();
+        names.add(fieldName);
+
+        if (field.isAnnotationPresent(Aliases.class)) {
+            Aliases aliasAnnotation = field.getAnnotation(Aliases.class);
+            if (aliasAnnotation != null && aliasAnnotation.value() != null) {
+                names.addAll(Arrays.asList(aliasAnnotation.value()));
+            }
+        }
+
+        return names;
+
+    }
+
+    /**
      * Gets the target class
      * @return The target class
      */
@@ -711,8 +738,78 @@ public class ObjectMapper<T> {
     }
 
     /**
-     * Initializes the setters in a synchronized block on the first call
-     * to decode().
+     * Initializes the setter for the given field, locating the least narrow setter
+     * method with the appropriate name. So, if there are several set methods:
+     *
+     *  setField(ArrayList)
+     *  setField(List)
+     *  setField(Collection)
+     *
+     * The final one, taking a Collection, will be selected here.
+     *
+     * @param setterMap The map to which the setters need to be added
+     * @param lookupUtility The JDK MethodHandle lookup utility
+     * @param field The field being analyzed
+     * @throws NoSuchFieldException if there are any issues getting the field accessor
+     */
+    private void initSetterForField(Map<String, MethodHandle> setterMap, MethodHandles.Lookup lookupUtility, Field field) throws NoSuchFieldException {
+        String fieldName = field.getName();
+        try {
+            // Find a legit setter method. We don't care about capitalization
+            String setterName = "set" + field.getName();
+            if (field.isAnnotationPresent(SetterMethod.class)) {
+                SetterMethod setterAnnotation = field.getAnnotation(SetterMethod.class);
+                if (isNotNullOrEmpty(setterAnnotation.value())) {
+                    setterName = setterAnnotation.value();
+                }
+            }
+            // Use reflection to find the setter method; using MethodType is not as
+            // flexible because we would need to specify a return type. We only care
+            // about the name and the parameter type. We loop over the methods from
+            // 'targetClass' and not 'cls' because we want to call inherited methods
+            // if they are available, rather than the superclass abstract ones.
+            Method leastNarrow = null;
+            for(Method m : targetClass.getMethods()) {
+                if (m.getName().equalsIgnoreCase(setterName)) {
+                    if (m.getParameterCount() == 1 && field.getType().isAssignableFrom(m.getParameterTypes()[0])) {
+                        if (leastNarrow == null || m.getParameterTypes()[0].equals(field.getType())) {
+                            leastNarrow = m;
+                        } else {
+                            Class<?> existingParamType = leastNarrow.getParameterTypes()[0];
+                            Class<?> newParamType = m.getParameterTypes()[0];
+                            if (!existingParamType.isAssignableFrom(newParamType) && newParamType.isAssignableFrom(existingParamType)) {
+                                if (log.isTraceEnabled()) {
+                                    log.trace("For field " + fieldName + " setter method with param type " + newParamType + " is more general than setter with param type " + existingParamType);
+                                }
+                                leastNarrow = m;
+                            }
+                        }
+                    }
+                }
+            }
+            if (leastNarrow == null) {
+                // If we can't find a legit setter method, attempt a direct field write
+                if (log.isTraceEnabled()) {
+                    log.trace("For field " + fieldName + " could not find setter method " + setterName + ", attempting direct field write access");
+                }
+                insertDirectFieldWrite(setterMap, lookupUtility, field, fieldName);
+            } else {
+                insertSetterMethodCall(setterMap, lookupUtility, field, fieldName, leastNarrow);
+            }
+        } catch (IllegalAccessException e) {
+            // Quietly log and continue
+            if (log.isDebugEnabled()) {
+                log.debug("For mapped type " + targetClass.getName() + ", no accessible setter or field found for name " + field.getName());
+            }
+        }
+    }
+
+    /**
+     * Initializes the setters of this class and any of its superclasses in
+     * a synchronized block on the first call to decode().
+     *
+     * TODO do we want to cache this?
+     *
      * @throws ObjectMapperException If any failures occur looking up method handles
      */
     private void initSetters() throws ObjectMapperException {
@@ -734,89 +831,7 @@ public class ObjectMapper<T> {
                                 log.trace("Scanning fields in class " + cls.getName());
                             }
                             for (Field f : cls.getDeclaredFields()) {
-                                if (Modifier.isStatic(f.getModifiers())) {
-                                    if (log.isTraceEnabled()) {
-                                        log.trace("Ignore field " + f.getName() + " because it is static");
-                                    }
-                                    continue;
-                                }
-                                if (f.isAnnotationPresent(Ignore.class)) {
-                                    if (log.isTraceEnabled()) {
-                                        log.trace("Ignore field " + f.getName() + " because it specifies @Ignore");
-                                    }
-                                    continue;
-                                }
-                                if (f.isAnnotationPresent(Nested.class) || (findAnnotation(f.getType(), rootElemAnnotation))) {
-                                    Class<?> nestedType = f.getType();
-                                    Nested nestedAnnotation = f.getAnnotation(Nested.class);
-                                    if (nestedAnnotation != null) {
-                                        if (nestedAnnotation.value().equals(Nested.class)) {
-                                            // This is the default if you leave the Nested annotation empty. You should probably not do this.
-                                            if (List.class.isAssignableFrom(f.getType())) {
-                                                nestedType = targetClass;
-                                            }
-                                        } else {
-                                            // Explicit mapped type set
-                                            nestedType = nestedAnnotation.value();
-                                        }
-                                    }
-                                    nested.put(f.getName(), get(nestedType));
-                                }
-                                String fieldName = f.getName();
-                                try {
-                                    // Find a legit setter method. We don't care about capitalization
-                                    String setterName = "set" + f.getName();
-                                    if (f.isAnnotationPresent(SetterMethod.class)) {
-                                        SetterMethod setterAnnotation = f.getAnnotation(SetterMethod.class);
-                                        if (isNotNullOrEmpty(setterAnnotation.value())) {
-                                            setterName = setterAnnotation.value();
-                                        }
-                                    }
-                                    // Use reflection to find the setter method; using MethodType is not as
-                                    // flexible because we would need to specify a return type. We only care
-                                    // about the name and the parameter type. We loop over the methods from
-                                    // 'targetClass' and not 'cls' because we want to call inherited methods
-                                    // if they are available, rather than the superclass abstract ones.
-                                    Method leastNarrow = null;
-                                    for(Method m : targetClass.getMethods()) {
-                                        if (m.getName().equalsIgnoreCase(setterName)) {
-                                            if (m.getParameterCount() == 1 && f.getType().isAssignableFrom(m.getParameterTypes()[0])) {
-                                                if (leastNarrow == null || m.getParameterTypes()[0].equals(f.getType())) {
-                                                    leastNarrow = m;
-                                                } else {
-                                                    Class<?> existingParamType = leastNarrow.getParameterTypes()[0];
-                                                    Class<?> newParamType = m.getParameterTypes()[0];
-                                                    if (!existingParamType.isAssignableFrom(newParamType) && newParamType.isAssignableFrom(existingParamType)) {
-                                                        if (log.isTraceEnabled()) {
-                                                            log.trace("For field " + fieldName + " setter method with param type " + newParamType + " is more general than setter with param type " + existingParamType);
-                                                        }
-                                                        leastNarrow = m;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (leastNarrow == null) {
-                                        // If we can't find a legit setter method, attempt a direct field write
-                                        if (log.isTraceEnabled()) {
-                                            log.trace("For field " + fieldName + " could not find setter method " + setterName + ", attempting direct field write access");
-                                        }
-                                        setterTypes.put(fieldName, f.getType());
-                                        tempSetters.put(fieldName, lookup.findSetter(targetClass, fieldName, f.getType()));
-                                    } else {
-                                        if (log.isTraceEnabled()) {
-                                            log.trace("For field " + fieldName + " found most general setter method " + leastNarrow.getName() + " with param type " + leastNarrow.getParameterTypes()[0].getName());
-                                        }
-
-                                        setterTypes.put(fieldName, leastNarrow.getParameterTypes()[0]);
-                                        tempSetters.put(fieldName, lookup.unreflect(leastNarrow));
-                                    }
-                                } catch (IllegalAccessException e) {
-                                    // Quietly log and continue
-                                    if (log.isDebugEnabled()) {
-                                        log.debug("For mapped type " + targetClass.getName() + ", no accessible setter or field found for name " + f.getName());
-                                    }
-                                }
+                                initAnalyzeField(rootElemAnnotation, tempSetters, lookup, f);
                             } // end field loop
                             if (cls.isAnnotationPresent(IgnoreSuper.class)) {
                                 if (log.isTraceEnabled()) {
@@ -841,5 +856,89 @@ public class ObjectMapper<T> {
         }
     }
 
+    /**
+     * For the given field, initializes the setter map if it's accessible and
+     * is not ignored.
+     *
+     * @param rootElemAnnotation The cached XMLRootElement annotation, just for easier type checking
+     * @param tempSetters The temporary setters
+     * @param lookup The MethodHandle lookup utility from the JDK
+     * @param field The field being analyzed
+     * @throws NoSuchFieldException if there is a problem accessing the field
+     */
+    private void initAnalyzeField(Class<? extends Annotation> rootElemAnnotation, Map<String, MethodHandle> tempSetters, MethodHandles.Lookup lookup, Field field) throws NoSuchFieldException {
+        if (Modifier.isStatic(field.getModifiers())) {
+            if (log.isTraceEnabled()) {
+                log.trace("Ignore field " + field.getName() + " because it is static");
+            }
+            return;
+        }
+        if (field.isAnnotationPresent(Ignore.class)) {
+            if (log.isTraceEnabled()) {
+                log.trace("Ignore field " + field.getName() + " because it specifies @Ignore");
+            }
+            return;
+        }
+        if (field.isAnnotationPresent(Nested.class) || (findAnnotation(field.getType(), rootElemAnnotation))) {
+            Class<?> nestedType = field.getType();
+            Nested nestedAnnotation = field.getAnnotation(Nested.class);
+            if (nestedAnnotation != null) {
+                if (nestedAnnotation.value().equals(Nested.class)) {
+                    // This is the default if you leave the Nested annotation empty. You should probably not do this.
+                    if (List.class.isAssignableFrom(field.getType())) {
+                        nestedType = targetClass;
+                    }
+                } else {
+                    // Explicit mapped type set
+                    nestedType = nestedAnnotation.value();
+                }
+            }
+            nested.put(field.getName(), get(nestedType));
+        }
+        initSetterForField(tempSetters, lookup, field);
+    }
+
+    /**
+     * Inserts a MethodHandle directly setting the value for the given field, or
+     * any of its alias names.
+     *
+     * @param setterMap The setter map
+     * @param lookupUtility The lookup utility for getting the MethodHandle
+     * @param field The field being evaluated
+     * @param fieldName The field name
+     * @throws IllegalAccessException if any failure occurs accessing the field
+     */
+    private void insertDirectFieldWrite(Map<String, MethodHandle> setterMap, MethodHandles.Lookup lookupUtility, Field field, String fieldName) throws NoSuchFieldException, IllegalAccessException {
+        List<String> names = getNamesWithAliases(fieldName, field);
+
+        for(String name: names) {
+            setterTypes.put(name, field.getType());
+            setterMap.put(name, lookupUtility.findSetter(targetClass, fieldName, field.getType()));
+        }
+    }
+
+    /**
+     * Inserts a MethodHandle invoking the setter method for the given field, or
+     * any of its alias names.
+     *
+     * @param setterMap The setter map
+     * @param lookupUtility The lookup utility for getting the MethodHandle
+     * @param field The field being evaluated
+     * @param fieldName The field name
+     * @param setterMethod The setter method located
+     * @throws IllegalAccessException if any failure occurs accessing the setter
+     */
+    private void insertSetterMethodCall(Map<String, MethodHandle> setterMap, MethodHandles.Lookup lookupUtility, Field field, String fieldName, Method setterMethod) throws IllegalAccessException {
+        if (log.isTraceEnabled()) {
+            log.trace("For field " + fieldName + " found most general setter method " + setterMethod.getName() + " with param type " + setterMethod.getParameterTypes()[0].getName());
+        }
+
+        List<String> names = getNamesWithAliases(fieldName, field);
+
+        for(String name: names) {
+            setterTypes.put(name, setterMethod.getParameterTypes()[0]);
+            setterMap.put(name, lookupUtility.unreflect(setterMethod));
+        }
+    }
 
 }
