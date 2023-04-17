@@ -64,6 +64,11 @@ repositories {
     }
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
 publishing {
     publications {
         library(MavenPublication) {
@@ -88,6 +93,10 @@ publishing {
 
 group 'com.identityworksllc.iiq.common.minimal'
 version getVersion()
+
+tasks.named("sourcesJar") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
 
 tasks.withType(JavaCompile) {
     options.warnings = false
