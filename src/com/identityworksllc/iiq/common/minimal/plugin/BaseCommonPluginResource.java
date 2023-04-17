@@ -2,6 +2,7 @@ package com.identityworksllc.iiq.common.minimal.plugin;
 
 import com.identityworksllc.iiq.common.minimal.AbstractBaseUtility;
 import com.identityworksllc.iiq.common.minimal.Sameness;
+import com.identityworksllc.iiq.common.minimal.Syslogger;
 import com.identityworksllc.iiq.common.minimal.ThingAccessUtils;
 import com.identityworksllc.iiq.common.minimal.TooManyResultsException;
 import com.identityworksllc.iiq.common.minimal.logging.LogCapture;
@@ -589,6 +590,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 				} catch(Exception e) {
 					// Log so that it makes it into the captured logs, if any exist
 					log.handleException(e);
+					Syslogger.logEvent(this.getClass(), "Error in REST API: " + e.getClass().getName(), e);
 					throw e;
 				}
 			} finally {

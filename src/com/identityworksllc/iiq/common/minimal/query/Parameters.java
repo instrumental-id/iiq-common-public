@@ -33,6 +33,8 @@ public class Parameters {
             stmt.setDate(param, new java.sql.Date(((Date) value).getTime()));
         } else if (value instanceof Long) {
             stmt.setLong(param, (Long) value);
+        } else if (value instanceof Integer) {
+            stmt.setInt(param, (Integer) value);
         } else if (value instanceof SailPointObject) {
             stmt.setString(param, ((SailPointObject) value).getId());
         } else {

@@ -13,8 +13,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * A class storing the type and at least the ID (must be object[0]) of some results
- * for reconstruction later
+ * Constructs IIQ Reference objects using a standardized API
  */
 public final class Ref {
     /**
