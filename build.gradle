@@ -1,3 +1,5 @@
+import java.text.SimpleDateFormat
+
 buildscript {
     repositories { obj ->
         maven {
@@ -23,14 +25,14 @@ apply plugin: "org.jdrupes.mdoclet"
 def getVersion() {
     def branch = System.getenv('CI_COMMIT_BRANCH')
 
-    println "Git branch is " + branch;
-
-    def date = new Date().format('yyyyMMddHHmmss')
+    def now = new Date()
+    def format = new SimpleDateFormat("yyyyMM.dd.HHmmss")
+    def mavenVersion = format.format(now)
 
     if (branch == null || branch != "main") {
-        return date + "-SNAPSHOT"
+        return mavenVersion + "-SNAPSHOT"
     } else {
-        return date
+        return mavenVersion
     }
 }
 
