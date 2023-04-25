@@ -22,7 +22,7 @@ public abstract class AbstractNamedParameterStatement<StatementType extends Stat
      * @param indexMap map to hold parameter-index mappings
      * @return the parsed query
      */
-    /* default */ static String parse(String query, Map<String, int[]> indexMap) {
+    public static String parse(String query, Map<String, int[]> indexMap) {
         Map<String, List<Integer>> paramMap = new HashMap<>();
         int length = query.length();
         StringBuilder parsedQuery = new StringBuilder(length);
