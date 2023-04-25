@@ -16,6 +16,7 @@ import sailpoint.object.Identity;
 import sailpoint.object.IdentitySelector;
 import sailpoint.object.Script;
 import sailpoint.rest.plugin.BasePluginResource;
+import sailpoint.server.Environment;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
@@ -24,7 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Implements the "Common Security" protocol that was originally part of the
@@ -37,12 +40,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * subject and the target are the same. Other actions don't have a 'target' concept
  * and are treated as 'self' actions.
  */
+@SuppressWarnings("unused")
 public class ThingAccessUtils {
 
     /**
      * The container object to hold the cached ThingAccessUtil results
      */
-    private static final class SecurityResult {
+    private static final class SecurityResult implements Supplier<Optional<AccessCheckResponse>> {
         /**
          * The epoch millisecond timestamp when this object expires, one minute after creation
          */
@@ -51,7 +55,7 @@ public class ThingAccessUtils {
         /**
          * The actual cached result
          */
-        private final AccessCheckResponse result;
+        private final Object result;
 
         /**
          * Store the result with an expiration time
@@ -66,27 +70,42 @@ public class ThingAccessUtils {
          * Returns the cached result
          * @return The cached result
          */
-        public AccessCheckResponse getResult() {
-            return this.result;
+        public Optional<AccessCheckResponse> get() {
+            if (this.result instanceof AccessCheckResponse && !this.isExpired()) {
+                return Optional.of((AccessCheckResponse) this.result);
+            } else {
+                return Optional.empty();
+            }
         }
 
         /**
          * Returns true if the current epoch timestamp is later than the expiration date
          * @return True if expired
          */
-        public boolean isExpired() {
+        private boolean isExpired() {
             return System.currentTimeMillis() >= expiration;
         }
     }
 
     /**
-     * The container object to identify the cached ThingAccessUtil inputs
+     * The container object to identify the cached ThingAccessUtil inputs.
+     *
+     * NOTE: It is very important that this work properly across plugin
+     * classloader contexts, even if the plugin has its own version of
+     * ThingAccessUtils.
      */
-    private static final class SecurityCacheToken {
+    public static final class SecurityCacheToken {
         /**
          * The CommonSecurityConfig object associated with the cached result
          */
-        private final CommonSecurityConfig commonSecurityConfig;
+        private final Map<String, Object> commonSecurityConfig;
+
+        /**
+         * The version of the plugin cache to invalidate records whenever
+         * a new plugin is installed. This will prevent wacky class cast
+         * problems.
+         */
+        private final int pluginVersion;
 
         /**
          * The name of the source identity
@@ -94,14 +113,14 @@ public class ThingAccessUtils {
         private final String source;
 
         /**
-         * The name of the target identity
-         */
-        private final String target;
-
-        /**
          * The optional state map
          */
         private final Map<String, Object> state;
+
+        /**
+         * The name of the target identity
+         */
+        private final String target;
 
         /**
          * Constructs a new cache entry
@@ -110,7 +129,7 @@ public class ThingAccessUtils {
          * @param target The target identity name
          */
         public SecurityCacheToken(CommonSecurityConfig csc, String source, String target, Map<String, Object> state) {
-            this.commonSecurityConfig = csc;
+            this.commonSecurityConfig = csc.toMap();
             this.target = target;
             this.source = source;
             this.state = new HashMap<>();
@@ -118,6 +137,8 @@ public class ThingAccessUtils {
             if (state != null) {
                 this.state.putAll(state);
             }
+
+            this.pluginVersion = Environment.getEnvironment().getPluginsCache().getVersion();
         }
 
         /**
@@ -139,12 +160,12 @@ public class ThingAccessUtils {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             SecurityCacheToken that = (SecurityCacheToken) o;
-            return Objects.equals(commonSecurityConfig, that.commonSecurityConfig) && Objects.equals(target, that.target) && Objects.equals(source, that.source) && Objects.equals(state, that.state);
+            return this.pluginVersion == that.pluginVersion && Objects.equals(commonSecurityConfig, that.commonSecurityConfig) && Objects.equals(target, that.target) && Objects.equals(source, that.source) && Objects.equals(state, that.state);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(commonSecurityConfig, target, source, state);
+            return Objects.hash(pluginVersion, commonSecurityConfig, target, source, state);
         }
     }
 
@@ -255,9 +276,9 @@ public class ThingAccessUtils {
         try {
             if (!input.getConfiguration().isNoCache()) {
                 SecurityCacheToken cacheToken = new SecurityCacheToken(input);
-                SecurityResult cachedResult = getCachedResult(cacheToken);
-                if (cachedResult != null) {
-                    return cachedResult.getResult();
+                Optional<AccessCheckResponse> cachedResult = getCachedResult(cacheToken);
+                if (cachedResult.isPresent()) {
+                    return cachedResult.get();
                 }
                 result = checkThingAccessImpl(input, null);
                 getCacheMap().put(cacheToken, new SecurityResult(result));
@@ -630,17 +651,21 @@ public class ThingAccessUtils {
     }
 
     /**
-     * Gets the cached result for the given security context
+     * Gets an optional cached result for the given cache token. An empty
+     * optional will be returned if there is no cached entry for the given token
+     * or if it has expired or if there is classloader weirdness.
+     *
      * @param securityContext The security context
      * @return The cached result, if one exists
      */
-    private static SecurityResult getCachedResult(SecurityCacheToken securityContext) {
+    private static Optional<AccessCheckResponse> getCachedResult(SecurityCacheToken securityContext) {
         ConcurrentHashMap<SecurityCacheToken, SecurityResult> cacheMap = getCacheMap();
-        SecurityResult cachedResult = cacheMap.get(securityContext);
-        if (cachedResult != null && !cachedResult.isExpired()) {
-            return cachedResult;
+        Supplier<Optional<AccessCheckResponse>> cachedEntry = cacheMap.get(securityContext);
+        if (cachedEntry == null) {
+            return Optional.empty();
+        } else {
+            return cachedEntry.get();
         }
-        return null;
     }
 
     /**

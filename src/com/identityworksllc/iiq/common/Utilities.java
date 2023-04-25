@@ -44,13 +44,19 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -396,6 +402,146 @@ public class Utilities {
 			return Util.nullSafeCaseInsensitiveEq(leafFilter.getProperty(), property) || Util.nullSafeCaseInsensitiveEq(leafFilter.getSubqueryProperty(), property);
 		}
 		return false;
+	}
+
+	/**
+	 * Converts the input object using the two date formats provided by invoking
+	 * the four-argument {@link #convertDateFormat(Object, String, String, ZoneId)}.
+	 *
+	 * The system default ZoneId will be used.
+	 *
+	 * @param something The input object, which can be a string or various date objects
+	 * @param inputDateFormat The input date format, which will be applied to a string input
+	 * @param outputDateFormat The output date format, which will be applied to the intermediate date
+	 * @return The input object formatted according to the output date format
+	 * @throws java.time.format.DateTimeParseException if there is a failure parsing the date
+	 */
+	public static String convertDateFormat(Object something, String inputDateFormat, String outputDateFormat) {
+		return convertDateFormat(something, inputDateFormat, outputDateFormat, ZoneId.systemDefault());
+	}
+
+	/**
+	 * Converts the input object using the two date formats provided.
+	 *
+	 * If the input object is a String (the most likely case), it will be
+	 * transformed into an intermediate date using the inputDateFormat. Date
+	 * type inputs (Date, LocalDate, LocalDateTime, and Long) will be
+	 * converted directly to an intermediate date.
+	 *
+	 * JDBC classes like Date and Timestamp extend java.util.Date, so that
+	 * logic would apply here.
+	 *
+	 * The intermediate date will then be formatted using the outputDateFormat
+	 * at the appropriate ZoneId.
+	 *
+	 * @param something The input object, which can be a string or various date objects
+	 * @param inputDateFormat The input date format, which will be applied to a string input
+	 * @param outputDateFormat The output date format, which will be applied to the intermediate date
+	 * @param zoneId The time zone to use for parsing and formatting
+	 * @return The input object formatted according to the output date format
+	 * @throws java.time.format.DateTimeParseException if there is a failure parsing the date
+	 */
+	public static String convertDateFormat(Object something, String inputDateFormat, String outputDateFormat, ZoneId zoneId) {
+		if (something == null) {
+			return null;
+		}
+
+		LocalDateTime intermediateDate = null;
+
+		DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern(inputDateFormat).withZone(zoneId);
+		DateTimeFormatter outputFormat = DateTimeFormatter.ofPattern(outputDateFormat).withZone(zoneId);
+
+		if (something instanceof String) {
+			if (Util.isNullOrEmpty((String) something)) {
+				return null;
+			}
+
+			String inputString = (String) something;
+
+			intermediateDate = LocalDateTime.parse(inputString, inputFormat);
+		} else if (something instanceof Date) {
+			Date somethingDate = (Date) something;
+			intermediateDate = somethingDate.toInstant().atZone(zoneId).toLocalDateTime();
+		} else if (something instanceof LocalDate) {
+			intermediateDate = ((LocalDate) something).atStartOfDay();
+		} else if (something instanceof LocalDateTime) {
+			intermediateDate = (LocalDateTime) something;
+		} else if (something instanceof Number) {
+			long timestamp = ((Number) something).longValue();
+			intermediateDate = Instant.ofEpochMilli(timestamp).atZone(zoneId).toLocalDateTime();
+		} else {
+			throw new IllegalArgumentException("The input type is not valid (expected String, Date, LocalDate, LocalDateTime, or Long");
+		}
+
+		return intermediateDate.format(outputFormat);
+	}
+
+	/**
+	 * Determines whether the test date is at least N days ago.
+	 *
+	 * @param testDate The test date
+	 * @param days The number of dates
+	 * @return True if this date is equal to or earlier than the calendar date N days ago
+	 */
+	public static boolean dateAtLeastDaysAgo(Date testDate, int days) {
+		LocalDate ldt1 = testDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+		LocalDate ldt2 = LocalDate.now().minus(days, ChronoUnit.DAYS);
+
+		return !ldt1.isAfter(ldt2);
+	}
+
+	/**
+	 * Determines whether the test date is at least N years ago.
+	 *
+	 * NOTE: This method checks using actual calendar years, rather than
+	 * calculating a number of days and comparing that. It will take into
+	 * account leap years and other date weirdness.
+	 *
+	 * @param testDate The test date
+	 * @param years The number of years
+	 * @return True if this date is equal to or earlier than the calendar date N years ago
+	 */
+	public static boolean dateAtLeastYearsAgo(Date testDate, int years) {
+		LocalDate ldt1 = testDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+		LocalDate ldt2 = LocalDate.now().minus(years, ChronoUnit.YEARS);
+
+		return !ldt1.isAfter(ldt2);
+	}
+
+	/**
+	 * Converts two Date objects to {@link LocalDate} at the system default
+	 * time zone and returns the number of days between them.
+	 *
+	 * If you pass the dates in the wrong order (first parameter is the later
+	 * date), they will be silently swapped before returning the Duration.
+	 *
+	 * @param firstTime The first time to compare
+	 * @param secondTime The second time to compare
+	 * @return The {@link Period} between the two days
+	 */
+	public static Period dateDifference(Date firstTime, Date secondTime) {
+		if (firstTime == null || secondTime == null) {
+			throw new IllegalArgumentException("Both arguments to dateDifference must be non-null");
+		}
+
+		LocalDate ldt1 = firstTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+		LocalDate ldt2 = secondTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+		// Swap the dates if they're backwards
+		if (ldt1.isAfter(ldt2)) {
+			LocalDate tmp = ldt2;
+			ldt2 = ldt1;
+			ldt1 = tmp;
+		}
+
+		return Period.between(ldt1, ldt2);
+	}
+
+	/**
+	 * @see #dateDifference(Date, Date)
+	 */
+	public static Period dateDifference(long firstTime, long secondTime) {
+		return dateDifference(new Date(firstTime), new Date(secondTime));
 	}
 
 	/**
@@ -808,22 +954,52 @@ public class Utilities {
 	}
 
 	/**
-	 * Returns the first item in the input that is not null
+	 * Returns the first item in the input that is not null, an empty Optional,
+	 * or a Supplier that returns null.
 	 *
 	 * @param items The input items
 	 * @param <T>   The superclass of all input items
 	 * @return if the item is not null or empty
 	 */
-	public static <T> T getFirstNotNull(T... items) {
-		if (items == null || items.length == 0) {
+	@SuppressWarnings("unchecked")
+	public static <T> T getFirstNotNull(List<T> items) {
+		if (items == null) {
 			return null;
 		}
 		for (T item : items) {
-			if (item != null) {
+			boolean nullish = (item == null);
+
+			if (!nullish && item instanceof Optional) {
+				nullish = !((Optional<?>) item).isPresent();
+			}
+
+			if (!nullish && item instanceof Supplier) {
+				Object output = ((Supplier<?>) item).get();
+				if (output instanceof Optional) {
+					nullish = !((Optional<?>) output).isPresent();
+				} else {
+					nullish = (output == null);
+				}
+			}
+
+			if (!nullish) {
 				return item;
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Returns the first item in the input that is not null, an empty Optional,
+	 * or a Supplier that returns null.
+	 *
+	 * @param items The input items
+	 * @param <T>   The superclass of all input items
+	 * @return if the item is not null or empty
+	 */
+	@SafeVarargs
+	public static <T> T getFirstNotNull(T... items) {
+		return getFirstNotNull(Arrays.asList(items));
 	}
 
 	/**
@@ -1409,7 +1585,9 @@ public class Utilities {
 	}
 
 	/**
-	 * Returns true if the given object is 'nothing': a null, empty string, empty map, empty Collection, or empty Iterable.
+	 * Returns true if the given object is 'nothing': a null, empty string, empty map, empty
+	 * Collection, empty Optional, or empty Iterable. If the given object is a Supplier,
+	 * returns true if {@link Supplier#get()} returns a 'nothing' result.
 	 *
 	 * Iterables will be flushed using {@link Util#flushIterator(Iterator)}. That means this may
 	 * be a slow process for Iterables.
@@ -1433,6 +1611,11 @@ public class Utilities {
 			boolean empty = !i.hasNext();
 			Util.flushIterator(i);
 			return empty;
+		} else if (thing instanceof Optional) {
+			return !((Optional<?>) thing).isPresent();
+		} else if (thing instanceof Supplier) {
+			Object output = ((Supplier<?>) thing).get();
+			return isNothing(output);
 		}
 		return false;
 	}
@@ -1521,7 +1704,7 @@ public class Utilities {
 	 * return null.
 	 *
 	 * @param objects The objects to add to the list
- 	 * @param <T> The type of the list
+	 * @param <T> The type of the list
 	 * @return A list containing each of the items
 	 */
 	@SafeVarargs
@@ -1757,22 +1940,6 @@ public class Utilities {
 	}
 
 	/**
-	 * Returns the input string if it is not null, explicitly noting the input as a String to
-	 * make Beanshell happy at runtime.
-	 *
-	 * Identical to {@link Utilities#nullToEmpty(String)}, except Beanshell can't decide
-	 * which of the method variants to call when the input is null. This leads to scripts
-	 * sometimes calling {@link Utilities#nullToEmpty(Map)} instead. (Java would be able
-	 * to infer the overload to invoke at compile time by using the variable type.)
-	 *
-	 * @param maybeNull The input string, which is possibly null
-	 * @return The input string or an empty string
-	 */
-	public static String nullToEmptyString(String maybeNull) {
-		return Utilities.nullToEmpty(maybeNull);
-	}
-
-	/**
 	 * Converts the given collection to an empty Attributes, if a null object is passed,
 	 * the input object (if an Attributes is passed), or a new Attributes containing all
 	 * elements from the input Map (if any other type of Map is passed).
@@ -1806,6 +1973,47 @@ public class Utilities {
 			return (List<T>)input;
 		} else {
 			return new ArrayList<>(input);
+		}
+	}
+
+	/**
+	 * Returns the input string if it is not null, explicitly noting the input as a String to
+	 * make Beanshell happy at runtime.
+	 *
+	 * Identical to {@link Utilities#nullToEmpty(String)}, except Beanshell can't decide
+	 * which of the method variants to call when the input is null. This leads to scripts
+	 * sometimes calling {@link Utilities#nullToEmpty(Map)} instead. (Java would be able
+	 * to infer the overload to invoke at compile time by using the variable type.)
+	 *
+	 * @param maybeNull The input string, which is possibly null
+	 * @return The input string or an empty string
+	 */
+	public static String nullToEmptyString(String maybeNull) {
+		return Utilities.nullToEmpty(maybeNull);
+	}
+
+	/**
+	 * Parses the input string into a LocalDateTime, returning an {@link Optional}
+	 * if the date parses properly. If the date does not parse properly, or if the
+	 * input is null, returns an {@link Optional#empty()}.
+	 *
+	 * @param inputString The input string
+	 * @param format The format used to parse the input string per {@link DateTimeFormatter} rules
+	 * @return The parsed string
+	 */
+	public static Optional<LocalDateTime> parseDateString(String inputString, String format) {
+		if (Util.isNullOrEmpty(inputString) || Util.isNullOrEmpty(format)) {
+			return Optional.empty();
+		}
+
+		try {
+			DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+			return Optional.of(LocalDateTime.parse(inputString, formatter));
+		} catch(DateTimeParseException e) {
+			if (logger.isDebugEnabled()) {
+				logger.debug("Failed to parse date [" + inputString + "] according to format [" + format + "]");
+			}
+			return Optional.empty();
 		}
 	}
 
@@ -1906,7 +2114,7 @@ public class Utilities {
 	 * @param <T> The expected return type
 	 * @return The object cast to the given type, or null if it cannot be cast
 	 */
-    public static <T> T safeCast(Object input, Class<T> targetClass) {
+	public static <T> T safeCast(Object input, Class<T> targetClass) {
 		if (input == null) {
 			return null;
 		}
@@ -1915,7 +2123,7 @@ public class Utilities {
 			return targetClass.cast(input);
 		}
 		return null;
-    }
+	}
 
 	/**
 	 * Returns the class name of the object, or the string 'null', suitable for logging safely
@@ -1923,24 +2131,24 @@ public class Utilities {
 	 * @return The class name, or the string 'null'
 	 */
 	public static String safeClassName(Object any) {
-    	if (any == null) {
-    		return "null";
+		if (any == null) {
+			return "null";
 		} else {
-    		return any.getClass().getName();
+			return any.getClass().getName();
 		}
 	}
 
-    public static boolean safeContainsAll(Object maybeBiggerCollection, Object maybeSmallerCollection) {
-    	if (maybeBiggerCollection == null || maybeSmallerCollection == null) {
-    		return false;
+	public static boolean safeContainsAll(Object maybeBiggerCollection, Object maybeSmallerCollection) {
+		if (maybeBiggerCollection == null || maybeSmallerCollection == null) {
+			return false;
 		}
-    	List<Object> biggerCollection = new ArrayList<>();
-    	if (maybeBiggerCollection instanceof Collection) {
-    		biggerCollection.addAll((Collection<?>) maybeBiggerCollection);
+		List<Object> biggerCollection = new ArrayList<>();
+		if (maybeBiggerCollection instanceof Collection) {
+			biggerCollection.addAll((Collection<?>) maybeBiggerCollection);
 		} else if (maybeBiggerCollection instanceof Object[]) {
-    		biggerCollection.addAll(Arrays.asList((Object[])maybeBiggerCollection));
+			biggerCollection.addAll(Arrays.asList((Object[])maybeBiggerCollection));
 		} else {
-    		biggerCollection.add(maybeBiggerCollection);
+			biggerCollection.add(maybeBiggerCollection);
 		}
 
 		List<Object> smallerCollection = new ArrayList<>();
@@ -2070,18 +2278,18 @@ public class Utilities {
 	 * @return The resulting Map
 	 */
 	@SuppressWarnings("unchecked")
-    public static <S, T> Map<S, T> safeMapCast(Object input, Class<S> keyType, Class<T> valueType) {
-    	if (!(input instanceof Map)) {
-    		return null;
+	public static <S, T> Map<S, T> safeMapCast(Object input, Class<S> keyType, Class<T> valueType) {
+		if (!(input instanceof Map)) {
+			return null;
 		}
-    	boolean conforms = mapConformsToType((Map<?, ?>) input, keyType, valueType);
-    	if (conforms) {
-    		return (Map<S, T>)input;
+		boolean conforms = mapConformsToType((Map<?, ?>) input, keyType, valueType);
+		if (conforms) {
+			return (Map<S, T>)input;
 		} else {
-    		return null;
+			return null;
 		}
 	}
-	
+
 	/**
 	 * Returns the size of the input array, returning 0 if the array is null
 	 * @param input The array to get the size of
@@ -2456,6 +2664,42 @@ public class Utilities {
 	}
 
 	/**
+	 * Converts two Date objects to {@link LocalDateTime} at the system default
+	 * time zone and returns the {@link Duration} between them.
+	 *
+	 * If you pass the dates in the wrong order (first parameter is the later
+	 * date), they will be silently swapped before returning the Duration.
+	 *
+	 * @param firstTime The first time to compare
+	 * @param secondTime The second time to compare
+	 * @return The {@link Period} between the two days
+	 */
+	public static Duration timeDifference(Date firstTime, Date secondTime) {
+		if (firstTime == null || secondTime == null) {
+			throw new IllegalArgumentException("Both arguments to dateDifference must be non-null");
+		}
+
+		LocalDateTime ldt1 = firstTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+		LocalDateTime ldt2 = secondTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+		// Swap the dates if they're backwards
+		if (ldt1.isAfter(ldt2)) {
+			LocalDateTime tmp = ldt2;
+			ldt2 = ldt1;
+			ldt1 = tmp;
+		}
+
+		return Duration.between(ldt1, ldt2);
+	}
+
+	/**
+	 * @see #timeDifference(Date, Date)
+	 */
+	public static Duration timeDifference(long firstTime, long secondTime) {
+		return timeDifference(new Date(firstTime), new Date(secondTime));
+	}
+
+	/**
 	 * Returns the current time in a standard format
 	 * @return The current time
 	 */
@@ -2526,7 +2770,7 @@ public class Utilities {
 			}
 		}
 	}
-	
+
 	/**
 	 * Attempts to capture the user's time zone information from the user context. This could be used via a web services call where the {@link BaseResource} class is a {@link UserContext}.
 	 *
@@ -2556,7 +2800,7 @@ public class Utilities {
 			}
 		}
 	}
-	
+
 	/**
 	 * Attempts to get the SPKeyStore, a class which is for some reason protected.
 	 * @return The keystore, if we could get it

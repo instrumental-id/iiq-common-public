@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
  * to decode an instance of this class.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@SuppressWarnings("unused")
 public class CommonSecurityConfig implements Serializable, MapDecodable {
     /**
      * The cached object mapper to use for this decoding. Note that due to classloader
@@ -322,10 +323,9 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
      * Stores the original map from which this entry was decoded, if possible.
      *
      * @param input The input
-     * @throws ObjectMapper.ObjectMapperException if the decoding fails
      */
     @Override
-    public void initializeFromMap(Map<String, Object> input) throws ObjectMapper.ObjectMapperException {
+    public void initializeFromMap(Map<String, Object> input) {
         if (this._originalMap.isEmpty()) {
             this._originalMap.putAll(input);
             handleNested(this._originalMap, "oneOf", this.oneOf);
@@ -446,13 +446,12 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
      * Returns a Map representation of this {@link CommonSecurityConfig}.
      *
      * If it was originally constructed via ObjectMapper, the returned Map will be
-     * a copy of the original input.
+     * a copy of the original input. Otherwise, we will do our best to reconstruct one.
      *
      * @return The Map representation
      */
     public Map<String, Object> toMap() {
         if (this._originalMap.isEmpty()) {
-            // TODO build a map where one doesn't exist
             final Map<String, Object> map = new HashMap<>();
 
             // Consumer to simplify taking a list of strings and adding it to the Map if not empty
@@ -468,8 +467,10 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
 
             handleStringList.accept("requiredRights", this.requiredRights);
             handleStringList.accept("requiredCapabilities", this.requiredCapabilities);
-            handleStringList.accept("excludedWorkgroups", this.excludedWorkgroups);
             handleStringList.accept("requiredWorkgroups", this.requiredWorkgroups);
+            handleStringList.accept("excludedRights", this.excludedRights);
+            handleStringList.accept("excludedCapabilities", this.excludedCapabilities);
+            handleStringList.accept("excludedWorkgroups", this.excludedWorkgroups);
             handleStringList.accept("validTargetCapabilities", this.validTargetCapabilities);
             handleStringList.accept("validTargetExcludedRights", this.validTargetExcludedRights);
             handleStringList.accept("validTargetWorkgroups", this.validTargetWorkgroups);
