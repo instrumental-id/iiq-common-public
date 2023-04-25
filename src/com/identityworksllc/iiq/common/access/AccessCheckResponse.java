@@ -5,27 +5,38 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers;
+import com.identityworksllc.iiq.common.Mappable;
 import com.identityworksllc.iiq.common.vo.LogLevel;
 import com.identityworksllc.iiq.common.vo.StampedMessage;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import sailpoint.tools.Message;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The output of the
+ * The output of {@link com.identityworksllc.iiq.common.ThingAccessUtils#checkThingAccess(AccessCheckInput)}.
  */
 @JsonAutoDetect
-public class AccessCheckResponse {
+public class AccessCheckResponse implements Mappable {
     private static final Log log = LogFactory.getLog(AccessCheckResponse.class);
 
+    /**
+     * Whether the access was allowed
+     */
     @JsonSerialize(using = StdJdkSerializers.AtomicBooleanSerializer.class)
     private final AtomicBoolean allowed;
 
+    /**
+     * Any output messages from the access check
+     */
     private final List<StampedMessage> messages;
 
+    /**
+     * The timestamp of the check
+     */
     private final long timestamp;
 
     /**
@@ -69,6 +80,14 @@ public class AccessCheckResponse {
     }
 
     /**
+     * Adds a message to the collection
+     * @param message The message to add
+     */
+    public void addMessage(Message message) {
+        this.messages.add(new StampedMessage(message));
+    }
+
+    /**
      * Denies access to the thing, setting the allowed flag to false
      */
     public void deny() {
@@ -87,14 +106,26 @@ public class AccessCheckResponse {
         }
     }
 
+    /**
+     * Gets the stored messages
+     * @return The stored messages
+     */
     public List<StampedMessage> getMessages() {
         return messages;
     }
 
+    /**
+     * Gets the timestamp
+     * @return The timestamp
+     */
     public long getTimestamp() {
         return timestamp;
     }
 
+    /**
+     * Returns true if the access was allowed
+     * @return True if access was allowed
+     */
     public boolean isAllowed() {
         return this.allowed.get();
     }

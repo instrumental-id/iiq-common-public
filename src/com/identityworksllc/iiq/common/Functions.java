@@ -391,11 +391,27 @@ public class Functions {
         return (t) -> true;
     }
 
-    public static <T> Consumer<T> appendTo(List<T> values) {
+    /**
+     * Returns a Consumer that will append all inputs to the given List.
+     * If the list is not modifiable, the error will occur at runtime.
+     *
+     * @param values The List to which things should be added
+     * @return The function to add items to that list
+     * @param <T> The type of the items
+     */
+    public static <T> Consumer<T> appendTo(List<? super T> values) {
         return values::add;
     }
 
-    public static <T> Consumer<T> appendTo(Set<T> values) {
+    /**
+     * Returns a Consumer that will append all inputs to the given List.
+     * If the set is not modifiable, the error will occur at runtime.
+     *
+     * @param values The Set to which things should be added
+     * @return The function to add items to that set
+     * @param <T> The type of the items
+     */
+    public static <T> Consumer<T> appendTo(Set<? super T> values) {
         return values::add;
     }
 
@@ -436,6 +452,14 @@ public class Functions {
         };
     }
 
+    /**
+     * Creates a BiConsumer that invokes the given Beanshell method,
+     * passing the inputs to the consumer.
+     *
+     * @param bshThis The Beanshell 'this' context
+     * @param methodName The method name to invoke
+     * @return The BiConsumer
+     */
     public static BiConsumer<?, ?> bc(bsh.This bshThis, String methodName) {
         return (a, b) -> {
             Object[] params = new Object[]{a, b};
@@ -447,6 +471,12 @@ public class Functions {
         };
     }
 
+    /**
+     * Returns the 'boxed' class corresponding to the given primitive.
+     *
+     * @param prim The primitive class, e.g. Long.TYPE
+     * @return The boxed class, e.g., java.lang.Long
+     */
     public static Class<?> box(Class<?> prim) {
         Objects.requireNonNull(prim, "The class to box must not be null");
         if (prim.equals(Long.TYPE)) {
@@ -481,7 +511,7 @@ public class Functions {
     }
 
     /**
-     * Creates a Consumer to passes each input to a method on itself.
+     * Creates a Consumer to invoke a method on each input.
      */
     public static ConsumerWithError<Object> c(String methodName) {
         return object -> {
@@ -491,8 +521,8 @@ public class Functions {
     }
 
     /**
-     * Creates a Consumer to passes each input to a method on itself as the first
-     * argument, followed by any of the optional inputs.
+     * Creates a Consumer to invoke a method on an object passed to it. The
+     * remaining inputs arguments will be provided as arguments to the method.
      */
     public static ConsumerWithError<Object> c(String methodName, Object... inputs) {
         return object -> {
@@ -1797,6 +1827,40 @@ public class Functions {
     }
 
     /**
+     * Returns a function that transforms a value into an Optional that will
+     * be empty if the value matches {@link Utilities#isNothing(Object)}.
+     *
+     * @return A function that transforms a value into an Optional
+     * @param <T> The type of the object
+     */
+    public static <T> Function<T, Optional<T>> nothingToOptional() {
+        return (item) -> {
+            if (Utilities.isNothing(item)) {
+                return Optional.empty();
+            } else {
+                return Optional.of(item);
+            }
+        };
+    }
+
+    /**
+     * Returns a function that transforms a value into a Stream that will
+     * be empty if the value matches {@link Utilities#isNothing(Object)}.
+     *
+     * @return A function that transforms a value into an Optional
+     * @param <T> The type of the object
+     */
+    public static <T> Function<T, Stream<T>> nothingToStream() {
+        return (item) -> {
+            if (Utilities.isNothing(item)) {
+                return Stream.empty();
+            } else {
+                return Stream.of(item);
+            }
+        };
+    }
+
+    /**
      * Returns true if the two input objects are equal ignoring case
      */
     public static BiFunction<Object, Object, Boolean> nullSafeEq() {
@@ -1808,6 +1872,18 @@ public class Functions {
      */
     public static Function<Object, String> nullToEmpty() {
         return Utilities::safeString;
+    }
+
+    /**
+     * Returns a Beanshell-friendly equivalent to the JDK 9 Optional::stream
+     * function. The stream will have zero or one elements and is intended
+     * for use with {@link Stream#flatMap(Function)}.
+     *
+     * @return A function from an Optional to a Stream
+     * @param <T> The type of the object
+     */
+    public static <T> Function<Optional<T>, Stream<T>> optionalToStream() {
+        return o -> o.map(Stream::of).orElseGet(Stream::empty);
     }
 
     /**
