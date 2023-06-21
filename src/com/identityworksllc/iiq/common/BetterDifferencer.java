@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
  *  (4) Old and new values will be sorted, for easier comparison.
  *
  * TODO: Policy violation differences
+ * TODO: Javadocs!
  */
 public class BetterDifferencer {
 
@@ -70,17 +71,36 @@ public class BetterDifferencer {
             this.ls2 = ls2;
         }
     }
+
+    /**
+     * A set of applications where the comparison ought to be case-insensitive
+     */
     private Set<String> caseInsensitiveApplications;
+
+    /**
+     * A set of fields on which the comparison should be done case-insensitively
+     */
     private Set<String> caseInsensitiveFields;
     private final SailPointContext context;
+
+    /**
+     * If true, we should guess when there is a plausible account rename. This is
+     * only possible if the user had exactly one account before and exactly one
+     * account after.
+     */
     private boolean guessRenames;
     private final Log log;
+    /**
+     * A map from the old to new name of a renamed application
+     */
+    private Map<String, String> renamedApplications;
 
     public BetterDifferencer(SailPointContext context) {
         this.log = LogFactory.getLog(this.getClass());
         this.context = Objects.requireNonNull(context);
         this.caseInsensitiveFields = new HashSet<>();
         this.caseInsensitiveApplications = new HashSet<>();
+        this.renamedApplications = new HashMap<>();
     }
 
     private void addAddedRemovedValues(Difference difference, Object oldValue, Object newValue) {
@@ -110,12 +130,33 @@ public class BetterDifferencer {
         }
     }
 
+    /**
+     * Adds a particular application name as case-insensitive
+     * @param application The application name
+     */
     public void addCaseInsensitiveApplication(String application) {
         this.caseInsensitiveApplications.add(application);
     }
 
+    /**
+     * Adds a particular field on a particular applicaiton as case-insensitive
+     * @param application The application name
+     * @param field The field name
+     */
     public void addCaseInsensitiveField(String application, String field) {
         caseInsensitiveFields.add(application + ": " + field);
+    }
+
+    /**
+     * Adds a 'before' and 'after' to the rename map, which is used to find
+     * pairs of Links and also to figure out which Application's schema to use
+     * for difference detection.
+     *
+     * @param oldName The old name
+     * @param newName The new name
+     */
+    public void addRenamedApplication(String oldName, String newName) {
+        this.renamedApplications.put(oldName, newName);
     }
 
     private void allNew(Consumer<Difference> differenceConsumer, Predicate<String> isMultiValued, Function<String, String> getDisplayName, Attributes<String, Object> afterAttributes) {
@@ -307,17 +348,34 @@ public class BetterDifferencer {
         Application application = null;
         if (beforeLink != null) {
             application = context.getObject(Application.class, beforeLink.getApplication());
+
+            if (application == null) {
+                String renameMaybe = this.renamedApplications.get(beforeLink.getApplication());
+                if (Util.isNotNullOrEmpty(renameMaybe)) {
+                    application = context.getObject(Application.class, renameMaybe);
+                }
+            }
         }
         if (application == null && afterLink != null) {
             application = context.getObject(Application.class, afterLink.getApplication());
+
+            if (application == null) {
+                String renameMaybe = this.renamedApplications.get(afterLink.getApplication());
+                if (Util.isNotNullOrEmpty(renameMaybe)) {
+                    application = context.getObject(Application.class, renameMaybe);
+                }
+            }
         }
-        if (application == null){
-            log.warn("Unable to find an application");
+        if (application == null) {
+            // The application has probably been deleted. We can't do anything
+            // here because we need the application schema to continue.
+            // TODO Figure out if there's a way to fake the schema?
+            log.debug("Unable to find an application");
             if (beforeLink != null) {
-                log.warn("Before application is " + beforeLink.getApplication());
+                log.debug("Before application is " + beforeLink.getApplication());
             }
             if (afterLink != null) {
-                log.warn("After application is " + afterLink.getApplication());
+                log.debug("After application is " + afterLink.getApplication());
             }
             return;
         }
@@ -446,6 +504,16 @@ public class BetterDifferencer {
                 return link;
             }
         }
+
+        String translatedName = this.renamedApplications.get(target.getApplicationName());
+        if (Util.isNotNullOrEmpty(translatedName)) {
+            for(LinkSnapshot link : Util.safeIterable(snapshots)) {
+                if (Differencer.objectsEqual(link.getApplicationName(), translatedName, true) && Differencer.objectsEqual(link.getNativeIdentity(), target.getNativeIdentity(), true) && Differencer.objectsEqual(link.getInstance(), target.getInstance(), true)) {
+                    return link;
+                }
+            }
+        }
+
         return null;
     }
 
