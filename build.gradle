@@ -3,14 +3,14 @@ import java.text.SimpleDateFormat
 buildscript {
     repositories { obj ->
         maven {
-            url "https://plugins.gradle.org/m2/"
+            url = uri("https://plugins.gradle.org/m2/")
         }
         mavenCentral()
         mavenLocal()
     }
 
     dependencies {
-        classpath "org.ajoberstar.grgit:grgit-gradle:4.0.1"
+        classpath "org.ajoberstar.grgit:grgit-gradle:4.1.1"
         classpath 'org.aspectj:aspectjrt:1.8.9'
         classpath "org.asciidoctor:asciidoctor-gradle-jvm:3.3.2"
         classpath "org.asciidoctor:asciidoctor-gradle-jvm-pdf:3.3.2"
