@@ -1,4 +1,4 @@
-image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure/idw-containers/iiq-8.1-w-ssd
+image: $PLUGIN_BUILDER_IMAGE
 
 # Disable the Gradle daemon for Continuous Integration servers as correctness
 # is usually a priority over speed in CI environments. Using a fresh
