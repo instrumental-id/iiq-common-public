@@ -1,4 +1,5 @@
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 
 buildscript {
     repositories { obj ->
@@ -21,8 +22,9 @@ buildscript {
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: "org.jdrupes.mdoclet"
+apply plugin: "org.ajoberstar.grgit"
 
-def getVersion() {
+def getDistVersion() {
     def branch = System.getenv('CI_COMMIT_BRANCH')
 
     def now = new Date()
@@ -63,6 +65,22 @@ repositories {
         dirs "${libRoot}/sailpoint"
     }
 }
+
+jar {
+    def gitVersion = System.getenv("CI_COMMIT_SHORT_SHA") ?: "${grgit?.head()?.abbreviatedId}"
+    def year = LocalDate.now().year;
+
+    manifest {
+        attributes(
+                'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
+                'Build-Revision' : gitVersion ?: getDistVersion(),
+                'Created-By'     : "Gradle ${gradle.gradleVersion}",
+                'Subset'         : "Public",
+                'Copyright'      : "$year Identity Works LLC https://www.identityworksllc.com/"
+        )
+    }
+}
+
 
 java {
     withSourcesJar()
@@ -138,7 +156,7 @@ publishing {
 }
 
 group 'com.identityworksllc.iiq.common.minimal'
-version getVersion()
+version getDistVersion()
 
 tasks.named("sourcesJar") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
