@@ -1,5 +1,8 @@
 package com.identityworksllc.iiq.common.vo;
 
+import com.fasterxml.jackson.annotation.JsonClassDescription;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -23,6 +26,7 @@ import java.util.Objects;
  *
  */
 @JsonSerialize(using = StampedMessageSerializer.class)
+@JsonClassDescription("A message associated with a timestamp, akin to a log message from any logger tool")
 public class StampedMessage implements Serializable {
 
     /**
@@ -33,21 +37,25 @@ public class StampedMessage implements Serializable {
     /**
      * The exception associated with this log message
      */
+    @JsonPropertyDescription("The exception associated with this message, if any")
     private final Throwable exception;
 
     /**
      * The log level
      */
+    @JsonPropertyDescription("The log level of the message")
     private final LogLevel level;
 
     /**
      * The string message
      */
+    @JsonPropertyDescription("The message string")
     private final String message;
 
     /**
      * The timestamp in milliseconds that this object was created
      */
+    @JsonPropertyDescription("The message timestamp, in Unix epoch milliseconds")
     private final long timestamp;
 
     /**
