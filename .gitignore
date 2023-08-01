@@ -7,3 +7,4 @@ lib/sailpoint/
 .idea
 .eclipse
 .project
+plugin-installer.properties
