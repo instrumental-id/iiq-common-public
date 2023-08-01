@@ -5,9 +5,6 @@ package com.identityworksllc.iiq.common.plugin;
  * a return object and a status in the return value. This should prevent implementers
  * from needing to return a Response in most cases.
  *
- * However, if you use this class, you are responsible for ensuring that the type
- * of the wrapped object is okay to serialize.
- *
  * @param <T> The type of the wrapped object
  */
 public class ErrorResponse<T> {
