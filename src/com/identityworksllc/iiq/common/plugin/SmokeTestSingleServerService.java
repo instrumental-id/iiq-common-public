@@ -24,6 +24,11 @@ public class SmokeTestSingleServerService extends SingleServerService {
 
     @Override
     public void implementation(SailPointContext context) throws GeneralException {
-        log.warn("Running the single-server smoke test service on host " + Util.getHostName());
+        log.warn(executionCount.get() + ": Running the single-server smoke test service on host " + Util.getHostName());
+    }
+
+    @Override
+    public int skipExecutionCount() {
+        return 3;
     }
 }
