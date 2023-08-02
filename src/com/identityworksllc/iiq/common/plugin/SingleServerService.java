@@ -1,7 +1,10 @@
 package com.identityworksllc.iiq.common.plugin;
 
+import com.identityworksllc.iiq.common.service.BaseCommonService;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
-import sailpoint.server.BasePluginService;
+import sailpoint.plugin.PluginContext;
 import sailpoint.tools.GeneralException;
 
 /**
@@ -12,28 +15,18 @@ import sailpoint.tools.GeneralException;
  *
  * Extensions should implement {@link #implementation(SailPointContext)}.
  */
-public abstract class SingleServerService extends BasePluginService {
-    /**
-     * Main method called by the Servicer, does some setup and passes off to the
-     * single-server executor and ultimately {@link #implementation(SailPointContext)}.
-     * @param context The IIQ context
-     * @throws GeneralException on failures
-     */
-    @Override
-    public final void execute(SailPointContext context) throws GeneralException {
-        CommonPluginUtils.SingleServerExecute executor = this::implementation;
-        if (getDefinition().getBoolean("trackTimestamps")) {
-            executor = executor.andSaveTimestamps(getDefinition());
-        }
-        CommonPluginUtils.singleServerExecute(context, getDefinition(), executor);
-        context.commitTransaction();
-    }
+public abstract class SingleServerService extends BaseCommonService implements PluginContext {
 
     /**
-     * Your code goes here and will run on exactly one server at a time.
-     *
-     * @param context IIQ context
-     * @throws GeneralException if any failures occur
+     * Constructs a new service object, providing the single-service invoker
+     * as an execution model.
      */
-    public abstract void implementation(SailPointContext context) throws GeneralException;
+    public SingleServerService() {
+        // This determines how our service is actually invoked by the
+        // superclass. Wraps the default call to this::implementation.
+        this.invoker = (context) -> {
+            CommonPluginUtils.singleServerExecute(context, getDefinition(), this::implementation);
+            context.commitTransaction();
+        };
+    }
 }

@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * A utility to install plugins remotely using the IIQ REST API. This class can has no
  * external dependencies, so can be isolated.
  *
- * Usage: java com.identityworksllc.iiq.common.plugin.RemotePluginInstaller -p /path/to/properties install /path/to/file
+ * Usage: {@code java com.identityworksllc.iiq.common.plugin.RemotePluginInstaller -p /path/to/properties install /path/to/file}
  *
  * Commands exit with a non-zero exit code when problems occur.
  *

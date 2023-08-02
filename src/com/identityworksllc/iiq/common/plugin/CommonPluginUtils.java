@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.plugin;
 
+import com.identityworksllc.iiq.common.service.ServiceUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
@@ -46,16 +47,7 @@ public class CommonPluginUtils {
 				try {
 					this.singleServerExecute(context);
 				} finally {
-					Attributes<String, Object> attributes = target.getAttributes();
-					if (attributes == null) {
-						attributes = new Attributes<>();
-						target.setAttributes(attributes);
-					}
-					attributes.put("lastStart", lastStart);
-					attributes.put("lastStop", System.currentTimeMillis());
-					attributes.put("lastHost", Util.getHostName());
-					context.saveObject(target);
-					context.commitTransaction();
+					ServiceUtils.storeTimestamps(context, target, lastStart);
 				}
 			};
 		}
