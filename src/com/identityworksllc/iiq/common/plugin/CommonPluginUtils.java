@@ -41,6 +41,7 @@ public class CommonPluginUtils {
 		 * @param target The target ServiceDefinition to update
 		 * @return The wrapped functional interface object
 		 */
+		@Deprecated
 		default SingleServerExecute andSaveTimestamps(ServiceDefinition target) {
 			return (context) -> {
 				long lastStart = System.currentTimeMillis();
