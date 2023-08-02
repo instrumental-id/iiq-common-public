@@ -4,8 +4,11 @@ import com.identityworksllc.iiq.common.service.BaseCommonService;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
+import sailpoint.plugin.PluginBaseHelper;
 import sailpoint.plugin.PluginContext;
 import sailpoint.tools.GeneralException;
+
+import java.sql.Connection;
 
 /**
  * Abstract class to easily implement a Service that will only run on the
@@ -28,5 +31,17 @@ public abstract class SingleServerService extends BaseCommonService implements P
             CommonPluginUtils.singleServerExecute(context, getDefinition(), this::implementation);
             context.commitTransaction();
         };
+    }
+
+    /**
+     * Required by the PluginContext interface. Implementing this here so that
+     * we don't have to implement it in every sub-class of this class.
+     *
+     * @return The plugin database connection
+     * @throws GeneralException if a DB connection failure occurs
+     */
+    @Override
+    public Connection getConnection() throws GeneralException {
+        return PluginBaseHelper.getConnection();
     }
 }

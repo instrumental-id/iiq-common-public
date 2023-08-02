@@ -18,15 +18,16 @@ public class ServiceUtils {
      * @throws GeneralException
      */
     public static void storeTimestamps(SailPointContext context, ServiceDefinition target, long lastStart) throws GeneralException {
-        Attributes<String, Object> attributes = target.getAttributes();
+        ServiceDefinition reloaded = context.getObjectById(ServiceDefinition.class, target.getId());
+        Attributes<String, Object> attributes = reloaded.getAttributes();
         if (attributes == null) {
             attributes = new Attributes<>();
-            target.setAttributes(attributes);
+            reloaded.setAttributes(attributes);
         }
         attributes.put("lastStart", lastStart);
         attributes.put("lastStop", System.currentTimeMillis());
         attributes.put("lastHost", Util.getHostName());
-        context.saveObject(target);
+        context.saveObject(reloaded);
         context.commitTransaction();
     }
 }
