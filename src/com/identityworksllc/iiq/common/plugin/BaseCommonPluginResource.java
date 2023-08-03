@@ -5,12 +5,15 @@ import com.identityworksllc.iiq.common.Sameness;
 import com.identityworksllc.iiq.common.Syslogger;
 import com.identityworksllc.iiq.common.ThingAccessUtils;
 import com.identityworksllc.iiq.common.TooManyResultsException;
+import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.logging.LogCapture;
 import com.identityworksllc.iiq.common.logging.SLogger;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizeAll;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizeAny;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizedBy;
 import com.identityworksllc.iiq.common.plugin.annotations.NoReturnValue;
+import com.identityworksllc.iiq.common.plugin.annotations.ResponsesAllowed;
+import com.identityworksllc.iiq.common.plugin.vo.ExpandedDate;
 import com.identityworksllc.iiq.common.plugin.vo.RestObject;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -48,19 +51,14 @@ import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * This class is the common base class for all IIQCommons-compliant plugin REST
  * resources. It contains numerous enhancements over IIQ's original base plugin
  * resource class, notably {@link #handle(PluginAction)}.
  */
+@SuppressWarnings("unused")
 public abstract class BaseCommonPluginResource extends BasePluginResource implements CommonExtendedPluginContext {
 
 	/**
@@ -95,30 +93,25 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 
 	/**
 	 * Transforms a date response into a known format
+	 *
 	 * @param response The date response
 	 * @return if any failures occur
 	 */
 	private static Response transformDate(Date response) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-		Map<String, Object> responseMap = new HashMap<>();
-		responseMap.put("timestamp", response.getTime());
-		responseMap.put("date", dateFormat.format(response));
-		responseMap.put("serverTimeZoneId", ZoneId.systemDefault().getId());
-		responseMap.put("serverTimeZoneName", ZoneId.systemDefault().getDisplayName(TextStyle.SHORT, Locale.US));
-		return Response.ok().entity(responseMap).build();
+		return Response.ok().entity(new ExpandedDate(response)).build();
 	}
 	/**
 	 * If true, logs will be captured in handle() and appended to any error messages
 	 */
-	private ThreadLocal<Boolean> captureLogs;
+	private final ThreadLocal<Boolean> captureLogs;
 	/**
 	 * The constructed FacesContext if there is one
 	 */
-	private ThreadLocal<FacesContext> constructedContext;
+	private final ThreadLocal<FacesContext> constructedContext;
 	/**
 	 * If true, logs will be captured in handle() and logged to the usual logger output even if they would not normally be
 	 */
-	private ThreadLocal<Boolean> forwardLogs;
+	private final ThreadLocal<Boolean> forwardLogs;
 	/**
 	 * An enhanced logger available to all plugins
 	 */
@@ -126,7 +119,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	/**
 	 * Log messages captured to return with any errors
 	 */
-	private ThreadLocal<List<String>> logMessages;
+	private final ThreadLocal<List<String>> logMessages;
 	/**
 	 * A plugin authorization checker, if present
 	 */
@@ -281,6 +274,19 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		if (!ThingAccessUtils.checkThingAccess(this, target, thingAccessConfig)) {
 			throw new UnauthorizedAccessException();
 		}
+	}
+
+	/**
+	 * Allows successful responses to be customized by overriding this method. By
+	 * default, simply returns the input Response object.
+	 * <p>
+	 * Customizations should generally begin by invoking {@link Response#fromResponse(Response)}.
+	 *
+	 * @param actionResult The output of the {@link PluginAction} implementation in handle()
+	 * @param restResponse The API output
+	 */
+	protected Response customizeResponse(Object actionResult, Response restResponse) {
+		return restResponse;
 	}
 
 	/**
@@ -562,6 +568,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 			}
 			try {
 				boolean hasReturnValue = true;
+				List<Class<?>> allowedReturnTypes = null;
 				try {
 					if (resourceInfo != null) {
 						Class<?> endpointClass = this.getClass();
@@ -569,6 +576,23 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 						authorize(endpointClass, endpointMethod);
 						if (endpointClass.isAnnotationPresent(NoReturnValue.class) || endpointMethod.isAnnotationPresent(NoReturnValue.class)) {
 							hasReturnValue = false;
+						}
+						List<Class<?>> allowedClasses = new ArrayList<>();
+						if (endpointClass.isAnnotationPresent(ResponsesAllowed.class)) {
+							Class[] data = endpointClass.getAnnotation(ResponsesAllowed.class).value();
+							if (data != null) {
+								allowedClasses.addAll(Arrays.asList());
+							}
+						}
+						if (endpointMethod.isAnnotationPresent(ResponsesAllowed.class)) {
+							Class[] data = endpointMethod.getAnnotation(ResponsesAllowed.class).value();
+							if (data != null) {
+								allowedClasses.addAll(Arrays.asList());
+							}
+						}
+
+						if (!allowedClasses.isEmpty()) {
+							allowedReturnTypes = allowedClasses;
 						}
 					}
 					if (authorizer != null) {
@@ -585,8 +609,11 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 					if (this instanceof Authorizer) {
 						authorize((Authorizer)this);
 					}
-					Object response = action.execute();
-					return handleResult(hasReturnValue, response);
+					Object actionResult = action.execute();
+
+					Response restResult = handleResult(actionResult, hasReturnValue, allowedReturnTypes);
+
+					return customizeResponse(actionResult, restResult);
 				} catch(Exception e) {
 					// Log so that it makes it into the captured logs, if any exist
 					log.handleException(e);
@@ -681,10 +708,16 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	 * @return The resulting Response object
 	 * @throws GeneralException if any failures occur processing the response
 	 */
-	private Response handleResult(boolean hasReturnValue, Object response) throws GeneralException {
+	private Response handleResult(Object response, boolean hasReturnValue, List<Class<?>> allowedReturnTypes) throws GeneralException {
 		if (hasReturnValue) {
 			if (response instanceof Response) {
 				return ((Response) response);
+			} else if (response instanceof ErrorResponse) {
+				// Special wrapper allowing methods to return a non-OK, but still non-exceptional response
+				ErrorResponse<?> errorResponse = (ErrorResponse<?>) response;
+				Response metaResponse = handleResult(errorResponse.getWrappedObject(), true, allowedReturnTypes);
+
+				return Response.fromResponse(metaResponse).status(errorResponse.getResponseCode()).build();
 			} else if (response instanceof Map || response instanceof Collection || response instanceof String || response instanceof Number || response instanceof Enum) {
 				return Response.ok().entity(response).build();
 			} else if (response instanceof Date) {
@@ -701,17 +734,33 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 				return Response.ok().entity(responseMap).build();
 			} else if (response instanceof RestObject) {
 				return Response.ok().entity(response).build();
-			} else if (isAllowedOutput(response)) {
-				return Response.ok().entity(response).build();
 			} else if (response instanceof Exception) {
 				return handleException((Exception) response);
-			} else {
-				log.warn("Unrecognized output format: " + response);
-				return Response.ok().build();
 			}
-		} else {
-			return Response.ok().build();
+
+			if (response != null) {
+				if (!Util.isEmpty(allowedReturnTypes)) {
+					for (Class<?> type : allowedReturnTypes) {
+						if (Utilities.isAssignableFrom(type, response.getClass())) {
+							return Response.ok().entity(response).build();
+						}
+					}
+				}
+			}
+
+			// NOTE: It is plausible that 'response' is null here. This is the only way to
+			// allow both null and non-null outputs from the same REST API method.
+			if (isAllowedOutput(response)) {
+				return Response.ok().entity(response).build();
+			}
+
+			if (response == null) {
+				log.warn("REST API output is null, but null outputs were not explicitly allowed with @NoReturnValue or isAllowedOutput()");
+			} else {
+				log.warn("REST API output type is not recognized: " + response.getClass());
+			}
 		}
+		return Response.ok().build();
 	}
 	
 	/**
