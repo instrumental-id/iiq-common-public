@@ -162,6 +162,15 @@ tasks.named("sourcesJar") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+/**
+ * Disables the Gradle Module Metadata, which breaks on the IIQ JARs that have
+ * no versions defined.
+ * https://docs.gradle.org/current/userguide/publishing_gradle_module_metadata.html#sub:disabling-gmm-publication
+ */
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
+}
+
 /*
  * A quick and easy way to run the Plugin Installer command line tool. The downside
  * is that the output is not as easy to parse via a command pipeline.
@@ -198,7 +207,6 @@ includeLib.include "*.jar"
 
 configurations {
     toolLibraries
-
     implementation.extendsFrom toolLibraries
 }
 
