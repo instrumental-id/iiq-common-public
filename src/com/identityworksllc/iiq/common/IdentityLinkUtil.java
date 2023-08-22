@@ -2,21 +2,19 @@ package com.identityworksllc.iiq.common;
 
 import sailpoint.api.IdentityService;
 import sailpoint.api.SailPointContext;
-import sailpoint.object.Application;
-import sailpoint.object.AttributeDefinition;
-import sailpoint.object.Filter;
-import sailpoint.object.Identity;
-import sailpoint.object.Link;
-import sailpoint.object.QueryOptions;
-import sailpoint.object.Schema;
+import sailpoint.object.*;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.ObjectNotFoundException;
 import sailpoint.tools.Util;
 
+import javax.validation.constraints.Null;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A utility class for efficiently reading various types of information from
@@ -41,6 +39,31 @@ import java.util.Objects;
  * will be retrieved.
  */
 public class IdentityLinkUtil {
+
+    /**
+     * Finds a unique Link by Native ID and Application, returning a non-null Optional
+     * @param context The context for querying
+     * @param applicationName The application name
+     * @param nativeIdentity The native ID
+     * @return If no matches, an empty Optional. If one match, an Optional containing the Link
+     * @throws GeneralException if there is a query failure
+     * @throws TooManyResultsException if more than one Link matches the criteria
+     */
+    public static Optional<Link> findUniqueLink(SailPointContext context, String applicationName, String nativeIdentity) throws GeneralException {
+        QueryOptions qo = new QueryOptions();
+        Filter theFilter = getLinkFilter(applicationName, nativeIdentity);
+
+        qo.addFilter(theFilter);
+
+        List<Link> links = context.getObjects(Link.class, qo);
+        if (links == null || links.size() == 0) {
+            return Optional.empty();
+        } else if (links.size() == 1) {
+            return Optional.of(links.get(0));
+        } else {
+            throw new TooManyResultsException(Link.class, theFilter.getExpression(true), links.size());
+        }
+    }
 
     /**
      * Returns a Filter object for a Link
@@ -79,7 +102,6 @@ public class IdentityLinkUtil {
             throw new TooManyResultsException(Link.class, theFilter.getExpression(true), links.size());
         }
     }
-
     /**
      * The Sailpoint context
      */
@@ -92,7 +114,9 @@ public class IdentityLinkUtil {
     /**
      * If true, the identity's Links will be forcibly loaded by calling load()
      * on the whole collection before running any operation. This will make
-     * subsequent operations on the same object potentially faster.
+     * subsequent operations on the same object in the same session potentially
+     * faster. You also will want to use this option in an Identity Attribute
+     * rule, as those may be invoked before the Identity or Link is persisted.
      */
     private boolean forceLoad;
     /**
@@ -134,6 +158,77 @@ public class IdentityLinkUtil {
         for (Link l : links) {
             l.load();
         }
+    }
+
+    /**
+     * Retrieves a managed attribute for the given IdentityEntitlement
+     * @param ie The IdentityEntitlement
+     * @return The associated managed attribute, or an empty optional
+     * @throws GeneralException If the query fails for some reason
+     * @throws TooManyResultsException If the entitlement matches more than 1 managed attribute
+     */
+    public Optional<ManagedAttribute> findManagedAttribute(IdentityEntitlement ie) throws GeneralException {
+        if (ie == null) {
+            throw new NullPointerException("IdentityEntitlement");
+        }
+        QueryOptions qo = new QueryOptions();
+        qo.addFilter(Filter.eq("application.name", ie.getApplication().getName()));
+        qo.addFilter(Filter.eq("attribute", ie.getName()));
+        qo.addFilter(Filter.eq("value", ie.getValue()));
+
+        List<ManagedAttribute> managedAttributes = context.getObjects(ManagedAttribute.class, qo);
+
+        if (managedAttributes == null || managedAttributes.size() == 0) {
+            return Optional.empty();
+        } else if (managedAttributes.size() == 1) {
+            return Optional.of(managedAttributes.get(0));
+        } else {
+            throw new TooManyResultsException(ManagedAttribute.class, qo.toString(), managedAttributes.size());
+        }
+    }
+
+    /**
+     * Retrieves all ManagedAttributes associated with the given Link
+     * @param link the Link to check
+     * @return A map from field name to a list of ManagedAttribute objects
+     * @throws GeneralException If the query fails for some reason
+     * @throws TooManyResultsException If the entitlement matches more than 1 managed attribute
+     */
+    public Map<String, List<ManagedAttribute>> findManagedAttributes(Link link) throws GeneralException {
+        if (link == null || link.getAttributes() == null) {
+            throw new NullPointerException("Link or Link.attributes is null");
+        }
+
+        Map<String, List<ManagedAttribute>> result = new HashMap<>();
+
+        String appName = link.getApplicationName();
+
+        @SuppressWarnings("unchecked")
+        Attributes<String, Object> entitlementAttributes = link.getEntitlementAttributes();
+
+        for(String fieldName : entitlementAttributes.getKeys()) {
+            List<String> values = Util.otol(entitlementAttributes.get(fieldName));
+            result.put(fieldName, new ArrayList<>());
+
+            for(String value : values) {
+                QueryOptions qo = new QueryOptions();
+                qo.addFilter(Filter.eq("application.name", appName));
+                qo.addFilter(Filter.eq("attribute", fieldName));
+                qo.addFilter(Filter.eq("value", value));
+
+                List<ManagedAttribute> managedAttributes = context.getObjects(ManagedAttribute.class, qo);
+
+                if (managedAttributes != null && managedAttributes.size() > 0) {
+                    if (managedAttributes.size() == 1) {
+                        result.get(fieldName).add(managedAttributes.get(0));
+                    } else {
+                        throw new TooManyResultsException(ManagedAttribute.class, qo.toString(), managedAttributes.size());
+                    }
+                } // else { no match, ignore it }
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -373,10 +468,19 @@ public class IdentityLinkUtil {
         }
     }
 
+    /**
+     * Returns true if the class is set to fail on multiple Links of the same type
+     * @see #failOnMultiple
+     */
     public boolean isFailOnMultiple() {
         return failOnMultiple;
     }
 
+    /**
+     * Returns true if you want to force-load all Links on the Identity using {@link Identity#getLinks()},
+     * rather than using {@link IdentityService}
+     * @see #forceLoad
+     */
     public boolean isForceLoad() {
         return forceLoad;
     }
