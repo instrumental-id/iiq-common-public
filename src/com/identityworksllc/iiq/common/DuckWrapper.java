@@ -17,16 +17,27 @@ import java.util.function.Consumer;
  * Proxy wrapper for duck typing in Java. Duck typing is named for the old saying
  * that 'if it quacks like a duck, it must be a duck'. In dynamically typed languages
  * like JavaScript, method handles are resolved at runtime so any object implementing
- * the appropriate method can be used where an interface is expected.
+ * the appropriate methods can be used.
  *
- * This class creates a proxy that invokes the interface methods by name and
- * parameters on the given object. This allows you to 'fake' an interface
- * implementation where you don't have control over the class's source code.
+ * This class creates a {@link Proxy} that forwards interface methods to the given
+ * wrapped object. This allows you to 'fake' an interface implementation where you
+ * don't have control over the class's source code.
  *
- * As an example, many SailPointObjects have a getAttributes(), but those classes
- * don't implement a common interface. You could create an AttributesContainer
- * interface and use this class to coerce the SailPointObject to that interface
- * for passing to an API.
+ * If the object being wrapped doesn't have a method matching something in your
+ * interface, it will just be ignored. Invoking the method will always return
+ * null with any arguments.
+ *
+ * Some examples:
+ *
+ * 1) Many SailPointObjects have a getAttributes(), but those classes don't implement
+ * a common interface. As a developer, you don't have access to modify SailPoint's
+ * API classes. To simplify your own code, you could create an AttributesContainer
+ * interface and use this class to coerce the SailPointObject to that interface.
+ *
+ * 2) IIQ has two different nearly-identical versions of WebServicesClient. One
+ * is inaccessible except through the connector classloader. You could construct
+ * an instance of the inaccessible client class, exposing any relevant methods
+ * to your application via your own interface.
  */
 public class DuckWrapper implements InvocationHandler {
     /**
@@ -34,8 +45,8 @@ public class DuckWrapper implements InvocationHandler {
      * Any calls to the interface methods will forward to the most appropriate method
      * on the object.
      *
-     * @param intf The interface the resulting type needs to implement
-     * @param input The object to be wrapped within the proxy
+     * @param intf The interface the resulting proxy needs to implement
+     * @param input The target object to be wrapped within the proxy
      * @param <T> The resulting type
      * @return A proxy to the underlying object that appears to implement the given interface
      * @throws GeneralException if any failures occur establishing the proxy
@@ -49,8 +60,8 @@ public class DuckWrapper implements InvocationHandler {
      * Wraps the given object in the given interface. Any calls to the
      * interface methods will forward to the object.
      *
-     * @param intf The interface the resulting type needs to implement
-     * @param input The object to be wrapped within the proxy
+     * @param intf The interface the resulting proxy needs to implement
+     * @param input The target object to be wrapped within the proxy
      * @param callback An optional callback that will be invoked for every method called (for testing)
      * @param <T> The resulting type
      * @return A proxy to the underlying object that appears to implement the given interface
@@ -78,7 +89,9 @@ public class DuckWrapper implements InvocationHandler {
     private final Object wrapped;
 
     /**
-     * The development
+     * Constructs a new instance of DuckWrapper, with the given expected interface,
+     * wrapped object, and optional callback.
+     *
      * @param intf The interface to analyze
      * @param wrapped The wrapped object to analyze
      * @param callback The testing callback method
@@ -97,12 +110,18 @@ public class DuckWrapper implements InvocationHandler {
                 MethodHandle mh = publicLookup.findVirtual(wrapped.getClass(), m.getName(), type);
                 methodHandleMap.put(m.toString(), mh);
             } catch(NoSuchMethodException e) {
-                methodHandleMap.put(m.getName(), null);
+                // This is fine. invoke() will just return null
+                methodHandleMap.put(m.toString(), null);
             }
         }
     }
 
     /**
+     * Invokes the optional callback, and then the method on the wrapped object, in
+     * that order. If the method handle didn't match (i.e., your interface has a
+     * method not matched in the wrapped object), this will return null without
+     * failing.
+     *
      * @see InvocationHandler#invoke(Object, Method, Object[])
      */
     @Override
