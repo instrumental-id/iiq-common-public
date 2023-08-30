@@ -20,6 +20,11 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 
+/**
+ * An extension of ObjectMapper to handle SailPointObject types
+ *
+ * @param <T> The mapper output type
+ */
 public class SailpointObjectMapper<T> extends ObjectMapper<T> {
 
     /**

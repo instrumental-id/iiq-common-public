@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.format.TextStyle;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.TimeZone;
 
@@ -27,7 +28,13 @@ public class ExpandedDate {
     @JsonPropertyDescription("The timestamp in Unix epoch milliseconds")
     private final long timestamp;
 
+    /**
+     * Constructs a new ExpandedDate from the given input date
+     * @param in The input date, not null
+     */
     public ExpandedDate(Date in) {
+        Objects.requireNonNull(in, "Cannot expand a null Date");
+
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 

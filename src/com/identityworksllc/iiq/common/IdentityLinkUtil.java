@@ -546,7 +546,9 @@ public class IdentityLinkUtil {
             if (value instanceof String) {
                 values.add((String)value);
             } else if (value instanceof Collection) {
-                values.addAll((Collection<String>)value);
+                @SuppressWarnings("unchecked")
+                Collection<String> c = (Collection<String>)value;
+                values.addAll(c);
             }
         }
         return values;

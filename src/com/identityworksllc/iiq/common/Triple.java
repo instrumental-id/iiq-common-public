@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common;
 
+import sailpoint.tools.GeneralException;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +88,18 @@ public class Triple<A, B, C> implements Serializable {
     @Override
     public int hashCode() {
         return Objects.hash(first, second, third);
+    }
+
+    /**
+     * Maps this object to another value using the given TriFunction or lambda equivalent.
+     *
+     * @param mapping The mapping to apply
+     * @return The output of the mapping
+     * @param <R> The output type, defined by the mapping object's type
+     * @throws GeneralException if anything fails during mapping
+     */
+    public <R> R map(TriFunction<? super A, ? super B, ? super C, R> mapping) throws GeneralException {
+        return mapping.apply(getFirst(), getSecond(), getThird());
     }
 
     @Override

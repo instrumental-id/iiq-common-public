@@ -9,13 +9,19 @@ import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 
 /**
- * Implements comparators to sort account requests within a provisioning plan. These can be used directly via the collections API or passed to {@link Plans#sort(ProvisioningPlan, Comparator)}.
+ * Implements comparators to sort account requests within a provisioning plan.
  *
- * The comparators safely handle the case where two requests both have the property (e.g. both are enables), preserving existing ordering where the sort algorithm does so.
+ * The comparators safely handle the case where two requests both have the property
+ * (e.g. both are enables), preserving existing ordering where the sort algorithm
+ * does so.
  *
- * Additionally, the "first" comparator methods will always retain Create requests at the start of the sequence.
+ * Additionally, the "first" comparator methods will always retain Create requests
+ * at the start of the sequence.
  *
- * The reasoning behind creating this is the Salesforce connector. It executes the operations given blindly in the order they are received in the plan. However, certain operations must always precede others, resulting in a lot of code to handle this situation. Between this and the Plans class, that Rule could be cut down to a few lines.
+ * The motive behind creating this is the Salesforce connector. It executes the
+ * operations given blindly in the order they are received in the plan. However,
+ * certain operations must always precede others, resulting in a lot of code to
+ * handle this situation.
  */
 @SuppressWarnings("unused")
 public class PlanComparators {
@@ -31,7 +37,8 @@ public class PlanComparators {
     private static final Map<ProvisioningPlan.Operation, Integer> ATTRIBUTE_REQUEST_ORDERING = new HashMap<>();
 
     /**
-     * Performs a default sort of requests, implementing the sequence (Create, Enable, Unlock, Modify, Lock, Disable, Delete)
+     * Performs a default sort of requests, implementing the sequence (Create, Enable, Unlock,
+     * Modify, Lock, Disable, Delete)
      * @return Sorter
      */
     public static Comparator<ProvisioningPlan.AttributeRequest> defaultAttributeSequence() {
@@ -39,7 +46,8 @@ public class PlanComparators {
     }
 
     /**
-     * Performs a default sort of requests, implementing the sequence (Create, Enable, Unlock, Modify, Lock, Disable, Delete)
+     * Performs a default sort of requests, implementing the sequence (Create, Enable, Unlock,
+     * Modify, Lock, Disable, Delete)
      * @return Sorter
      */
     public static Comparator<ProvisioningPlan.AccountRequest> defaultSequence() {
@@ -143,7 +151,10 @@ public class PlanComparators {
     }
 
     /**
-     * Moves an account request containing the given attribute request to the start of the sequence, before any other operation except create
+     * Moves an account request containing the given attribute request to the start of the
+     * sequence, before any other operation except create.
+     *
+     * @param which The attribute name of the AttributeRequest to float to the top
      * @return Sorter
      */
     public static Comparator<ProvisioningPlan.AccountRequest> specificFirst(final String which) {
@@ -195,7 +206,6 @@ public class PlanComparators {
         ATTRIBUTE_REQUEST_ORDERING.put(ProvisioningPlan.Operation.Retain, 1);
         ATTRIBUTE_REQUEST_ORDERING.put(ProvisioningPlan.Operation.Set, 2);
         ATTRIBUTE_REQUEST_ORDERING.put(ProvisioningPlan.Operation.Add, 3);
-
     }
 
 }

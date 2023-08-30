@@ -9,9 +9,12 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * A comparator to sort SPOs in a reliable way: first by date, and if the dates are
+ * A {@link Comparator} to sort SPOs in a reliable way: first by date, and if the dates are
  * identical, by ID. SPOs may have a null modified date, in which case the created
  * date is checked.
+ *
+ * IMPORTANT: Before a new SPO is saved, the values of both 'created' and 'id' will be
+ * null. Take care that this class is not used in that context.
  */
 public final class SailPointObjectDateSorter implements Comparator<SailPointObject> {
 
@@ -21,6 +24,7 @@ public final class SailPointObjectDateSorter implements Comparator<SailPointObje
      * happen if it's not yet saved), returns null.
      *
      * @param sailPointObject The SPO to get the date
+     * @param includeModified If true, use the modified date if it is set; if false, use create only
      * @return The modified or created date, or null if none
      */
     public static Date latestDate(SailPointObject sailPointObject, boolean includeModified) {
@@ -54,6 +58,8 @@ public final class SailPointObjectDateSorter implements Comparator<SailPointObje
 
     /**
      * SPO date sorter allowing you to specify whether you want to include modified dates
+     *
+     * @param includeModified If true, use the modified date if it is set; if false, use create only
      */
     public SailPointObjectDateSorter(boolean includeModified) {
         this.includeModified = includeModified;

@@ -18,6 +18,7 @@ public final class Index<T> {
      *
      * @param iterator The input list to iterate over
      * @param <In> The type of the values in the list
+     * @return An indexed iterator over the given child iterator
      */
     public static <In> Iterator<Index<In>> with(Iterator<? extends In> iterator) {
         if (iterator == null) {
@@ -35,6 +36,7 @@ public final class Index<T> {
      *
      * @param iterable The input list to iterate over
      * @param <In> The type of the values in the list
+     * @return An indexed iterator over the given list
      */
     public static <In> Iterable<Index<In>> with(List<? extends In> iterable) {
         if (iterable == null || iterable.isEmpty()) {

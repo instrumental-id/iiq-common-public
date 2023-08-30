@@ -13,6 +13,10 @@ public class Metered {
      */
     @FunctionalInterface
     public interface MeterCallback {
+        /**
+         * Performs the action wrapped by the Meter
+         * @throws GeneralException if anything goes wrong
+         */
         void run() throws GeneralException;
     }
 
@@ -22,6 +26,11 @@ public class Metered {
      */
     @FunctionalInterface
     public interface MeterCallbackWithOutput<T> {
+        /**
+         * Performs the action wrapped by the Meter, returning any output
+         * @return The output of the action
+         * @throws GeneralException if anything goes wrong
+         */
         T run() throws GeneralException;
     }
 

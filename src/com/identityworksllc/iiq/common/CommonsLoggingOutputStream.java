@@ -11,6 +11,9 @@ import java.io.OutputStream;
 public class CommonsLoggingOutputStream extends OutputStream {
     private final Level level;
 
+    /**
+     * A representation of the log level
+     */
     public enum Level {
         Fatal,
         Error,

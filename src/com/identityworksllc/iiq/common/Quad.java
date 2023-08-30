@@ -19,7 +19,12 @@ public class Quad<A, B, C, D> implements Serializable {
      * @param first The first time
      * @param second The second item
      * @param third The third item
-     * @param fourth The fourth item type
+     * @param fourth The fourth item
+     *
+     * @param <X> The first item type
+     * @param <Y> The second item type
+     * @param <Z> The third item type
+     * @param <Q> The fourth item type
      *
      * @return A typed Quad containing those three items
      */

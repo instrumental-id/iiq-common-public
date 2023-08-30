@@ -75,12 +75,12 @@ public class BetterDifferencer {
     /**
      * A set of applications where the comparison ought to be case-insensitive
      */
-    private Set<String> caseInsensitiveApplications;
+    private final Set<String> caseInsensitiveApplications;
 
     /**
      * A set of fields on which the comparison should be done case-insensitively
      */
-    private Set<String> caseInsensitiveFields;
+    private final Set<String> caseInsensitiveFields;
     private final SailPointContext context;
 
     /**
@@ -93,8 +93,12 @@ public class BetterDifferencer {
     /**
      * A map from the old to new name of a renamed application
      */
-    private Map<String, String> renamedApplications;
+    private final Map<String, String> renamedApplications;
 
+    /**
+     * Constructs a new BetterDifferencer with the given IIQ context
+     * @param context The IIQ context to use for lookups
+     */
     public BetterDifferencer(SailPointContext context) {
         this.log = LogFactory.getLog(this.getClass());
         this.context = Objects.requireNonNull(context);
@@ -103,6 +107,14 @@ public class BetterDifferencer {
         this.renamedApplications = new HashMap<>();
     }
 
+    /**
+     * Adds the added and removed values to the Difference object by comparing the old
+     * and new values.
+     *
+     * @param difference The Difference object to populate
+     * @param oldValue The old value, which may be a collection or a single-valued object
+     * @param newValue The new value, which may be a collection or a single-valued object
+     */
     private void addAddedRemovedValues(Difference difference, Object oldValue, Object newValue) {
         List<Object> oldCollection = new ArrayList<>();
         List<Object> newCollection = new ArrayList<>();
@@ -159,6 +171,19 @@ public class BetterDifferencer {
         this.renamedApplications.put(oldName, newName);
     }
 
+    /**
+     * Handles the situation where the previous Link is null or has no attributes
+     * (usually, the current Link is brand new). All attributes are added as differences
+     * with only a 'new' value.
+     *
+     * The parameters to this method are all functional, allowing the various places
+     * this is used to customize the behavior as needed.
+     *
+     * @param differenceConsumer The callback to which each difference is passed
+     * @param isMultiValued A predicate that returns true if the given attribute (by name) is multi-valued
+     * @param getDisplayName A predicate that returns the display name of the given attribute (by name)
+     * @param afterAttributes The actual map of object attributes
+     */
     private void allNew(Consumer<Difference> differenceConsumer, Predicate<String> isMultiValued, Function<String, String> getDisplayName, Attributes<String, Object> afterAttributes) {
         for (String key : afterAttributes.getKeys()) {
             Object newValue = afterAttributes.get(key);
@@ -174,6 +199,19 @@ public class BetterDifferencer {
         }
     }
 
+    /**
+     * Handles the situation where the previous Link is null or has no attributes
+     * (usually, the current Link has been deleted). All attributes are added as differences
+     * with only an 'old' value.
+     *
+     * The parameters to this method are all functional, allowing the various places
+     * this is used to customize the behavior as needed.
+     *
+     * @param differenceConsumer The callback to which each difference is passed
+     * @param isMultiValued A predicate that returns true if the given attribute (by name) is multi-valued
+     * @param getDisplayName A predicate that returns the display name of the given attribute (by name)
+     * @param beforeAttributes The actual map of object attributes
+     */
     private void allOld(Consumer<Difference> differenceConsumer, Predicate<String> isMultiValued, Function<String, String> getDisplayName, Attributes<String, Object> beforeAttributes) {
         for (String key : beforeAttributes.getKeys()) {
             Object oldValue = beforeAttributes.get(key);
@@ -343,6 +381,16 @@ public class BetterDifferencer {
         );
     }
 
+    /**
+     * Detects the differences in the given LinkSnapshots and stores them in the
+     * IdentityDifference container
+     *
+     * @param differences The object into which differences ar added
+     * @param contextName The context name (the native ID)
+     * @param beforeLink The link before the change
+     * @param afterLink The link after the change
+     * @throws GeneralException if anything goes wrong
+     */
     private void diffLinks(IdentityDifference differences, String contextName, LinkSnapshot beforeLink, LinkSnapshot afterLink) throws GeneralException {
         List<String> exclusions = Arrays.asList("directPermissions", "targetPermissions");
         Application application = null;
@@ -517,6 +565,14 @@ public class BetterDifferencer {
         return null;
     }
 
+    /**
+     * Finds pairs of LinkSnapshots in the 'before' and 'after' snapshots by comparing
+     * them by identifier, native ID, or other matching methods.
+     *
+     * @param before The previous Identity Snapshot
+     * @param after The current Identity Snapshot
+     * @return The list of LinkPair objects
+     */
     private List<LinkPair> findLinkPairs(IdentitySnapshot before, IdentitySnapshot after) {
         List<LinkPair> pairs = new ArrayList<>();
         List<LinkSnapshot> beforeLinks = safeCopy(before.getLinks());
@@ -628,6 +684,13 @@ public class BetterDifferencer {
         return permission.orElse(null);
     }
 
+    /**
+     * Gets the Permission objects from the given LinkSnapshot. These are stored in two
+     * places: directPermissions and targetPermissions.
+     *
+     * @param link The link object
+     * @return The permissions, if any
+     */
     @SuppressWarnings("unchecked")
     private List<Permission> getPermissions(LinkSnapshot link) {
         List<Permission> permissions = new ArrayList<>();
@@ -697,10 +760,19 @@ public class BetterDifferencer {
         return copy;
     }
 
+    /**
+     * Sets the 'guess renames' flag to true. If true, the BetterDifferencer will attempt
+     * to guess which Link corresponds to the one in the previous snapshot.
+     *
+     * @param guessRenames The flag to set
+     */
     public void setGuessRenames(boolean guessRenames) {
         this.guessRenames = guessRenames;
     }
 
+    /**
+     * @return The value of the 'guess renames' flag
+     */
     public boolean shouldGuessRenames() {
         return guessRenames;
     }

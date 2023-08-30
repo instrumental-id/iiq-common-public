@@ -14,9 +14,19 @@ import sailpoint.tools.GeneralException;
 
 import java.util.List;
 
-@SuppressWarnings("unused")
+/**
+ * A data source that delegates to a 'real' data source loaded from a plugin.
+ * IIQ does not allow report data sources to be loaded from plugins by default.
+ *
+ * Your report would designate this class as its implementation. Then, specify the
+ * real data source class name in the TaskDefinition's attributes as 'pluginName'
+ * and 'pluginClass'. All other options will be delegated to your plugin class.
+ */
 public class PluginDataSource extends AbstractJavaDataSource {
 
+    /**
+     * The real data source, loaded from the plugin
+     */
     private JavaDataSource realDataSource;
 
     @Override
@@ -49,6 +59,12 @@ public class PluginDataSource extends AbstractJavaDataSource {
         return realDataSource.getSizeEstimate();
     }
 
+    /**
+     * Initializes the report by loading the real data source specified, then delegating
+     * immediately to that data source.
+     *
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(SailPointContext sailPointContext, LiveReport liveReport, Attributes<String, Object> attributes, String s, List<Sort> list) throws GeneralException {
         String pluginName = attributes.getString("pluginName");

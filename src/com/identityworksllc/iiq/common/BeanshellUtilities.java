@@ -1,9 +1,6 @@
 package com.identityworksllc.iiq.common;
 
-import bsh.BshMethod;
-import bsh.Interpreter;
 import bsh.NameSpace;
-import bsh.Parser;
 import bsh.Primitive;
 import bsh.UtilEvalError;
 import org.apache.bsf.BSFManager;
@@ -14,10 +11,7 @@ import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -30,6 +24,7 @@ public class BeanshellUtilities {
 	 * named Beanshell method for any function call to the interface.
 	 *
 	 * @param bshThis The 'this' instance in Beanshell
+	 * @param types The interface types that the Beanshell context ought to proxy
 	 * @return the proxy implementing the interface
 	 */
 	public static Object coerce(bsh.This bshThis, Class<?>... types) {

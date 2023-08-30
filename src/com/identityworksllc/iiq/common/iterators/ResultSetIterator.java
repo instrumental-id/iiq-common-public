@@ -63,6 +63,17 @@ public final class ResultSetIterator implements Iterator<Object[]>, AutoCloseabl
 	 */
 	@FunctionalInterface
 	public interface CustomTypeHandler {
+		/**
+		 * Performs some action to extract the value of the given column from
+		 * the current row of the ResultSet, transforming it to the appropriate type.
+		 * You should not invoke {@link ResultSet#next()} or any other method that
+		 * will change the ResultSet's cursor location.
+		 *
+		 * @param resultSet The result set, already on the correct row
+		 * @param columnName The column name
+		 * @return The result of handling the data
+		 * @throws SQLException on error
+		 */
 		Object handle(ResultSet resultSet, String columnName) throws SQLException;
 	}
 
@@ -461,6 +472,7 @@ public final class ResultSetIterator implements Iterator<Object[]>, AutoCloseabl
 	 *
 	 * @param resultSet The result set to adapt
 	 * @param columns The ordered list of columns to include in the results
+	 * @param context The IIQ context
 	 * @throws SQLException if something goes wrong with checking column names
 	 */
 	public ResultSetIterator(ResultSet resultSet, List<?> columns, SailPointContext context) throws SQLException {

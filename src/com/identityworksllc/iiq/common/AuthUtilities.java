@@ -17,13 +17,29 @@ import java.util.Objects;
  * Common Security style of authorization, use ThingAccessUtils instead.
  */
 public class AuthUtilities extends AbstractBaseUtility {
-	
+
+	/**
+	 * Indicates the type of access to a QuickLink we are checking
+	 */
 	public enum QuickLinkAccessType {
+		/**
+		 * Check ANY type of access (self or other)
+		 */
 		ANY,
+		/**
+		 * Check whether this user can invoke this QuickLink on other users
+		 */
 		OTHER,
+		/**
+		 * Check whether this user can invoke this QuickLink on themselves
+		 */
 		SELF
 	}
 
+	/**
+	 * Constructs a new instance of AuthUtilities
+	 * @param c
+	 */
 	public AuthUtilities(SailPointContext c) {
 		super(c);
 	}

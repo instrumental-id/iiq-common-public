@@ -216,6 +216,21 @@ public class HybridObjectMatcher extends HybridReflectiveMatcher {
         }
     }
 
+    /**
+     * Extends the OOTB behavior of 'equals' Filters for a couple of specific cases.
+     *
+     * First, if the object's property value is a Collection and the test parameter is
+     * a String or a Boolean, we check to see if the Collection contains the single
+     * value. This is the way Filters behave when translated to HQL, thanks to SQL
+     * joins, so we want to retain that behavior here.
+     *
+     * Second, if we have allowed object properties to be used on both sides of the
+     * 'equals' Filter, and there is still not a valid match, we attempt to evaluate
+     * the test argument as an object property and compare those.
+     *
+     * @param filter The filter to check for equality
+     * @throws GeneralException if an IIQ error occurs
+     */
     @Override
     public void visitEQ(Filter.LeafFilter filter) throws GeneralException {
         super.visitEQ(filter);

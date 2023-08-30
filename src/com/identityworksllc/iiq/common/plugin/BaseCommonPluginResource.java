@@ -233,9 +233,11 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	}
 
 	/**
-	 * Builds a new FacesContext based on the HTTP request and response. The value returned by this method will be cleaned up (released) automatically after running the action in {@link #handle(PluginAction)}.
+	 * Builds a new FacesContext based on the HTTP request and response. The value
+	 * returned by this method will be cleaned up (released) automatically after
+	 * running the action in {@link #handle(PluginAction)}.
 	 *
-	 * See here: https://myfaces.apache.org/wiki/core/user-guide/jsf-and-myfaces-howtos/backend/access-facescontext-from-servlet.html
+	 * See here: <a href="https://myfaces.apache.org/wiki/core/user-guide/jsf-and-myfaces-howtos/backend/access-facescontext-from-servlet.html">Access FacesContext from Servlet</a>
 	 *
 	 * @return A new FacesContext
 	 */

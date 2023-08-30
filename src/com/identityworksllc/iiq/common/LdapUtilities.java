@@ -6,6 +6,9 @@ import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 import java.util.List;
 
+/**
+ * Utilities for dealing with LDAP DNs and other similar concepts
+ */
 public class LdapUtilities {
     /**
      * Extracts the name from an LDAP formatted group name. For example, if given CN=AD Group Name,OU=Groups,OU=Security,DC=client,DC=example,DC=com, this method would return "AD Group Name".
@@ -28,10 +31,31 @@ public class LdapUtilities {
         throw new IllegalArgumentException("Group name " + groupName + " does not appear to be in LDAP format");
     }
 
+    /**
+     * Returns true if the given list of DNs contains a matching DN by RDN.
+     * This is useful for searching a list of AD groups (e.g., user entitlements)
+     * for a given value, without having to worry about differing domain suffixes
+     * across dev, test, and prod.
+     *
+     * Equivalent to {@link #ldapContains(List, String, int)} with a depth of 1.
+     *
+     * @param container A list of candidate DNs
+     * @param seeking The DN (whole or partial) to match
+     * @return True if the list contains a matching DN, false if not
+     */
     public static boolean ldapContains(List<String> container, String seeking) {
         return ldapContains(container, seeking, 1);
     }
 
+    /**
+     * Returns true if the given list of DNs contains a value matching the given
+     * 'seeking' DN, up to the given depth.
+     *
+     * @param container A list of candidate DNs
+     * @param seeking The DN (whole or partial) to match
+     * @param depth The depth of search
+     * @return True if the list contains a matching DN, false if not
+     */
     public static boolean ldapContains(List<String> container, String seeking, int depth) {
         for(String dn : Util.safeIterable(container)) {
             if (ldapMatches(dn, seeking, depth)) {
@@ -41,10 +65,27 @@ public class LdapUtilities {
         return false;
     }
 
+    /**
+     * Given a list of possible matching DNs (the container), finds the first
+     * one that matches the RDN of the 'seeking' string.
+     *
+     * @param container A list of candidate DNs
+     * @param seeking The DN we are seeking to match
+     * @return The DN matching the search, or null if none is found
+     */
     public static String ldapGetMatch(List<String> container, String seeking) {
         return ldapGetMatch(container, seeking, 1);
     }
 
+    /**
+     * Given a list of possible matching DNs (the container), finds the first
+     * one that matches the 'seeking' string up to the given depth.
+     *
+     * @param container A list of candidate DNs
+     * @param seeking The DN we are seeking
+     * @param depth The number of RDN components to match
+     * @return The DN matching the search, or null if none is found
+     */
     public static String ldapGetMatch(List<String> container, String seeking, int depth) {
         for(String dn : Util.safeIterable(container)) {
             if (ldapMatches(dn, seeking, depth)) {
@@ -87,6 +128,8 @@ public class LdapUtilities {
             if (builder.length() > 0) {
                 builder.append(",");
             }
+
+            // LDAP names are sorted like a file path, with the RDN last
             builder.append(name.get(name.size() - i));
         }
         return builder.toString();
@@ -107,10 +150,18 @@ public class LdapUtilities {
 
     /**
      * Returns true if the given objects match by comparing them as LDAP DNs up
-     * to the depth specified.
+     * to the depth specified. For example, the following two DNs will match at
+     * a depth of 1, but not a depth of 2.
+     *
+     * CN=Group Name,OU=Groups,DC=test,DC=example,DC=com
+     * cn=group name,OU=Administrators,DC=test,DC=example,DC=com
+     *
+     * This is primarily useful with AD environments where the group names will
+     * have a suffix varying by domain.
      *
      * @param name The first LDAP name
      * @param otherName The second LDAP name
+     * @param depth The number of DN elements to search for a match (with 1 being the RDN only)
      * @return True if the names are indeed LDAP DNs and equal ignoring case, false otherwise
      */
     public static boolean ldapMatches(String name, String otherName, int depth) {

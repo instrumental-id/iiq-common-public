@@ -33,9 +33,15 @@ import sailpoint.persistence.HibernatePersistenceManager;
 import sailpoint.search.MapMatcher;
 import sailpoint.tools.GeneralException;
 
-@SuppressWarnings("unused")
+/**
+ * Utilities for matching objects using IIQ APIs
+ */
 public class MatchUtilities extends AbstractBaseUtility {
-	
+
+	/**
+	 * Basic constructor
+	 * @param c The IIQ context
+	 */
 	public MatchUtilities(SailPointContext c) {
 		super(c);
 	}

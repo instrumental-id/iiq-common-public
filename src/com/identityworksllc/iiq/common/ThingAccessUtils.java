@@ -179,6 +179,7 @@ public class ThingAccessUtils {
     /**
      * Returns true if the logged in user can access the item based on the Common Security configuration parameters.
      *
+     * @param pluginContext The plugin context, which provides user details
      * @param configuration The configuration for the field or button or other object
      * @return True if the user has access to the thing based on the configuration
      * @throws GeneralException if any check failures occur (this should be interpreted as "no access")
@@ -190,6 +191,7 @@ public class ThingAccessUtils {
     /**
      * Returns true if the logged in user can access the item based on the CommonSecurityConfig object
      *
+     * @param pluginContext The plugin context, which provides user details
      * @param config the CommonSecurityConfig object
      * @return True if the user has access to the thing based on the configuration
      * @throws GeneralException if any check failures occur (this should be interpreted as "no access")
@@ -201,6 +203,8 @@ public class ThingAccessUtils {
     /**
      * Returns true if the logged in user can access the item based on the common configuration parameters.
      *
+     * @param pluginContext The plugin context, which provides user details
+     * @param targetIdentity The target identity for the action (as opposed to the actor)
      * @param configuration The configuration for the field or button or other object
      * @return True if the user has access to the thing based on the configuration
      * @throws GeneralException if any check failures occur (this should be interpreted as "no access")
@@ -627,6 +631,7 @@ public class ThingAccessUtils {
      * Creates a fake plugin context for use with {@link ThingAccessUtils#checkThingAccess(BasePluginResource, Identity, String, Map)} outside of a plugin. This constructs a new instance of a dummy BasePluginResource web service endpoint class.
      * @param context The SailPointContext to return from {@link BasePluginResource#getContext()}
      * @param loggedInUser The Identity to return from various getLoggedIn... methods
+     * @param pluginName The name of the plugin to include in the fake plugin context
      * @return The fake plugin resource
      */
     public static BasePluginResource createFakePluginContext(final SailPointContext context, final Identity loggedInUser, String pluginName) {

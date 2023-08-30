@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.integration;
 
+import com.identityworksllc.iiq.common.connector.UnsupportedConnector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
@@ -22,13 +23,30 @@ import java.util.Map;
  *
  * Note that you could specify this integration executor only for specific
  * operations on the configuration or allow it to be used for any.
+ *
+ * You can optionally choose to run the Application's before and after
+ * provisioning rules, which by default are not invoked by integration
+ * executors.
+ *
+ * TODO ensure that the Customization rule is invoked on the returning ResourceObject
  */
 public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
 
     private static final Log log = LogFactory.getLog(NoOpIntegrationExecutor.class);
+
+    /**
+     * If true, the after provisioning rule will be executed
+     */
     private boolean runAfterRule;
+
+    /**
+     * If true, the before provisioning rule will be executed
+     */
     private boolean runBeforeRule;
 
+    /**
+     * Constructs a new NoOpIntegrationExecutor
+     */
     public NoOpIntegrationExecutor() {
         this.runBeforeRule = false;
         this.runAfterRule = false;
@@ -236,9 +254,12 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
     }
 
     /**
-     * Runs the Application's after-prov rule. You should be sure that you only use this
-     * when your application's after-prov rules are consequence free. You will NOT be provided
-     * a connector.
+     * Runs the Application's after-prov rule. These are run by default when the Connector's
+     * IntegrationExecutor is used, but in the context of another IntegrationExecutor, we
+     * need to run it manually.
+     *
+     * You will receive a 'connector' variable, but all method calls on it will result in
+     * an UnsupportedOperationException.
      *
      * Additionally, the variable 'noOpIntegration' will be present and set to Boolean.TRUE.
      *
@@ -256,6 +277,7 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
                 ruleInputs.put("application", application);
                 ruleInputs.put("noOpIntegration", Boolean.TRUE);
                 ruleInputs.put("result", plan.getResult());
+                ruleInputs.put("connector", new UnsupportedConnector());
 
                 getContext().runRule(afterProvRule, ruleInputs);
             }
@@ -263,9 +285,12 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
     }
 
     /**
-     * Runs the Application's before-prov rule. You should be sure that you only use this
-     * when your application's before-prov rules are consequence free outside of IIQ. You will
-     * NOT be provided a connector.
+     * Runs the Application's before-prov rule. These are run by default when the Connector's
+     * IntegrationExecutor is used, but in the context of another IntegrationExecutor, we
+     * need to run it manually.
+     *
+     * You will receive a 'connector' variable, but all method calls on it will result in
+     * an UnsupportedOperationException.
      *
      * Additionally, the variable 'noOpIntegration' will be present and set to Boolean.TRUE.
      *
@@ -282,6 +307,7 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
                 ruleInputs.put("plan", plan);
                 ruleInputs.put("application", application);
                 ruleInputs.put("noOpIntegration", Boolean.TRUE);
+                ruleInputs.put("connector", new UnsupportedConnector());
 
                 getContext().runRule(beforeProvRule, ruleInputs);
             }

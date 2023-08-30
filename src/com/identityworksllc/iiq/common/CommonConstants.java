@@ -87,6 +87,9 @@ public final class CommonConstants {
      */
     public static final String THREADS_ATTR = "threads";
 
+    /**
+     * The common attribute name to use for filters
+     */
     public static final String FILTER_ATTR = "filter";
 
     /**

@@ -44,7 +44,6 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -56,7 +55,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -98,6 +96,9 @@ public class Utilities {
 		}
 	}
 
+	/**
+	 * The name of the worker pool, stored in CustomGlobal by default
+	 */
 	public static final String IDW_WORKER_POOL = "idw.worker.pool";
 
 	/**
@@ -152,7 +153,12 @@ public class Utilities {
 	}
 
 	/**
-	 * Adds a message banner to the current browser session which will show up at the top of each page
+	 * Adds a message banner to the current browser session which will show up at the
+	 * top of each page. This requires that a FacesContext exist in the current
+	 * session. You can't always assume this to be the case.
+	 *
+	 * If you're using the BaseCommonPluginResource class, it has a method to construct
+	 * a new FacesContext if one doesn't exist.
 	 *
 	 * @param context The IIQ context
 	 * @param message The Message to add
@@ -233,6 +239,7 @@ public class Utilities {
 	 *
 	 * @param collection The collection to check
 	 * @param value      The value to check for
+	 * @return True if the collection contains the value, comparing case-insensitively
 	 */
 	public static boolean caseInsensitiveContains(Collection<? extends Object> collection, Object value) {
 		if (collection == null || collection.isEmpty()) {
@@ -446,7 +453,7 @@ public class Utilities {
 			return null;
 		}
 
-		LocalDateTime intermediateDate = null;
+		LocalDateTime intermediateDate;
 
 		DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern(inputDateFormat).withZone(zoneId);
 		DateTimeFormatter outputFormat = DateTimeFormatter.ofPattern(outputDateFormat).withZone(zoneId);
@@ -538,10 +545,15 @@ public class Utilities {
 	}
 
 	/**
-	 * @see #dateDifference(Date, Date)
+	 * Coerces the long millisecond timestamps to Date objects, then returns the
+	 * result of {@link #dateDifference(Date, Date)}.
+	 *
+	 * @param firstTimeMillis The first time to compare
+	 * @param secondTimeMillis The second time to compare
+	 * @return The {@link Period} between the two days
 	 */
-	public static Period dateDifference(long firstTime, long secondTime) {
-		return dateDifference(new Date(firstTime), new Date(secondTime));
+	public static Period dateDifference(long firstTimeMillis, long secondTimeMillis) {
+		return dateDifference(new Date(firstTimeMillis), new Date(secondTimeMillis));
 	}
 
 	/**
@@ -552,9 +564,11 @@ public class Utilities {
 	 * @param context The context to use to parse the XML
 	 * @param o       The object to detach
 	 * @return A reference to the object detached from any Hibernate session
+	 * @param <T> A class extending SailPointObject
 	 * @throws GeneralException if a parsing failure occurs
 	 */
 	public static <T extends SailPointObject> T detach(SailPointContext context, T o) throws GeneralException {
+		@SuppressWarnings("unchecked")
 		T retVal = (T) SailPointObject.parseXml(context, o.toXml());
 		context.decache(o);
 		return retVal;
@@ -902,9 +916,16 @@ public class Utilities {
 	}
 
 	/**
-	 * Gets the time zone associated with the logged in user's session, based on a UserContext or Identity
+	 * Gets the time zone associated with the logged in user's session, based on a
+	 * UserContext or Identity. As a fallback, the {@link WebUtil} API is used to
+	 * try to retrieve the time zone from the HTTP session.
+	 *
+	 * You can use {@link #tryCaptureLocationInfo(SailPointContext, UserContext)}
+	 * in a plugin REST API or QuickLink textScript context to permanently store the
+	 * Identity's local time zone as a UI preference.
 	 *
 	 * @param userContext The user context to check for a time zone, or null
+	 * @param identity The identity to check for a time zone, or null
 	 * @return The time zone for this user
 	 */
 	public static TimeZone getClientTimeZone(Identity identity, UserContext userContext) {
@@ -941,6 +962,7 @@ public class Utilities {
 	 * @param <T>   The superclass of all input items
 	 * @return if the item is not null or empty
 	 */
+	@SafeVarargs
 	public static <T> T getFirstNotNothing(T... items) {
 		if (items == null || items.length == 0) {
 			return null;
@@ -961,8 +983,7 @@ public class Utilities {
 	 * @param <T>   The superclass of all input items
 	 * @return if the item is not null or empty
 	 */
-	@SuppressWarnings("unchecked")
-	public static <T> T getFirstNotNull(List<T> items) {
+	public static <T> T getFirstNotNull(List<? extends T> items) {
 		if (items == null) {
 			return null;
 		}
@@ -1020,18 +1041,31 @@ public class Utilities {
 	}
 
 	/**
-	 * IIQ tries to display timestamps in a locale-specific way to the user. It does this by storing the browser's time zone in the HTTP session and converting dates to a local value before display. This includes things like scheduled task execution times, etc.
-	 * <p>
-	 * However, for date fields, which should be timeless (i.e. just a date, no time component), IIQ sends a value of midnight at the browser's time zone. Depending on the browser's offset from the server time, this can result (in the worst case) in the actual selected instant being a full day ahead or behind the intended value.
-	 * <p>
-	 * This method corrects the offset using Java 8's Time API, which allows for timeless representations, to determine the date the user intended to select, then converting that back to midnight in the server time zone. The result is stored back onto the Field.
-	 * <p>
-	 * If the time is offset from midnight but the user time zone is the same as the server time zone, it means we're in a weird context where IIQ does not know the user's time zone and we have to guess. We will guess up to +12 and -11 from the server timezone, which should cover most cases. However, if you have users directly around the world from your server timezone, you may see problems.
-	 * <p>
+	 * IIQ tries to display timestamps in a locale-specific way to the user. It does
+	 * this by storing the browser's time zone in the HTTP session and converting
+	 * dates to a local value before display. This includes things like scheduled
+	 * task execution times, etc.
+	 *
+	 * However, for date form fields, which should be timeless (i.e. just a date, no time
+	 * component), IIQ sends a value "of midnight at the browser's time zone". Depending
+	 * on the browser's offset from the server time, this can result (in the worst case)
+	 * in the actual selected instant being a full day ahead or behind the intended value.
+	 *
+	 * This method corrects the offset using Java 8's Time API, which allows for timeless
+	 * representations, to determine the date the user intended to select, then converting
+	 * that back to midnight in the server time zone. The result is stored back onto the Field.
+	 *
+	 * If the time is offset from midnight but the user time zone is the same as the server
+	 * time zone, it means we're in a weird context where IIQ does not know the user's time
+	 * zone, and we have to guess. We will guess up to +12 and -11 from the server timezone,
+	 * which should cover most cases. However, if you have users directly around the world
+	 * from your server timezone, you may see problems.
+	 *
 	 * If the input date is null, returns null.
 	 *
 	 * @param inputDate The input date for the user
 	 * @param identity  The identity who has timezone information stored
+	 * @return The calculated local date, based on the input date and the Identity's time zone
 	 */
 	public static Date getLocalDate(Date inputDate, Identity identity) {
 		if (inputDate == null) {
@@ -1166,7 +1200,7 @@ public class Utilities {
 					if (gracefulNulls) {
 						return null;
 					} else {
-						throw new NullPointerException("Found a nested null object at " + filterString.toString());
+						throw new NullPointerException("Found a nested null object at " + filterString);
 					}
 				}
 				boolean found = false;
@@ -1483,6 +1517,9 @@ public class Utilities {
 
 	/**
 	 * Forwards to {@link Utilities#isFlagSet(Object)}
+	 *
+	 * @param stringFlag The string to check against the set of 'true' values
+	 * @return True if the string input flag is set
 	 */
 	public static boolean isFlagSet(String stringFlag) {
 		if (stringFlag == null) {
@@ -1947,6 +1984,7 @@ public class Utilities {
 	 * @param input The input map or attributes
 	 * @return The result as described above
 	 */
+	@SuppressWarnings("unchecked")
 	public static Attributes<String, Object> nullToEmpty(Map<String, ? extends Object> input) {
 		if (input == null) {
 			return new Attributes<>();
@@ -2138,6 +2176,16 @@ public class Utilities {
 		}
 	}
 
+	/**
+	 * Returns true if the bigger collection contains all elements in the smaller
+	 * collection. If the inputs are null, the comparison will always be false.
+	 * If the inputs are not collections, they will be coerced to collections
+	 * before comparison.
+	 *
+	 * @param maybeBiggerCollection An object that may be the bigger collection
+	 * @param maybeSmallerCollection AN object that may be the smaller collection
+	 * @return True if the bigger collection contains all elements of the smaller collection
+	 */
 	public static boolean safeContainsAll(Object maybeBiggerCollection, Object maybeSmallerCollection) {
 		if (maybeBiggerCollection == null || maybeSmallerCollection == null) {
 			return false;
@@ -2160,7 +2208,7 @@ public class Utilities {
 			smallerCollection.add(maybeSmallerCollection);
 		}
 
-		return biggerCollection.containsAll(smallerCollection);
+		return new HashSet<>(biggerCollection).containsAll(smallerCollection);
 	}
 
 	/**
@@ -2178,13 +2226,16 @@ public class Utilities {
 	}
 
 	/**
-	 * Returns a stream for the given map's keys if it's not null, or an empty stream if it is
+	 * Invokes an action against each key-value pair in the Map. If the Map is null,
+	 * or if the function is null, no action is taken and no exception is thrown.
+	 *
 	 * @param map The map
+	 * @param function A BiConsumer that will be applied to each key-avlue pair in the Map
 	 * @param <A> The type of the map's keys
 	 * @param <B> The type of the map's values
 	 */
 	public static <A, B> void safeForeach(Map<A, B> map, BiConsumer<A, B> function) {
-		if (map == null) {
+		if (map == null || function == null) {
 			return;
 		}
 		for(Map.Entry<A, B> entry : map.entrySet()) {
@@ -2394,7 +2445,8 @@ public class Utilities {
 	/**
 	 * Performs a safe subscript operation against the given array.
 	 *
-	 * If the array is null, or if the index is out of bounds, this method returns null instead of throwing an exception.
+	 * If the array is null, or if the index is out of bounds, this method
+	 * returns null instead of throwing an exception.
 	 *
 	 * @param list The array to get the value from
 	 * @param index The index from which to get the value.
@@ -2408,10 +2460,12 @@ public class Utilities {
 	/**
 	 * Performs a safe subscript operation against the given array.
 	 *
-	 * If the array is null, or if the index is out of bounds, this method returns the default instead of throwing an exception.
+	 * If the array is null, or if the index is out of bounds, this method returns
+	 * the default instead of throwing an exception.
 	 *
 	 * @param list The array to get the value from
 	 * @param index The index from which to get the value.
+	 * @param defaultValue The default value to return if the input is null
 	 * @param <T> The expected return type
 	 * @return The value at the given index in the array, or null
 	 */
@@ -2530,6 +2584,8 @@ public class Utilities {
 	 * attributes on some object types may be called other things like arguments.
 	 *
 	 * @param source The source object, which may implement an Attributes container method
+	 * @param attributeName The name of the attribute to set
+	 * @param value The value to set in that attribute
 	 */
 	public static void setAttribute(Object source, String attributeName, Object value) {
 		/*
@@ -2693,6 +2749,13 @@ public class Utilities {
 	}
 
 	/**
+	 * Coerces the millisecond timestamps to Date objects, then invokes the API
+	 * {@link #timeDifference(Date, Date)}.
+	 *
+	 * @param firstTime The first millisecond timestamp
+	 * @param secondTime The second millisecond timestamp
+	 * @return The difference between the two times as a {@link Duration}.
+	 *
 	 * @see #timeDifference(Date, Date)
 	 */
 	public static Duration timeDifference(long firstTime, long secondTime) {
@@ -2728,11 +2791,19 @@ public class Utilities {
 	}
 
 	/**
-	 * Attempts to capture the user's time zone information from the current JSF context / HTTP session, if one is available. The time zone and locale will be captured to the user's UIPreferences as 'mostRecentTimezone' and 'mostRecentLocale'.
+	 * Attempts to capture the user's time zone information from the current JSF
+	 * context / HTTP session, if one is available. The time zone and locale will
+	 * be captured to the user's UIPreferences as 'mostRecentTimezone' and
+	 * 'mostRecentLocale'.
 	 *
 	 * If a session is not available, this method does nothing.
 	 *
-	 * The JSF session is available in a subset of rule contexts, most notably the QuickLink textScript context, which runs on each load of the user's home.jsf page.
+	 * The JSF session is available in a subset of rule contexts, most notably the
+	 * QuickLink textScript context, which runs on each load of the user's home.jsf page.
+	 *
+	 * If you are trying to capture a time zone in a plugin REST API call, you should
+	 * use {@link #tryCaptureLocationInfo(SailPointContext, UserContext)}, passing the
+	 * plugin resource itself as a {@link UserContext}.
 	 *
 	 * @param context The current IIQ context
 	 * @param currentUser The user to modify with the detected information
@@ -2802,7 +2873,8 @@ public class Utilities {
 	}
 
 	/**
-	 * Attempts to get the SPKeyStore, a class which is for some reason protected.
+	 * Attempts to get the SPKeyStore, a class whose getInstance() is for some
+	 * reason protected.
 	 * @return The keystore, if we could get it
 	 * @throws GeneralException If the keystore could not be retrieved
 	 */
@@ -2988,6 +3060,7 @@ public class Utilities {
 	/**
 	 * Obtains the lock, then executes the callback
 	 * @param lock The lock to lock before doing the execution
+	 * @param timeoutMillis The timeout for the lock, in milliseconds
 	 * @param callback The callback to invoke after locking
 	 * @throws GeneralException if any failures occur or if the lock is interrupted
 	 */
@@ -3167,7 +3240,9 @@ public class Utilities {
 	 * Function as a callback. The Function's input will be the temporary context.
 	 * The result of the Function will be returned.
 	 *
-	 * @param runner The runner
+	 * @param runner A function that performs some action and returns a value
+	 * @param <T> The output type of the function
+	 * @return The value returned from the runner
 	 * @throws GeneralException if anything fails at any point
 	 */
 	public static <T> T withPrivateContext(Functions.FunctionWithError<SailPointContext, T> runner) throws GeneralException {
@@ -3234,6 +3309,7 @@ public class Utilities {
 	 * @param id The ID of the Sailpoint object
 	 * @param timeoutSeconds How long to wait, in seconds, before throwing {@link ObjectAlreadyLockedException}
 	 * @param callback The callback to invoke after locking
+	 * @param <V> The type of the SailPointObject to lock
 	 * @throws GeneralException if any failures occur or if the lock is interrupted
 	 */
 	public static <V extends SailPointObject> void withTransactionLock(SailPointContext context, Class<V> sailpointClass, String id, int timeoutSeconds, Functions.ConsumerWithError<V> callback) throws GeneralException {

@@ -13,12 +13,21 @@ import java.util.function.Function;
 public class HashUtilities {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
+    /**
+     * Transforms the input byte array to Base64. This is intended as an input to
+     * {@link #hash(String, String, Function)}, as the encoder.
+     *
+     * @param bytes The input bytes
+     * @return A base64 string
+     */
     public static String bytesToBase64(byte[] bytes) {
         return Base64.encodeBytes(bytes);
     }
 
     /**
-     * Transforms the given byte array to hexadecimal
+     * Transforms the given byte array to hexadecimal. This is intended as an input to
+     * {@link #hash(String, String, Function)}, as the encoder.
+     *
      * @param bytes The input byte array
      * @return The output as a hexadecimal string
      */

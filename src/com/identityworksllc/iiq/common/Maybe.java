@@ -168,10 +168,10 @@ public final class Maybe<T> {
     /**
      * The contents of the Maybe object, which contain either a T or a Throwable
      */
-    private Either<T, Throwable> contents;
+    private final Either<T, Throwable> contents;
 
     @SuppressWarnings("unchecked")
-    protected Maybe(T left, Throwable right) {
+    private Maybe(T left, Throwable right) {
         if (left != null) {
             contents = (Either<T, Throwable>) Either.left(left);
         } else {

@@ -67,15 +67,28 @@ public class Functions {
      */
     @FunctionalInterface
     public interface ConnectionHandler {
+        /**
+         * Does something with the connection
+         * @param connection The connection
+         * @throws SQLException on SQL errors
+         * @throws GeneralException on IIQ errors
+         */
         void accept(Connection connection) throws SQLException, GeneralException;
     }
 
     /**
-     * A generic callback for doing connection things
+     * A generic callback for doing result set row handling things
      */
     @FunctionalInterface
     public interface RowHandler {
-        void accept(ResultSet connection) throws SQLException, GeneralException;
+        /**
+         * Does something with the current row of the ResultSet provided
+         *
+         * @param resultSet The ResultSet from which the current row should be extracted
+         * @throws SQLException on JDBC errors
+         * @throws GeneralException on IIQ errors
+         */
+        void accept(ResultSet resultSet) throws SQLException, GeneralException;
     }
 
     /**
@@ -335,6 +348,12 @@ public class Functions {
 
         private static OtobWrapper _singleton;
 
+        /**
+         * Gets an instance of OtobWrapper. At this time, this is a Singleton
+         * object, but you should not depend on that behavior.
+         *
+         * @return an {@link OtobWrapper} object
+         */
         public static OtobWrapper get() {
             if (_singleton == null) {
                 synchronized (_lock) {
@@ -735,6 +754,13 @@ public class Functions {
         };
     }
 
+    /**
+     * Returns a Predicate that resolves to true when tested against an object that is
+     * equal to the input to this method.
+     *
+     * @param value The value to test for equality with the Predicate input
+     * @return The predicate
+     */
     public static Predicate<String> eqIgnoreCase(final String value) {
         return o -> Util.nullSafeCaseInsensitiveEq(o, value);
     }
@@ -1261,10 +1287,24 @@ public class Functions {
         };
     }
 
+    /**
+     * Returns a Predicate that resolves to true if the input AccountRequest has
+     * at least one AttributeRequest corresponding to every one of the attribute names
+     * given
+     *
+     * @param attributeName The list of names to match against
+     * @return The predicate
+     */
     public static Predicate<ProvisioningPlan.AccountRequest> hasAllAttributeRequest(final String... attributeName) {
         return hasAttributeRequest(true, attributeName);
     }
 
+    /**
+     * Returns a Predicate that resolves to true if the input AccountRequest has
+     * at least one AttributeRequest corresponding to any of the attribute names given
+     * @param attributeName The list of names to match against
+     * @return The predicate
+     */
     public static Predicate<ProvisioningPlan.AccountRequest> hasAnyAttributeRequest(final String... attributeName) {
         return hasAttributeRequest(false, attributeName);
     }
@@ -1461,7 +1501,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the input Link's native identity is equal to the
+     * Returns a Predicate that resolves to true if the input Link's native identity is equal to the
      * comparison value.
      */
     public static Predicate<Link> isNativeIdentity(final String nativeIdentity) {
@@ -1513,7 +1553,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the input string matches the given pattern, as
+     * Returns a Predicate that resolves to true if the input string matches the given pattern, as
      * equivalent to the Filter like() method
      */
     public static Predicate<? extends String> like(final String pattern, final Filter.MatchMode matchMode) {
@@ -1724,6 +1764,7 @@ public class Functions {
      * @param keys A list of additional keys for comparing
      * @return The comparator
      */
+    @SafeVarargs
     public static <K> Comparator<Map<K, Object>> mapValueComparator(K key, K... keys) {
         Comparator<Map<K, Object>> mapComparator = Comparator.comparing(mapGet(key).andThen(otoa()));
         if (keys != null) {
@@ -1861,7 +1902,9 @@ public class Functions {
     }
 
     /**
-     * Returns true if the two input objects are equal ignoring case
+     * Creates a BiFunction that resolves to Boolean true if the two input objects are equal, ignoring case
+     *
+     * @return the BiFunction
      */
     public static BiFunction<Object, Object, Boolean> nullSafeEq() {
         return Util::nullSafeEq;
@@ -1961,9 +2004,9 @@ public class Functions {
     }
 
     /**
-     * Invokes the given method against the input object, providing the
-     * additional inputs as needed, then returns true if the result is
-     * otob truthy.
+     * Constructs a Predicate that invokes the given method against the
+     * input object, providing the additional inputs as needed, then returns true
+     * if the result is 'otob' truthy.
      */
     public static Predicate<?> p(String methodName, Object... inputs) {
         return p(f(methodName, inputs).andThen(Util::otob));
@@ -2002,7 +2045,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the given plan has the given attribute on the given
+     * Returns a Predicate that resolves to true if the given plan has the given attribute on the given
      * application. This can be done in a more fluent way using Plans.find
      * if desired.
      */
@@ -2014,10 +2057,25 @@ public class Functions {
                         .anyMatch(attr -> Util.nullSafeEq(attr.getName(), attribute)));
     }
 
+    /**
+     * Creates a Predicate that returns true if provided a ProvisioningPlan that contains
+     * an AccountRequest with the given Operation
+     *
+     * @param operation The operation to check for
+     * @return The predicate
+     */
     public static Predicate<ProvisioningPlan> planHasOperation(ProvisioningPlan.AccountRequest.Operation operation) {
         return plan -> (Utilities.safeStream(plan.getAccountRequests()).anyMatch(ar -> Util.nullSafeEq(ar.getOperation(), operation)));
     }
 
+    /**
+     * Creates a Predicate that returns true if provided a ProvisioningPlan that contains
+     * an AccountRequest with the given application name and request operation
+     *
+     * @param application The name of the application
+     * @param operation The operation to check for
+     * @return The predicate
+     */
     public static Predicate<ProvisioningPlan> planHasOperation(String application, ProvisioningPlan.AccountRequest.Operation operation) {
         return plan -> (Utilities.safeStream(plan.getAccountRequests()).anyMatch(ar -> Util.nullSafeEq(ar.getApplicationName(), application) && Util.nullSafeEq(ar.getOperation(), operation)));
     }
@@ -2090,7 +2148,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the given property on the input object equals the test value
+     * Returns a Predicate that resolves to true if the given property on the input object equals the test value
      */
     public static Predicate<Object> propertyEquals(final String propertyPath, final Object test) {
         return source -> {
@@ -2104,7 +2162,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the property at the given path matches the given regex. If the
+     * Returns a Predicate that resolves to true if the property at the given path matches the given regex. If the
      * property is a string it will be used directly. If the property is a List containing
      * only one string, that string will be extracted and used.
      *
@@ -2143,7 +2201,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the given property on the input object is the same as the
+     * Returns a Predicate that resolves to true if the given property on the input object is the same as the
      * test value, per Sameness rules
      */
     public static Predicate<Object> propertySame(final String propertyPath, final Object test) {
@@ -2213,7 +2271,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the input value is the same as the given test value,
+     * Returns a Predicate that resolves to true if the input value is the same as the given test value,
      * per Sameness rules
      */
     public static Predicate<?> sameAs(final Object value) {
@@ -2221,7 +2279,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the input value is the same as the given test value,
+     * Returns a Predicate that resolves to true if the input value is the same as the given test value,
      * ignoring case, per Sameness rules
      */
     public static Predicate<?> sameAs(final Object value, boolean ignoreCase) {
@@ -2283,7 +2341,7 @@ public class Functions {
     }
 
     /**
-     * Returns true if the input string starts with the given prefix
+     * Returns a Predicate that resolves to true if the input string starts with the given prefix
      */
     public static Predicate<String> startsWith(String prefix) {
         return (s) -> s.startsWith(prefix);
@@ -2336,6 +2394,10 @@ public class Functions {
      *
      * If the result of the function is not of the expected type, or is not a
      * List, Map, or Set of them, returns an empty Stream.
+     *
+     * @param input A function to transform the input object
+     * @param expectedType The expected type of the output
+     * @return A function from an input object to a Stream of output objects
      */
     @SuppressWarnings("unchecked")
     public static <A, T> Function<A, Stream<T>> stream(Function<A, ?> input, Class<T> expectedType) {

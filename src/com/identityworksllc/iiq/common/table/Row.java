@@ -26,6 +26,9 @@ public class Row extends Element implements StyleTarget {
      */
     private List<CellOption> options;
 
+    /**
+     * Constructs a new row with all empty data
+     */
     public Row() {
         this.cells = new ArrayList<>();
         this.cssClasses = new ArrayList<>();
@@ -38,6 +41,7 @@ public class Row extends Element implements StyleTarget {
      * Adds a new cell to the end of this row. THe cell will be modified according
      * to the cell options set via setOptions if any are set.
      * @param c The cell
+     * @throws GeneralException if any of the CellOptions specified throw an error
      */
     public void add(Cell c) throws GeneralException {
         if (!Util.isEmpty(this.options)) {

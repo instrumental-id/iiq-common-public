@@ -30,7 +30,8 @@ import java.util.Map;
 
 /**
  * A straightforward "delegating" connector that will allow loading of connector
- * classes from a plugin.
+ * classes from a plugin. All connector operations will be forwarded to the
+ * delegate.
  */
 public class BaseDelegatingConnector extends AbstractConnector implements ConnectorStateChangeListener {
     /**
@@ -43,6 +44,10 @@ public class BaseDelegatingConnector extends AbstractConnector implements Connec
      */
     private final Log log;
 
+    /**
+     * Constructs a new BaseDelegatingConnector of the given type
+     * @param application The application to use for the connector
+     */
     public BaseDelegatingConnector(Application application) {
         super(application, null);
         log = LogFactory.getLog(this.getClass());
@@ -307,7 +312,7 @@ public class BaseDelegatingConnector extends AbstractConnector implements Connec
                 inputs.put("exception", ex);
                 inputs.put("connectorServices", getConnectorServices());
                 inputs.put("log", log);
-                Object output = getConnectorServices().runRule(retryDetectionRule, inputs);
+                Object output = getConnectorServices().runRule((Object) retryDetectionRule, inputs);
                 if (output instanceof Boolean) {
                     if (log.isDebugEnabled()) {
                         log.debug("The retry detection rule " + retryDetectionRule + " says we should retry this operation");

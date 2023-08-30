@@ -19,8 +19,6 @@ import java.util.Set;
  * An interface implementing a {@link #toMap()} default method to transform
  * any object into a Map using Jackson. Simply implement this interface and
  * enjoy the use of toMap() without any boilerplate code.
- *
- * TODO Add the ability to implement a customer-specific set of mixins.
  */
 public interface Mappable {
 
@@ -59,7 +57,7 @@ public interface Mappable {
             filterProvider = new SimpleFilterProvider().addFilter("mappableFilter", SimpleBeanPropertyFilter.serializeAll());
         }
         mapper.setFilterProvider(filterProvider);
-        MapType javaType = mapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class);
+        MapType javaType = mapper.getTypeFactory().constructMapType(HashMap.class, String.class, Object.class);
         return mapper.convertValue(whatever, javaType);
     }
 

@@ -7,9 +7,15 @@ import java.util.Map;
  * itself from a Map input. This is intended for use by the ObjectMapper utility, but
  * may be used outside of that function.
  *
- * This is, roughly, the opposite of {@link Mappable}.
+ * This is, roughly, the opposite of {@link Mappable} without the automation.
  */
 @FunctionalInterface
 public interface MapDecodable {
+
+    /**
+     * Initializes this object from a Map
+     * @param input The input map
+     * @throws ObjectMapper.ObjectMapperException if the mapping operation fails
+     */
     void initializeFromMap(Map<String, Object> input) throws ObjectMapper.ObjectMapperException;
 }
