@@ -296,3 +296,21 @@ dependencies {
         exclude group: 'bouncycastle'
     }
 }
+
+
+checkstyle {
+    showViolations = false
+    toolVersion = '9.3'
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        html.required = false
+    }
+
+    finalizedBy tasks.named('transmuteCheckstyleOutput').get()
+}
+
+tasks.register("transmuteCheckstyleOutput", Exec) {
+    commandLine 'scripts/ci/convert-checkstyle.sh'
+}
