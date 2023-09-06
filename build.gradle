@@ -15,14 +15,22 @@ buildscript {
         classpath 'org.aspectj:aspectjrt:1.8.9'
         classpath "org.asciidoctor:asciidoctor-gradle-jvm:3.3.2"
         classpath "org.asciidoctor:asciidoctor-gradle-jvm-pdf:3.3.2"
-        classpath("gradle.plugin.org.jdrupes.mdoclet:gradle-plugin:1.0.10")
+
+        if (JavaVersion.current().isJava11Compatible()) {
+            // This is not a plugin in Java 11+
+        } else {
+            classpath("gradle.plugin.org.jdrupes.mdoclet:gradle-plugin:1.0.10")
+        }
     }
 }
 
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
-apply plugin: "org.jdrupes.mdoclet"
 apply plugin: "org.ajoberstar.grgit"
+
+if (JavaVersion.current().isJava8()) {
+    apply plugin: "org.jdrupes.mdoclet"
+}
 
 def getDistVersion() {
     def branch = System.getenv('CI_COMMIT_BRANCH')
@@ -81,10 +89,23 @@ jar {
     }
 }
 
+tasks.register("javadocJar", Jar) {
+    if (JavaVersion.current().isJava11Compatible()) {
+        dependsOn tasks.named("java11doc").get()
+        from tasks.named("java11doc").get().outputs
+    } else {
+        dependsOn tasks.named("javadoc").get()
+        from tasks.named("javadoc").get().outputs
+    }
+
+    archiveClassifier = "javadoc"
+}
 
 java {
     withSourcesJar()
-    withJavadocJar()
+    if (!JavaVersion.current().isJava11Compatible()) {
+        withJavadocJar()
+    }
 }
 
 publishing {
@@ -202,15 +223,46 @@ tasks.withType(Javadoc).configureEach {
     options.links('https://docs.oracle.com/javase/8/docs/api/')
 }
 
+tasks.register('java11doc', JavaExec) {
+    enabled = JavaVersion.current().isJava11Compatible()
+
+    dependsOn "classes"
+
+    jvmArgs = ['--add-exports=jdk.javadoc/jdk.javadoc.internal.tool=ALL-UNNAMED',
+               '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED']
+
+    classpath sourceSets.main.compileClasspath
+    mainClass = 'jdk.javadoc.internal.tool.Main'
+    args = ['-doctitle', "IDW IIQ Common (public)",
+            '-use',
+            '-linksource',
+            '-link', 'https://docs.oracle.com/en/java/javase/11/docs/api/',
+            '--add-exports', 'jdk.javadoc/jdk.javadoc.internal.tool=ALL-UNNAMED',
+            '--add-exports', 'jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+            '-doclet', 'org.jdrupes.mdoclet.MDoclet',
+            '-docletpath', (configurations.markdownDoclet.files as List).join(":"),
+            '-d', file("${project.buildDir}/docs/javadoc"),
+            '-sourcepath', 'src/',
+            '-subpackages', 'com.identityworksllc.iiq.common',
+            '-Xdoclint:-html'
+    ]
+
+    inputs.files(sourceSets.main.allJava.files)
+    outputs.dir(file("${project.buildDir}/docs/javadoc"))
+}
+
 def includeLib = fileTree(dir: "${libRoot}/included")
 includeLib.include "*.jar"
 
 configurations {
+    markdownDoclet
     toolLibraries
     implementation.extendsFrom toolLibraries
 }
 
 dependencies {
+    markdownDoclet "org.jdrupes.mdoclet:doclet:2.1.0"
+
     implementation ":identityiq:"
     implementation ":connector-bundle-identityiq:"
 

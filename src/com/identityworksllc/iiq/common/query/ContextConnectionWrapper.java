@@ -29,14 +29,14 @@ import java.sql.SQLException;
  *
  * The nested layers of underlying connection wrappers is:
  *
- *   SPConnection
- *   to ConnectionWrapper
- *   to PoolGuardConnectionWrapper
- *   to DelegatingConnection
- *   to DelegatingConnection (*)
- *   to Underlying driver Connection
+ *   * SPConnection
+ *   * to ConnectionWrapper
+ *   * to PoolGuardConnectionWrapper
+ *   * to DelegatingConnection
+ *   * to DelegatingConnection (*)
+ *   * to Underlying driver Connection
  *
- * The connection marked with a (*) is the one that is nulled on close().
+ * The connection marked with a (`*`) is the one that is nulled on close().
  */
 public class ContextConnectionWrapper {
 
