@@ -28,7 +28,7 @@ build:
     # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
     # - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
-    - ./gradlew build javadoc
+    - ./gradlew build javadoc -x checkstyleMain
   artifacts:
     name: "iiqcommon-public-library"
     reports:
@@ -37,6 +37,18 @@ build:
     paths:
       - build/**
     # expire_in: 1 month
+
+checkstyle:
+  stage: reporting
+  before_script:
+    - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
+  script:
+    - ./gradlew checkstyleMain
+  artifacts:
+    name: "checkstyle"
+    reports:
+      codequality:
+        - build/reports/checkstyle/main.json
 
 deploy:
   stage: publish
