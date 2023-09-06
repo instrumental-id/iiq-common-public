@@ -31,9 +31,6 @@ build:
     - ./gradlew build javadoc -x checkstyleMain
   artifacts:
     name: "iiqcommon-public-library"
-    reports:
-      codequality:
-        - build/reports/checkstyle/main.json
     paths:
       - build/**
     # expire_in: 1 month
