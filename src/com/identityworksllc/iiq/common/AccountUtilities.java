@@ -578,7 +578,6 @@ public class AccountUtilities extends AbstractBaseUtility {
 	 * @see #aggregateAccount(Application, Connector, ResourceObject, boolean, Map)
 	 */
 	public AggregationOutcome aggregateAccount(Application appObject, Connector appConnector, ResourceObject rObj, boolean refreshIdentity) throws GeneralException {
-		Environment.getEnvironment().getPluginsConfiguration().getDataSource().getConnection()
 		return this.aggregateAccount(appObject, appConnector, rObj, refreshIdentity, new HashMap<>());
 	}
 
