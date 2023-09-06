@@ -60,10 +60,8 @@ public class ObjectSummary extends RestObject {
         this.type = ObjectUtil.getTheRealClass(spo).getSimpleName();
         try {
             Method getDisplayName = spo.getClass().getMethod("getDisplayName");
-            if (getDisplayName != null) {
-                this.displayName = (String)getDisplayName.invoke(spo);
-            }
-        } catch(Exception e) {
+            this.displayName = (String) getDisplayName.invoke(spo);
+        } catch(Exception ignored) {
             /* Do nothing, this might be fine */
         }
     }

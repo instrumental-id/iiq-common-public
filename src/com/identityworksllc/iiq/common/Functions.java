@@ -2110,7 +2110,7 @@ public class Functions {
                     Date d = new Date(date);
                     return d.after(test);
                 }
-            } catch (GeneralException e) {
+            } catch (GeneralException ignored) {
                 /* Nothing */
             }
             return false;
@@ -2140,7 +2140,7 @@ public class Functions {
                     Date d = new Date(date);
                     return d.before(test);
                 }
-            } catch (GeneralException e) {
+            } catch (GeneralException ignored) {
                 /* Nothing */
             }
             return false;

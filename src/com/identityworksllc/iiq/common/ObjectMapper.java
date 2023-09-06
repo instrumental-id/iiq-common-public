@@ -820,7 +820,7 @@ public class ObjectMapper<T> {
                         Class<? extends Annotation> rootElemAnnotation = null;
                         try {
                             rootElemAnnotation = (Class<? extends Annotation>) Class.forName("javax.xml.bind.annotation.XmlRootElement");
-                        } catch(Exception e) {
+                        } catch(Exception ignored) {
                             /* Ignore it */
                         }
                         Class<?> cls = targetClass;

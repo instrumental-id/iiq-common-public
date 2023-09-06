@@ -480,7 +480,7 @@ public abstract class SailPointWorker implements Runnable, Serializable {
 	public void run() {
 		try {
 			implementation(false);
-		} catch(Exception e) {
+		} catch(Exception ignored) {
 			// Already handled due to 'false' above
 		}
 	}

@@ -5,8 +5,19 @@
 
 <module name="Checker">
     <module name="TreeWalker">
+        <module name="AnonInnerLength"/>
+        <module name="ConstantName">
+            <property name="applyToPrivate" value="false"/>
+            <property name="applyToPackage" value="false"/>
+        </module>
         <module name="EqualsHashCode"/>
         <module name="EmptyBlock"/>
+        <module name="EmptyCatchBlock">
+            <property name="commentFormat" value="^.*(I|i)gnore.*$"/>
+            <property name="exceptionVariableName" value="^ignore.*$"/>
+        </module>
+        <module name="IllegalIdentifierName"/>
+        <module name="MethodName"/>
         <module name="MissingJavadocMethod">
             <property name="allowMissingPropertyJavadoc" value="true"/>
             <property name="severity" value="warning"/>
@@ -16,5 +27,9 @@
         </module>
         <module name="NoFinalizer"/>
         <module name="StringLiteralEquality"/>
+        <module name="TodoComment">
+            <property name="severity" value="info"/>
+        </module>
+        <module name="TypeName"/>
     </module>
 </module>
