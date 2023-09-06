@@ -24,6 +24,7 @@ buildscript {
     }
 }
 
+apply plugin: 'checkstyle'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: "org.ajoberstar.grgit"
@@ -102,6 +103,8 @@ tasks.register("javadocJar", Jar) {
 }
 
 java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+
     withSourcesJar()
     if (!JavaVersion.current().isJava11Compatible()) {
         withJavadocJar()

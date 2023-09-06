@@ -9,7 +9,9 @@ This repository contains a "minimal" subset of IDW's broader IIQCommon library. 
 
 === JDK version
 
-At this time, this library should be built using JDK 8. (I personally use Azure Zulu.)
+You can build this library with JDK 8, JDK 11, or JDK 17.
+
+The code style is consistent with JDK 8 so that the library will be compatible with existing IIQ installations.
 
 === Supplying the IIQ dependencies
 
@@ -24,7 +26,7 @@ Insert the following JAR files from your IIQ version in the `lib/sailpoint` fold
 
 To build the library, execute `./gradlew build`. (On Windows, use `gradlew.bat build` instead.)
 
-The library will be assembled at `build/libs/iiq-common-public.jar`.
+The library will be assembled at `build/libs/iiq-common-public-<version>.jar`. For deployment into your environment, you may want to manually remove the version tag so that you can always update the file in place.
 
 === Javadocs
 
