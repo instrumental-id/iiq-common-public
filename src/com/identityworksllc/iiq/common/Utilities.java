@@ -3327,4 +3327,11 @@ public class Utilities {
 		}
 	}
 
+	/**
+	 * Private utility constructor
+	 */
+	private Utilities() {
+
+	}
+
 }

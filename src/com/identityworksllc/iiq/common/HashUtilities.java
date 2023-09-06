@@ -95,4 +95,11 @@ public class HashUtilities {
     public static String sha256(String input) throws GeneralException {
         return hash("SHA-256", input);
     }
+
+    /**
+     * Private utility constructor
+     */
+    private HashUtilities() {
+
+    }
 }

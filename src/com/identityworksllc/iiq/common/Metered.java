@@ -67,4 +67,11 @@ public class Metered {
             Meter.exitByName(meterName);
         }
     }
+
+    /**
+     * Private utility constructor
+     */
+    private Metered() {
+
+    }
 }

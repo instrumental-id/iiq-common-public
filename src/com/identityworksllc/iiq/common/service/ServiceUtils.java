@@ -30,4 +30,11 @@ public class ServiceUtils {
         context.saveObject(reloaded);
         context.commitTransaction();
     }
+
+    /**
+     * Private utility constructor
+     */
+    private ServiceUtils() {
+
+    }
 }

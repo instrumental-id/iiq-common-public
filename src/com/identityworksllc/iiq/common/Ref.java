@@ -83,4 +83,10 @@ public final class Ref {
         };
     }
 
+    /**
+     * Private utility constructor
+     */
+    private Ref() {}
+
+
 }

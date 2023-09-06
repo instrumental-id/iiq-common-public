@@ -79,4 +79,10 @@ public class ContextConnectionWrapper {
         }
     }
 
+    /**
+     * Private utility constructor
+     */
+    private ContextConnectionWrapper() {
+
+    }
 }

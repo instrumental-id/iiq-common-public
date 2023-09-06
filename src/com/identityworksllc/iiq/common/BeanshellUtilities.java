@@ -327,4 +327,11 @@ public class BeanshellUtilities {
 			throw new GeneralException(e);
 		}
 	}
+
+	/**
+	 * Private utility constructor
+	 */
+	private BeanshellUtilities() {
+
+	}
 }

@@ -76,4 +76,11 @@ public class CellOptions {
     public static CellOption style(String style) {
         return (cell) -> cell.setStyle(style);
     }
+
+    /**
+     * Private utility constructor
+     */
+    private CellOptions() {
+
+    }
 }

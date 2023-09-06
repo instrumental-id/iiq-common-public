@@ -86,4 +86,11 @@ public class Syslogger {
         });
         return quickKeyRef.get();
     }
+
+    /**
+     * Private utility constructor
+     */
+    private Syslogger() {
+
+    }
 }

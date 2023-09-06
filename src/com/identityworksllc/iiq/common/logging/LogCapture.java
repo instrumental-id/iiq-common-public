@@ -140,4 +140,10 @@ public class LogCapture {
 		return messageStrings;
 	}
 
+	/**
+	 * Private utility constructor
+	 */
+	private LogCapture() {
+
+	}
 }

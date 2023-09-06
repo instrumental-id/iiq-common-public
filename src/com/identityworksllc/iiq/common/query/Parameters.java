@@ -58,4 +58,11 @@ public class Parameters {
             param++;
         }
     }
+
+    /**
+     * Private utility constructor
+     */
+    private Parameters() {
+
+    }
 }

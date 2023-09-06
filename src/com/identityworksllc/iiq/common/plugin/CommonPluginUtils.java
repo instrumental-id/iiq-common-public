@@ -131,4 +131,11 @@ public class CommonPluginUtils {
 		}
 		return result;
 	}
+
+	/**
+	 * Utility classes should not be constructed
+	 */
+	private CommonPluginUtils() {
+
+	}
 }

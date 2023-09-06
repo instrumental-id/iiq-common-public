@@ -174,4 +174,11 @@ public class LdapUtilities {
             return false;
         }
     }
+
+    /**
+     * Private utility constructor
+     */
+    private LdapUtilities() {
+
+    }
 }

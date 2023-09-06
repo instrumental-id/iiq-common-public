@@ -2428,4 +2428,11 @@ public class Functions {
     public static <T> Function<Map.Entry<?, T>, T> value() {
         return Map.Entry::getValue;
     }
+
+    /**
+     * Private utility constructor
+     */
+    private Functions() {
+
+    }
 }
