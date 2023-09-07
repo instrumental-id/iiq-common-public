@@ -65,6 +65,8 @@ def libRoot = project.getProperties().getOrDefault("idw.minimal.libpath", "lib")
 group 'com.identityworksllc.iiq.common.minimal'
 version getDistVersion()
 
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
 /* Where to get dependency libraries */
 repositories {
     mavenLocal()
