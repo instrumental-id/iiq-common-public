@@ -1,0 +1,77 @@
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            pom {
+
+                name = 'IIQ Common Public'
+                description = 'A library of common SailPoint IdentityIQ utilities for Rules and Java code'
+                url = 'https://www.identityworksllc.com/utilities/iiqcommon'
+                packaging = "jar"
+                inceptionYear = "2022"
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = "repo"
+                    }
+                }
+
+                organization {
+                    name = "Identity Works LLC"
+                    url = "https://www.identityworksllc.com"
+                }
+
+                developers {
+                    developer {
+                        id = "drosenbauer"
+                        name = "Devin Rosenbauer"
+                        email = "devin@instrumentalid.com"
+                        organization = "Identity Works LLC"
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://git.identityworksllc.com/pub/iiqcommon.git'
+                    developerConnection = 'scm:git:ssh://git.identityworksllc.com/pub/iiqcommon.git'
+                    url = 'https://www.identityworksllc.com/utilities/iiqcommon'
+                }
+            }
+
+            pom.withXml {
+                Node pomNode = asNode()
+                pomNode.dependencies.'*'.findAll() {
+                    it.artifactId.text().contains('identityiq')
+                }.each() {
+                    it.parent().remove(it)
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            url "https://git.identityworksllc.com/api/v4/projects/157/packages/maven"
+
+            credentials(HttpHeaderCredentials) {
+                name = 'Job-Token'
+                value = System.getenv("CI_JOB_TOKEN")
+            }
+
+            authentication {
+                header(HttpHeaderAuthentication)
+            }
+        }
+    }
+}
+
+signing {
+    def signingKey = findProperty("signingKey")
+    if (signingKey) {
+        def signingPassword = findProperty("signingPassword")
+        useInMemoryPgpKeys(signingKey, signingPassword)
+    }
+    sign configurations.runtimeElements
+    sign publishing.publications.named("mavenJava").get()
+}

@@ -28,7 +28,7 @@ printf "[\n"
 tail -n +3 $1 | while read p; do
     if printf "$p" | grep -q "<file name.*" -; then
         file="$(realpath "$(expr "$p" : '<file name=\"\(.*\)\".*')")"
-        err Processing checkstyle results for "$file"
+        #err Processing checkstyle results for "$file"
     fi
     if printf "$p" | grep -q "<error.*" -; then
         line="$(expr "$p" : '.*line=\"\([0-9]*\)\".*')"

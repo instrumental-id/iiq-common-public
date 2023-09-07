@@ -28,6 +28,7 @@ apply plugin: 'checkstyle'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: "org.ajoberstar.grgit"
+apply plugin: "signing"
 
 if (JavaVersion.current().isJava8()) {
     apply plugin: "org.jdrupes.mdoclet"
@@ -61,6 +62,9 @@ sourceSets {
 
 def libRoot = project.getProperties().getOrDefault("idw.minimal.libpath", "lib")
 
+group 'com.identityworksllc.iiq.common.minimal'
+version getDistVersion()
+
 /* Where to get dependency libraries */
 repositories {
     mavenLocal()
@@ -75,116 +79,13 @@ repositories {
     }
 }
 
-jar {
-    def gitVersion = System.getenv("CI_COMMIT_SHORT_SHA") ?: "${grgit?.head()?.abbreviatedId}"
-    def year = LocalDate.now().year;
+apply from: "./scripts/build/java.include.gradle"
 
-    manifest {
-        attributes(
-                'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
-                'Build-Revision' : gitVersion ?: getDistVersion(),
-                'Created-By'     : "Gradle ${gradle.gradleVersion}",
-                'Subset'         : "Public",
-                'Copyright'      : "$year Identity Works LLC https://www.identityworksllc.com/"
-        )
-    }
-}
+apply from: "./scripts/build/pub.include.gradle"
 
-tasks.register("javadocJar", Jar) {
-    if (JavaVersion.current().isJava11Compatible()) {
-        dependsOn tasks.named("java11doc").get()
-        from tasks.named("java11doc").get().outputs
-    } else {
-        dependsOn tasks.named("javadoc").get()
-        from tasks.named("javadoc").get().outputs
-    }
+apply from: "./scripts/build/checkstyle.build.gradle"
 
-    archiveClassifier = "javadoc"
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-
-    withSourcesJar()
-    if (!JavaVersion.current().isJava11Compatible()) {
-        withJavadocJar()
-    }
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-
-            pom {
-
-                name = 'IIQ Common Public'
-                description = 'A library of common SailPoint IdentityIQ utilities for Rules and Java code'
-                url = 'https://www.identityworksllc.com/utilities/iiqcommon'
-                packaging = "jar"
-                inceptionYear = "2022"
-
-                licenses {
-                    license {
-                        name = 'The Apache License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        distribution = "repo"
-                    }
-                }
-
-                organization {
-                    name = "Identity Works LLC"
-                    url = "https://www.identityworksllc.com"
-                }
-
-                developers {
-                    developer {
-                        id = "drosenbauer"
-                        name = "Devin Rosenbauer"
-                        email = "devin@instrumentalid.com"
-                        organization = "Identity Works LLC"
-                    }
-                }
-
-                scm {
-                    connection = 'scm:git:git://git.identityworksllc.com/pub/iiqcommon.git'
-                    developerConnection = 'scm:git:ssh://git.identityworksllc.com/pub/iiqcommon.git'
-                    url = 'https://www.identityworksllc.com/utilities/iiqcommon'
-                }
-            }
-
-            pom.withXml {
-                Node pomNode = asNode()
-                pomNode.dependencies.'*'.findAll() {
-                    it.artifactId.text().contains('identityiq')
-                }.each() {
-                    it.parent().remove(it)
-                }
-            }
-        }
-    }
-    repositories {
-        maven {
-            url "https://git.identityworksllc.com/api/v4/projects/157/packages/maven"
-
-            credentials(HttpHeaderCredentials) {
-                name = 'Job-Token'
-                value = System.getenv("CI_JOB_TOKEN")
-            }
-            
-            authentication {
-                header(HttpHeaderAuthentication)
-            }
-        }
-    }
-}
-
-group 'com.identityworksllc.iiq.common.minimal'
-version getDistVersion()
-
-tasks.named("sourcesJar") {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
+apply from: "./scripts/build/tools.include.gradle"
 
 /**
  * Disables the Gradle Module Metadata, which breaks on the IIQ JARs that have
@@ -193,65 +94,6 @@ tasks.named("sourcesJar") {
  */
 tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
-}
-
-/*
- * A quick and easy way to run the Plugin Installer command line tool. The downside
- * is that the output is not as easy to parse via a command pipeline.
- */
-tasks.register("pluginTool", JavaExec) {
-    classpath = files(tasks.jar)
-
-    mainClass = "com.identityworksllc.iiq.common.plugin.RemotePluginInstaller"
-
-    args '-p', 'plugin-installer.properties', project.findProperty("cmd"), project.findProperty("arg")
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.warnings = false
-    options.compilerArgs += '-Xlint:-deprecation'
-    options.compilerArgs += '-Xlint:-unchecked'
-
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-}
-
-tasks.withType(Javadoc).configureEach {
-    onlyIf {
-        (JavaVersion.current() == JavaVersion.VERSION_1_8)
-    }
-
-    options.addStringOption('Xdoclint:none', '-quiet')
-    options.setMemberLevel(JavadocMemberLevel.PUBLIC)
-    options.links('https://docs.oracle.com/javase/8/docs/api/')
-}
-
-tasks.register('java11doc', JavaExec) {
-    enabled = JavaVersion.current().isJava11Compatible()
-
-    dependsOn "classes"
-
-    jvmArgs = ['--add-exports=jdk.javadoc/jdk.javadoc.internal.tool=ALL-UNNAMED',
-               '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED']
-
-    classpath sourceSets.main.compileClasspath
-    mainClass = 'jdk.javadoc.internal.tool.Main'
-    args = ['-doctitle', "IDW IIQ Common (public)",
-            '-use',
-            '-linksource',
-            '-link', 'https://docs.oracle.com/en/java/javase/11/docs/api/',
-            '--add-exports', 'jdk.javadoc/jdk.javadoc.internal.tool=ALL-UNNAMED',
-            '--add-exports', 'jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
-            '-doclet', 'org.jdrupes.mdoclet.MDoclet',
-            '-docletpath', (configurations.markdownDoclet.files as List).join(":"),
-            '-d', file("${project.buildDir}/docs/javadoc"),
-            '-sourcepath', 'src/',
-            '-subpackages', 'com.identityworksllc.iiq.common',
-            '-Xdoclint:-html'
-    ]
-
-    inputs.files(sourceSets.main.allJava.files)
-    outputs.dir(file("${project.buildDir}/docs/javadoc"))
 }
 
 def includeLib = fileTree(dir: "${libRoot}/included")
@@ -266,19 +108,20 @@ configurations {
 dependencies {
     markdownDoclet "org.jdrupes.mdoclet:doclet:2.1.0"
 
-    implementation ":identityiq:"
-    implementation ":connector-bundle-identityiq:"
+    compileOnly ":identityiq:"
+    compileOnly ":connector-bundle-identityiq:"
 
-    implementation includeLib
+    compileOnly includeLib
 
     toolLibraries 'info.picocli:picocli:4.+'
     toolLibraries group: 'org.jline', name: 'jline', version: '3.+'
 
     implementation group: 'org.glassfish.jersey.bundles', name: 'jaxrs-ri', version: '2.22.2'
+    implementation group: 'javax.servlet', name: 'javax.servlet-api', version: '4.0.1'
+
     implementation group: 'javax.xml.bind', name: 'jaxb-api', version: '2.3.1'
     implementation group: 'org.apache.velocity', name: 'velocity', version: '1.7'
     implementation group: 'javax.el', name: 'javax.el-api', version: '3.0.0'
-    implementation group: 'javax.servlet', name: 'javax.servlet-api', version: '4.0.1'
     implementation group: 'javax.faces', name: 'javax.faces-api', version: '2.3'
     implementation group: 'commons-beanutils', name: 'commons-beanutils', version: '1.9.4'
     implementation group: 'commons-lang', name: 'commons-lang', version: '2.6'
@@ -295,22 +138,4 @@ dependencies {
         exclude group: 'org.bouncycastle'
         exclude group: 'bouncycastle'
     }
-}
-
-
-checkstyle {
-    showViolations = false
-    toolVersion = '9.3'
-}
-
-tasks.withType(Checkstyle).configureEach {
-    reports {
-        html.required = false
-    }
-
-    finalizedBy tasks.named('transmuteCheckstyleOutput').get()
-}
-
-tasks.register("transmuteCheckstyleOutput", Exec) {
-    commandLine 'scripts/ci/convert-checkstyle.sh'
 }
