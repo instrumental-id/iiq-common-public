@@ -36,12 +36,12 @@ public class Sameness {
     }
 
     /**
-     * Returns true if the given thing is empty in the Sameness sense, i.e.,
-     * if it is the same as null. These are values that are often optimized
-     * out by SailPoint when serializing to XML.
+     * Returns true if the given thing is empty in the isSame() sense, i.e.,
+     * if it ought to be the same as null. These are values that are often
+     * optimized out by SailPoint when serializing to XML.
      *
-     * A thing is empty if it is null or is an empty string, list, or map.
-     * Boolean false and integer zero are also empty.
+     * A thing is empty if it is null or is an empty string, array, collection,
+     * or map. Boolean false and integer 0 are also empty.
      *
      * All other values are not empty.
      *
@@ -84,16 +84,16 @@ public class Sameness {
     }
 
     /**
-     * Implements a more advanced algorithm to decide whether two objects are the same.
+     * Decide whether the two inputs are the same.
      *
-     * This can be an expensive check and so should be used in concert with existing .equals(), e.g. o1.equals(o2) || isSame(o1, o2).
+     * This can be an expensive check and so should be used in concert with existing .equals(), e.g. `o1.equals(o2) || isSame(o1, o2)`.
      *
-     * 1) Type differences: If the two values are a String and a Boolean (or a String and a Number), but will be treated the same by Hibernate, they will be viewed as the same here.
-     * 2) Null and empty: Nulls and empty objects (strings, lists, maps, boolean false) will be considered the same.
-     * 3) Dates and Longs: If one value is a long and one is a Date, they will be compared as timestamps.
-     * 4) Collections: Two collections will be considered equal if they have the same elements in any order. If ignoreCase is true, elements will be converted to strings and compared case-insensitively.
+     * 1) Type differences: If the two values are a String and a Boolean (or a String and a Number), but will be stored the same way by Hibernate, they are the same
+     * 2) Null and empty: Null is the same as any empty object (strings, lists, maps, boolean false)
+     * 3) Dates and Longs: If one value is a long and one is a Date, they are the same if {@link Date#getTime()} equals the long value
+     * 4) Collections: Two collections are the same if they have equal elements in any order. If ignoreCase is true, elements will be converted to strings and compared case-insensitively.
      * 5) String case: Two strings will be compared case-insensitive if the flag is passed as true
-     * 6) String vs. Collection case: Sometimes the old value will be a string and the new a collection, or vice versa, if a multi-value field only has one entry or if the connector is weird. (AD OUs can do this.)
+     * 6) String vs. Collection case: A string is the same as collection containing only that string
      *
      * @param newValue The new value (can be null)
      * @param oldValue The old value (can be null)

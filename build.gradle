@@ -58,6 +58,14 @@ sourceSets {
             srcDirs = ['src']
         }
     }
+    test {
+        java {
+            srcDirs = ['test']
+        }
+        resources {
+            srcDirs = ['test']
+        }
+    }
 }
 
 def libRoot = project.getProperties().getOrDefault("idw.minimal.libpath", "lib")
@@ -140,4 +148,17 @@ dependencies {
         exclude group: 'org.bouncycastle'
         exclude group: 'bouncycastle'
     }
+
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation ":identityiq:"
+    testImplementation ":connector-bundle-identityiq:"
+    testImplementation includeLib
+
+    testRuntimeOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.20.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+test {
+    useJUnitPlatform()
 }
