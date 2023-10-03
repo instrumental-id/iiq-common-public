@@ -12,6 +12,16 @@ import java.util.function.Function;
  */
 public final class CommonConstants {
     /**
+     * A constant so we don't misspell 'false' anywhere
+     */
+    public static final String ARG_STRING_FALSE = "false";
+
+    /**
+     * A constant so we don't misspell 'true' anywhere
+     */
+    public static final String ARG_STRING_TRUE = "true";
+
+    /**
      * The Unix timestamp value in milliseconds of January 1 1900, midnight, UTC
      */
     public static final long EPOCH_1900 = -2208988800000L;
