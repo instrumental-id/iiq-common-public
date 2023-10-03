@@ -33,7 +33,9 @@ import static com.identityworksllc.iiq.common.CommonConstants.ARG_STRING_FALSE;
 import static com.identityworksllc.iiq.common.CommonConstants.ARG_STRING_TRUE;
 
 /**
- * Assigned role differences
+ * Assigned role differences detection task. It will report on changes only,
+ * refresh all users with the changes, or save a big list of IDs to a
+ * specific population (or all three).
  */
 public class AssignedDetectedRoleDifferenceCleanup extends AbstractTaskExecutor {
 
@@ -48,6 +50,10 @@ public class AssignedDetectedRoleDifferenceCleanup extends AbstractTaskExecutor 
             "not exists (\n" +
             "      select 1 from i.bundles b where b.name = req.name\n" +
             ")\n";
+
+    /**
+     * Logger
+     */
     private final Log log;
 
     /**

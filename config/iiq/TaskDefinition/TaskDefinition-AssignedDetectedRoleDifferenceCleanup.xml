@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.AssignedDetectedRoleDifferenceCleanup" name="IDW - Detect Missing IT Roles" progressInterval="5000" progressMode="String" template="true" type="System">
+    <Description>
+        Detects (and optionally acts on) identities in IIQ with differences between actual and required IT Roles
+    </Description>
+    <Signature>
+        <Inputs>
+            <Argument name="doRefresh" type="boolean">
+                <Prompt>Refresh all users with differences:</Prompt>
+            </Argument>
+            <Argument name="doReport" type="boolean">
+                <Prompt>Write a giant Map of differences to the TaskResult:</Prompt>
+            </Argument>
+            <Argument name="savePopulationName" type="string">
+                <Prompt>Create a Population with this name containing all identities:</Prompt>
+            </Argument>
+        </Inputs>
+    </Signature>
+</TaskDefinition>
