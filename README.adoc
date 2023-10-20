@@ -5,6 +5,47 @@
 
 This repository contains a "minimal" subset of IDW's broader IIQCommon library. These utilities do not represent the full power of IIQCommon, but they should be sufficient to make IIQ development easier.
 
+== Maven repository
+
+Updates to the `main` branch in this repository are pushed to our hosted GitLab's Maven package repository. You can set up this repository in your `pom.xml` using the following configuration:
+
+[source,xml]
+----
+<repositories>
+  <repository>
+    <id>gitlab-maven</id>
+    <url>https://git.identityworksllc.com/api/v4/projects/157/packages/maven</url>
+  </repository>
+</repositories>
+
+<distributionManagement>
+  <repository>
+    <id>gitlab-maven</id>
+    <url>https://git.identityworksllc.com/api/v4/projects/157/packages/maven</url>
+  </repository>
+
+  <snapshotRepository>
+    <id>gitlab-maven</id>
+    <url>https://git.identityworksllc.com/api/v4/projects/157/packages/maven</url>
+  </snapshotRepository>
+</distributionManagement>
+----
+
+Or Gradle repository configuration:
+
+[source,groovy]
+----
+maven {
+  url 'https://git.identityworksllc.com/api/v4/projects/157/packages/maven'
+}
+----
+
+The Maven coordinates for the library are:
+
+* Group ID: `com.identityworksllc.iiq.common.minimal`
+* Artifact ID: `iiq-common-public`
+* Version: A non-semver date string in the format `yyyyMM.dd.HHmmss` (e.g., `202310.03.170641`)
+
 == Building the library
 
 === JDK version
