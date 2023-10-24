@@ -1,4 +1,4 @@
-image: $PLUGIN_BUILDER_IMAGE
+image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure/idw-containers/gradle-plugin-multiversion
 
 # Disable the Gradle daemon for Continuous Integration servers as correctness
 # is usually a priority over speed in CI environments. Using a fresh
@@ -19,6 +19,7 @@ before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
   - export GIT_SSH_COMMAND=/usr/bin/ssh
   - git checkout "$CI_COMMIT_REF_NAME"
+  - set_java_version
 
 build:
   stage: build
