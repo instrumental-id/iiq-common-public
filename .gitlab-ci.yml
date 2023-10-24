@@ -25,6 +25,7 @@ before_script:
 build:
   stage: build
   before_script:
+      - set_java_version
       - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
     # - mkdir -p lib/sailpoint
     # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
@@ -40,6 +41,7 @@ build:
 checkstyle:
   stage: reporting
   before_script:
+    - set_java_version
     - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
   script:
     - ./gradlew checkstyleMain
@@ -52,6 +54,7 @@ checkstyle:
 deploy:
   stage: publish
   before_script:
+    - set_java_version
     - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
     # - mkdir -p lib/sailpoint
     # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
