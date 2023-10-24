@@ -1,5 +1,4 @@
-# image: $PLUGIN_BUILDER_IMAGE
-image: git.identityworksllc.com:5005/idw/idw-sailpoint/automation-infrastructure/idw-containers/gradle-plugin-multiversion
+image: $PLUGIN_BUILDER_IMAGE
 
 # Disable the Gradle daemon for Continuous Integration servers as correctness
 # is usually a priority over speed in CI environments. Using a fresh
