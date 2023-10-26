@@ -918,7 +918,7 @@ public class Functions {
      * @return The function
      * @param <K> The input type
      */
-    public static <K, T> Function<K, ? super T> f(String methodName, Class<T> expectedType) {
+    public static <K, T> Function<K, T> f(String methodName, Class<T> expectedType) {
         return object -> {
             try {
                 Class<?> cls = object.getClass();
