@@ -870,6 +870,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
      * Submits a provisioning plan using the configured defaults.
      * @param identityName If the plan does not already have an Identity configured, this one will be used.
      * @param plan The provisioning plan.
+	 * @return The compiled provisioning project, post-provision
      * @throws GeneralException if any failures occur
      */
     public ProvisioningProject doProvisioning(String identityName, ProvisioningPlan plan) throws GeneralException {
@@ -881,6 +882,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
      * @param identityName If the plan does not already have an Identity configured, this one will be used.
      * @param plan The provisioning plan
      * @param doRefresh If true, a refresh will be performed by the provisioning handler
+	 * @return The compiled provisioning project, post-provision
      * @throws GeneralException if any IIQ failures occur
      */
 	public ProvisioningProject doProvisioning(String identityName, ProvisioningPlan plan, boolean doRefresh) throws GeneralException {
@@ -893,6 +895,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
      * @param plan The provisioning plan
      * @param doRefresh If true, a refresh will be performed by the provisioning handler
 	 * @param extraParameters A Map containing workflow parameters that will be passed to the provisioning workflow or Provisioner
+	 * @return The compiled provisioning project, post-provision
 	 * @throws GeneralException if any IIQ failures occur
 	 */
 	public ProvisioningProject doProvisioning(String identityName, ProvisioningPlan plan, boolean doRefresh, Map<String, Object> extraParameters) throws GeneralException {
@@ -1315,6 +1318,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
 	 * remove any entitlements provisioned by that role that are not required by
 	 * another role assigned to the user.
 	 *
+	 * @param identityName The name of the Identity to modify
 	 * @param targetDetection The target existing RoleDetection from an Identity
 	 * @throws GeneralException if a provisioning failure occurs
 	 */

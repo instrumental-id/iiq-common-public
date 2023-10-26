@@ -1,5 +1,11 @@
 package com.identityworksllc.iiq.common;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.identityworksllc.iiq.common.logging.SLogger;
 import com.identityworksllc.iiq.common.query.ContextConnectionWrapper;
 import org.apache.commons.beanutils.PropertyUtils;
@@ -61,6 +67,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -118,6 +125,8 @@ public class Utilities {
 	 * If the property is not an available 'quick property', this object will be returned.
 	 */
 	public static final Object NONE = new PropertyLookupNone();
+
+	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
 
 	/**
 	 * Indicates whether velocity has been initialized in this Utilities class
@@ -956,6 +965,34 @@ public class Utilities {
 	}
 
 	/**
+	 * Returns a default Jackson object mapper, independent of IIQ versions.
+	 * The template ObjectMapper is generated on the
+	 *
+	 * @return A copy of our cached ObjectMapper
+	 */
+	public static ObjectMapper getJacksonObjectMapper() {
+		if (DEFAULT_OBJECT_MAPPER.get() == null) {
+			synchronized (CustomGlobal.class) {
+				if (DEFAULT_OBJECT_MAPPER.get() == null) {
+					ObjectMapper objectMapper = new ObjectMapper();
+					objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+					objectMapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
+					objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+					DefaultPrettyPrinter.Indenter indenter = new DefaultIndenter("    ", DefaultIndenter.SYS_LF);
+					DefaultPrettyPrinter printer = new DefaultPrettyPrinter();
+					printer.indentObjectsWith(indenter);
+					printer.indentArraysWith(indenter);
+					objectMapper.setDefaultPrettyPrinter(printer);
+
+					DEFAULT_OBJECT_MAPPER.set(objectMapper);
+				}
+			}
+		}
+
+		return DEFAULT_OBJECT_MAPPER.get().copy();
+	}
+
+	/**
 	 * Returns the first item in the input that is not nothing according to the {@link #isNothing(Object)} method.
 	 *
 	 * @param items The input items
@@ -1182,7 +1219,7 @@ public class Utilities {
 	 * @throws GeneralException if a failure occurs
 	 */
 	public static Object getProperty(Object source, String paramPropertyPath, boolean gracefulNulls) throws GeneralException {
-		String propertyPath = paramPropertyPath.replaceAll("\\[(\\w+)\\]", ".$1");
+		String propertyPath = paramPropertyPath.replaceAll("\\[(\\w+)]", ".$1");
 
 		Object tryQuick = getQuickProperty(source, propertyPath);
 		// This returns Utilities.NONE if this isn't an available "quick property", because
@@ -1739,6 +1776,9 @@ public class Utilities {
 	 * Returns a new *modifiable* list with the objects specified added to it.
 	 * A new list will be returned on each invocation. This method will never
 	 * return null.
+	 *
+	 * In Java 11+, the List.of() method constructs a list of arbitrary type,
+	 * which is not modifiable by default.
 	 *
 	 * @param objects The objects to add to the list
 	 * @param <T> The type of the list

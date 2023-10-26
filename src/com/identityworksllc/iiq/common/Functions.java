@@ -2,6 +2,8 @@ package com.identityworksllc.iiq.common;
 
 import bsh.EvalError;
 import bsh.This;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -14,7 +16,6 @@ import sailpoint.object.*;
 import sailpoint.search.MapMatcher;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.MapUtil;
-import sailpoint.tools.Pair;
 import sailpoint.tools.Util;
 import sailpoint.tools.xml.AbstractXmlObject;
 
@@ -344,9 +345,16 @@ public class Functions {
      */
     public static class OtobWrapper implements Function<Object, Boolean>, Predicate<Object> {
 
-        private static final Object _lock = new Object();
-
-        private static OtobWrapper _singleton;
+        /**
+         * A holder object causing the singleton to be initialized on first use.
+         * The JVM automatically synchronizes it.
+         */
+        private static final class OtobWrapperSingletonHolder {
+            /**
+             * The singleton OtobWrapper object
+             */
+            static final OtobWrapper _singleton = new OtobWrapper();
+        }
 
         /**
          * Gets an instance of OtobWrapper. At this time, this is a Singleton
@@ -355,14 +363,7 @@ public class Functions {
          * @return an {@link OtobWrapper} object
          */
         public static OtobWrapper get() {
-            if (_singleton == null) {
-                synchronized (_lock) {
-                    if (_singleton == null) {
-                        _singleton = new OtobWrapper();
-                    }
-                }
-            }
-            return _singleton;
+            return OtobWrapperSingletonHolder._singleton;
         }
 
         private OtobWrapper() {
@@ -727,6 +728,8 @@ public class Functions {
      * Returns a Predicate that returns true if the two values are null-safe equals.
      * Two null values will be considered equal.
      *
+     * {@link Util#nullSafeEq(Object, Object)} is used under the hood.
+     *
      * @param value The value to which each input should be compared
      * @param <T> The type of the input expected
      * @return The predicate
@@ -851,6 +854,23 @@ public class Functions {
     }
 
     /**
+     * Constructs a Supplier that 'curries' the given Function, applying
+     * it to the input object and returning the result. This allows you to
+     * do logger-related structures like this in Beanshell:
+     *
+     * ftoc(someObject, getStringAttribute("hi"))
+     *
+     * @param inputObject The input object to curry
+     * @param function The function to apply to the input object
+     * @return A supplier wrapping the object and function call
+     * @param <In> The input object type
+     * @param <Out> The output object type
+     */
+    public static <In, Out> Supplier<Out> ftoc(In inputObject, Function<? super In, ? extends Out> function) {
+        return () -> function.apply(inputObject);
+    }
+
+    /**
      * Creates a Function that invokes the named method on the given target object,
      * passing the input item as its parameter.
      *
@@ -896,6 +916,7 @@ public class Functions {
      * @param expectedType The expected type of the output
      * @param <T> The value
      * @return The function
+     * @param <K> The input type
      */
     public static <K, T> Function<K, T> f(String methodName, Class<T> expectedType) {
         return object -> {
@@ -1654,6 +1675,8 @@ public class Functions {
 
     /**
      * Converts the given object to XML and logs it to the default logger as a warning
+     * @param <T> The object type
+     * @return A consumer that will log the object
      */
     public static <T extends AbstractXmlObject> Consumer<T> logXml() {
         return logXml(log);
@@ -1661,6 +1684,9 @@ public class Functions {
 
     /**
      * Converts the given object to XML and logs it to the given logger
+     * @param logger The logger
+     * @param <T> The object type
+     * @return A consumer that will log the object
      */
     public static <T extends AbstractXmlObject> Consumer<T> logXml(Log logger) {
         return obj -> {
@@ -1675,7 +1701,10 @@ public class Functions {
     }
 
     /**
-     * For the given input key, returns the value of that key in the given map
+     * For the given input key, returns the value of that key in the given map.
+     *
+     * @param map Returns the result of {@link MapUtil#get(Map, String)}
+     * @return A function that takes a string and returns the proper value from the Map
      */
     public static Function<String, Object> lookup(final Map<String, Object> map) {
         return key -> {
@@ -1689,8 +1718,11 @@ public class Functions {
     }
 
     /**
-     * For the given input map, returns the value of the key. The key is a
+     * For the given input map, returns the value at the key. The key is a
      * MapUtil path.
+     *
+     * @param key Returns the result of {@link MapUtil#get(Map, String)}
+     * @return A function that takes a Map and returns the value of the given key in that map
      */
     public static Function<Map<String, Object>, Object> lookup(final String key) {
         return map -> {
@@ -1717,8 +1749,16 @@ public class Functions {
     }
 
     /**
-     * Uses the given context and class name to look up the object
-     * corresponding to the input string
+     * Returns a Function converting a string to an object of the given type,
+     * looked up using the given SailPointContext.
+     *
+     * In 8.4, ensure that the SailPointContext is the correct one for the object
+     * type. Certain objects are now in the Access History context.
+     *
+     * @param <T> The type of SailPointObject to look up
+     * @param context The context to use to look up the object
+     * @param sailpointClass The object type to read
+     * @return A function to look up objects of the given type by ID or name
      */
     public static <T extends SailPointObject> Function<String, T> lookup(final SailPointContext context, final Class<T> sailpointClass) {
         return name -> {
@@ -1737,7 +1777,7 @@ public class Functions {
      * @param <U> The value type of the map
      * @return The output
      */
-    public static <T, U> Function<Map<T, U>, U> mapGet(T key) {
+    public static <T, U> Function<Map<T, ? extends U>, U> mapGet(T key) {
         return (map) -> map.get(key);
     }
 
@@ -1784,13 +1824,18 @@ public class Functions {
      * @param key The key to query in the map
      * @param value The value to query in the map
      */
-    public static <T, U> Predicate<Map<T, U>> mapValueEquals(T key, U value) {
+    public static <T, U> Predicate<Map<T, ? extends U>> mapValueEquals(T key, U value) {
         return eq(Functions.mapGet(key), value);
     }
 
     /**
      * Resolves to true if the input object matches the filter. This ought to be thread-safe
      * if the SailPointFactory's current context is correct for the thread.
+     *
+     * {@link HybridObjectMatcher} is used to do the matching.
+     *
+     * @param filter The Filter to evaluate against the input object
+     * @return A predicate returning true when the filter matches the input
      */
     public static PredicateWithError<? extends SailPointObject> matches(Filter filter) {
         return spo -> {
@@ -1800,7 +1845,12 @@ public class Functions {
     }
 
     /**
-     * Resolves to true if the input object matches the filter
+     * Resolves to true if the input object matches the filter. The filter will be
+     * compiled when this method is called, and then the remainder is a simple
+     * forward to {@link #matches(Filter)}.
+     *
+     * @param filterString The filter string to evaluate against the input object
+     * @return A predicate returning true when the filter matches the input
      */
     public static PredicateWithError<? extends SailPointObject> matches(String filterString) {
         Filter filter = Filter.compile(filterString);
@@ -2416,6 +2466,53 @@ public class Functions {
                 return (Stream<T>)Stream.of(result);
             } else {
                 return Stream.empty();
+            }
+        };
+    }
+
+    /**
+     * Returns a supplier that serializes the given object to JSON. The JSON
+     * text is lazily determined only on supplier invocation.
+     *
+     * If an error occurs during JSON invocation, a warning will be logged and
+     * an empty string will be returned.
+     *
+     * @param obj The object to serialize when the supplier is called
+     * @return A supplier to JSON
+     */
+    public static Supplier<String> toJson(Object obj) {
+        return () -> {
+            ObjectMapper mapper = Utilities.getJacksonObjectMapper();
+            try {
+                return mapper.writeValueAsString(obj);
+            } catch (JsonProcessingException e) {
+                log.warn("Error converting object to JSON", e);
+                return "";
+            }
+        };
+    }
+
+    /**
+     * Returns a Supplier that translates the given AbstractXmlObject to XML.
+     * This can be used with modern log4j2 invocations, notably. The call
+     * to {@link AbstractXmlObject#toXml()} happens on invocation. The
+     * result is not cached, so if the object is changed, subsequent
+     * invocations of the Supplier may produce different output.
+     *
+     * @param spo The SailPointObject to serialize
+     * @return A supplier that translates the SPO to XML when invoked
+     */
+    public static Supplier<String> toXml(AbstractXmlObject spo) {
+        if (spo == null) {
+            return () -> "";
+        }
+
+        return () -> {
+            try {
+                return spo.toXml();
+            } catch (GeneralException e) {
+                log.debug("Unable to translate object to XML", e);
+                return e.toString();
             }
         };
     }

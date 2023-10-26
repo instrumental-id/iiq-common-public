@@ -128,7 +128,7 @@ public class Quietly {
      * @param action The action to perform on the input object
      * @param <T> The type of the input object
      */
-    public static <T> void invoke(T input, Functions.ConsumerWithError<T> action) {
+    public static <T> void invoke(T input, Functions.ConsumerWithError<? super T> action) {
         try {
             action.acceptWithError(input);
         } catch(Throwable t) {
@@ -142,10 +142,11 @@ public class Quietly {
     /**
      * Performs the action, logging and swallowing any exceptions
      * @param input The input object
+     * @param input2 The second input object
      * @param action The action to perform on the input object
      * @param <In> The type of the input object
      */
-    public static <In, In2, Out> Out invokeWithOutput(In input, In2 input2, Functions.BiFunctionWithError<In, In2, Out> action) {
+    public static <In, In2, Out> Out invokeWithOutput(In input, In2 input2, Functions.BiFunctionWithError<? super In, ? super In2, Out> action) {
         try {
             return action.applyWithError(input, input2);
         } catch(Throwable t) {
@@ -167,7 +168,7 @@ public class Quietly {
      *
      * @return Either the result of the computation, if it was error-free, or null
      */
-    public static <In, Out> Out invokeWithOutput(In input, Functions.FunctionWithError<In, Out> action) {
+    public static <In, Out> Out invokeWithOutput(In input, Functions.FunctionWithError<? super In, ? extends Out> action) {
         try {
             return action.applyWithError(input);
         } catch(Throwable t) {
