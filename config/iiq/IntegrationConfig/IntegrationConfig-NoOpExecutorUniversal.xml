@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE IntegrationConfig PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<IntegrationConfig name="IDW Universal No-op Integration" executor="com.identityworksllc.iiq.common.integration.NoOpIntegrationExecutor" execStyle="synchronous" roleSyncStyle="none">
+    <Attributes>
+        <Map>
+            <entry key="universalManager" value="true"/>
+            <entry key="operations" value="Create,Modify,Delete,Enable,Unlock,SetPassword"/>
+        </Map>
+    </Attributes>
+    <Description>
+        Intercepts all ProvisioningPlans, passing them to the NoOpIntegrationExecutor, which
+        will pretend to execute the update and return a proper ResourceObject.
+    </Description>
+</IntegrationConfig>
