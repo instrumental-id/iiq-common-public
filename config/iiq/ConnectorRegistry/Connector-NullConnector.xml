@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<sailpoint>
+    <ImportAction name="merge">
+        <Configuration name="ConnectorRegistry">
+            <Attributes>
+                <Map>
+                    <entry key="applicationTemplates">
+                        <value>
+                            <List>
+                                <Application connector="com.identityworksllc.iiq.common.connector.NullConnector" featuresString="DIRECT_PERMISSIONS, PROVISIONING, SEARCH, ENABLE, PASSWORD" icon="enterpriseIcon" name="Null Connector" type="IIQ Null">
+                                    <Schemas>
+                                        <Schema displayAttribute="name" identityAttribute="name" instanceAttribute="" nativeObjectType="account" objectType="account">
+                                            <AttributeDefinition name="name" type="string">
+                                                <Description>Name</Description>
+                                            </AttributeDefinition>
+                                        </Schema>
+                                    </Schemas>
+                                </Application>
+                            </List>
+                        </value>
+                    </entry>
+                </Map>
+            </Attributes>
+        </Configuration>
+    </ImportAction>
+</sailpoint>

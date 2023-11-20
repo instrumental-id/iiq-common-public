@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="IDW - Rule Library - Beanshell Utils">
+    <Description>Rule library for dealing with Beanshell situations</Description>
+    <Source><![CDATA[
+        import bsh.This;
+        import bsh.Primitive;
+        import bsh.UtilEvalError;
+        import sailpoint.tools.GeneralException;
+
+        boolean bshExists(Object bshThis, String variableName) {
+            if (bshThis instanceof bsh.This) {
+                return _bshExistsInternal((bsh.This)bshThis, variableName);
+            }
+            return false;
+        }
+
+        boolean _bshExistsInternal(bsh.This bshThis, String variableName) {
+            NameSpace bshNamespace = bshThis.getNameSpace();
+            try {
+                Object value = bshNamespace.getVariable(variableName);
+                return !Primitive.VOID.equals(value);
+            } catch(UtilEvalError e) {
+                /* Ignore this */
+            }
+            return false;
+        }
+
+        void bshSafe(Object bshThis, String variableName) {
+            if (bshThis instanceof bsh.This) {
+                _bshSafeInternal((bsh.This) bshThis, variableName);
+            }
+        }
+
+        void _bshSafeInternal(bsh.This bshThis, String variableName) {
+            if (!_bshExistsInternal(bshThis, variableName)) {
+                try {
+                    bshThis.getNameSpace().setVariable(variableName, Primitive.NULL, false);
+                } catch(UtilEvalError e) {
+                    throw new GeneralException(e);
+                }
+            }
+        }
+        ]]></Source>
+</Rule>

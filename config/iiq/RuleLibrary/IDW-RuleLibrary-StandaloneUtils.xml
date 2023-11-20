@@ -1,0 +1,177 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="IDW - Rule Library - Standalone Utils">
+    <Description>Rule library containing various standalone utility functions</Description>
+    <Source><![CDATA[
+        import bsh.This;
+
+        import org.apache.commons.logging.Log;
+        import sailpoint.api.IncrementalObjectIterator;
+        import sailpoint.api.IncrementalProjectionIterator;
+        import sailpoint.api.SailPointContext;
+        import sailpoint.api.SailPointFactory;
+        import sailpoint.object.Filter;
+        import sailpoint.object.Link;
+        import sailpoint.object.Identity;
+        import sailpoint.object.QueryOptions;
+        import sailpoint.object.SailPointObject;
+        import sailpoint.object.WorkflowCase;
+        import sailpoint.object.TaskResult;
+        import sailpoint.object.ProvisioningPlan;
+        import sailpoint.object.ProvisioningPlan.AccountRequest;
+        import sailpoint.object.ProvisioningPlan.AttributeRequest;
+        import sailpoint.api.Provisioner;
+        import sailpoint.api.Terminator;
+
+        import sailpoint.task.TaskMonitor;
+
+        import sailpoint.workflow.WorkflowContext;
+        import sailpoint.tools.GeneralException;
+        import sailpoint.tools.Message;
+        import sailpoint.tools.Util;
+
+        import java.util.HashMap;
+
+            String timestamp() {
+                TimeZone tz = TimeZone.getTimeZone("EST");
+                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z");
+                formatter.setTimeZone(tz);
+                return formatter.format(new Date());
+            }
+
+            void taskException(TaskMonitor monitor, String message, Exception error, boolean partition) {
+                TaskResult locked = partition ? monitor.lockPartitionResult() : monitor.lockMasterResult();
+                try {
+                    locked.addMessage(Message.error(timestamp() + " : " + message));
+                    locked.addException(error);
+                } finally {
+                    if (partition) {
+                        monitor.commitPartitionResult();
+                    } else {
+                        monitor.commitMasterResult();
+                    }
+                }
+            }
+
+            void taskError(TaskMonitor monitor, String message, boolean partition) {
+                taskMessage(monitor, Message.error(timestamp() + " : " + message), partition);
+            }
+
+            void taskWarning(TaskMonitor monitor, String message, boolean partition) {
+                taskMessage(monitor, Message.warn(timestamp() + " : " + message), partition);
+            }
+
+            void taskMessage(TaskMonitor monitor, String message, boolean partition) {
+                taskMessage(monitor, Message.info(timestamp() + " : " + message), partition);
+            }
+
+            void taskMessage(TaskMonitor monitor, Message message, boolean partition) {
+                TaskResult locked = partition ? monitor.lockPartitionResult() : monitor.lockMasterResult();
+                try {
+                    locked.addMessage(message);
+                } finally {
+                    if (partition) {
+                        monitor.commitPartitionResult();
+                    } else {
+                        monitor.commitMasterResult();
+                    }
+                }
+            }
+
+            void wfMessage(WorkflowContext wfcontext, String message) {
+                WorkflowCase wfcase = wfcontext.getWorkflowCase();
+                if (wfcase != null) {
+                    wfcase.addMessage(timestamp() + ": " + message);
+                }
+            }
+
+            void wfError(WorkflowContext wfcontext, String message) {
+                WorkflowCase wfcase = wfcontext.getWorkflowCase();
+                if (wfcase != null) {
+                    wfcase.addMessage(Message.error(timestamp() + ": " + message));
+                }
+            }
+
+            Link getUniqueLink(String applicationName, String nativeIdentity) {
+                QueryOptions qo = new QueryOptions();
+                qo.addFilter(Filter.eq("application.name", applicationName));
+                qo.addFilter(Filter.eq("nativeIdentity", nativeIdentity));
+
+                List<Link> links = context.getObjects(Link.class, qo);
+
+                if (links.size() == 1) {
+                    return links.get(0);
+                } else {
+                    return null;
+                }
+            }
+
+            void deleteAccount(String applicationName, String nativeIdentity) {
+                Link account = getUniqueLink(applicationName, nativeIdentity);
+                if (account == null) {
+                    throw new GeneralException("No unique account matching app = " + applicationName + " and native ID = " + nativeIdentity);
+                }
+
+                Terminator terminator = new Terminator(context);
+                terminator.deleteObject(account);
+            }
+
+            void safelyIterateObjects(SailPointContext context, Class type, QueryOptions qo, bsh.This bshThis, String eachItemMethod) throws GeneralException {
+                int sliceSize = 500;
+                long count = context.countObjects(type, qo);
+                if (count > 0) {
+                    int slices = (int) (count / sliceSize) + 1;
+
+                    for (int i = 0; i <= slices; i++) {
+                        qo.setFirstRow(sliceSize * i);
+                        qo.setResultLimit(sliceSize);
+
+                        SailPointContext originalContext = SailPointFactory.pushContext();
+                        SailPointContext privateContext = SailPointFactory.getCurrentContext();
+                        try {
+                            IncrementalObjectIterator iterator = new IncrementalObjectIterator(privateContext, type, qo);
+                            try {
+                                while (iterator.hasNext()) {
+                                    SailPointObject item = iterator.next();
+                                    Object[] args = new Object[2];
+                                    args[0] = privateContext;
+                                    args[1] = item;
+                                    bshThis.invokeMethod(eachItemMethod, args);
+                                }
+                            } finally {
+                                Util.flushIterator(iterator);
+                            }
+                        } finally {
+                            if (privateContext != null) {
+                                SailPointFactory.releaseContext(privateContext);
+                            }
+                            if (originalContext != null) {
+                                SailPointFactory.setContext(originalContext);
+                            }
+                        }
+                    }
+                }
+            }
+
+            void withPrivateContext(bsh.This bshThis, String methodName) throws GeneralException {
+                try {
+                    SailPointContext previousContext = SailPointFactory.pushContext();
+                    SailPointContext privateContext = SailPointFactory.getCurrentContext();
+                    try {
+                        Object[] args = new Object[1];
+                        args[0] = privateContext;
+                        bshThis.invokeMethod(methodName, args);
+                    } finally {
+                        if (privateContext != null) {
+                            SailPointFactory.releaseContext(privateContext);
+                        }
+                        if (previousContext != null) {
+                            SailPointFactory.setContext(previousContext);
+                        }
+                    }
+                } catch (Throwable t) {
+                    throw new GeneralException(t);
+                }
+            }
+        ]]></Source>
+</Rule>

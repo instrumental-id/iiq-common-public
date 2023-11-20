@@ -1,0 +1,155 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="IDW - Rule Library - Role Manipulator">
+    <Description></Description>
+    <Source><![CDATA[
+        import sailpoint.object.AccountSelection;
+        import sailpoint.object.Application;
+        import sailpoint.object.Link;
+        import sailpoint.object.Identity;
+        import sailpoint.object.RoleAssignment;
+        import sailpoint.object.RoleTarget;
+        import sailpoint.object.ProvisioningTarget;
+        import sailpoint.object.Bundle;
+        import sailpoint.object.ProvisioningPlan;
+        import sailpoint.tools.Util;
+
+            ProvisioningTarget toProvisioningTarget(Bundle role, Link target) {
+                String assignmentKey = Util.uuid();
+                AccountSelection selection = new AccountSelection(target.getApplication());
+                RoleTarget roleTarget = new RoleTarget(target);
+                selection.setAllowCreate(false);
+                selection.setRoleName(role.getName());
+                selection.addAccountInfo(target);
+                selection.setSelection(roleTarget.getNativeIdentity());
+                ProvisioningTarget provisioningTarget = new ProvisioningTarget(assignmentKey, role);
+                provisioningTarget.setRole(role.getName());
+                provisioningTarget.setApplication(target.getApplicationName());
+                provisioningTarget.addAccountSelection(selection);
+                return provisioningTarget;
+            }
+
+            ProvisioningPlan.AccountRequest _getIIQRequest(ProvisioningPlan provisioningPlan) {
+                ProvisioningPlan.AccountRequest accountRequest = provisioningPlan.getIIQAccountRequest();
+                if (accountRequest == null) {
+                    accountRequest = new ProvisioningPlan.AccountRequest(AccountRequest.Operation.Modify, "IIQ", null, provisioningPlan.getIdentity().getName());
+                    provisioningPlan.add(accountRequest);
+                }
+                return accountRequest;
+            }
+
+            void addUserRole(ProvisioningPlan provisioningPlan, String roleName) throws GeneralException {
+                Bundle role = context.getObjectByName(Bundle.class, roleName);
+                if (role == null) {
+                    throw new IllegalArgumentException("Role " + roleName + " does not exist");
+                }
+                provisioningPlan.add("IIQ", identity.getName(), "assignedRoles", ProvisioningPlan.Operation.Add, roleName);
+            }
+
+            void addUserRole(ProvisioningPlan provisioningPlan, String roleName, Map targets) throws GeneralException {
+                // We have to generate our own assignment ID in this case
+                String assignmentKey = Util.uuid();
+                Bundle role = context.getObjectByName(Bundle.class, roleName);
+                if (role == null) {
+                    throw new IllegalArgumentException("Role " + roleName + " does not exist");
+                }
+                ProvisioningPlan.AccountRequest accountRequest = _getIIQRequest(provisioningPlan);
+                ProvisioningPlan.AttributeRequest attributeRequest = new ProvisioningPlan.AttributeRequest("assignedRoles", ProvisioningPlan.Operation.Add, roleName);
+                attributeRequest.setAssignmentId(assignmentKey);
+                accountRequest.add(attributeRequest);
+                provisioningPlan.add(accountRequest);
+
+                List provisioningTargetSelectors = new ArrayList();
+
+                for (String appName : targets.keySet()) {
+                    Application application = context.getObjectByName(Application.class, appName);
+                    if (application == null) {
+                        throw new IllegalArgumentException("Application " + application + " passed in the target map does not exist");
+                    }
+                    AccountSelection selection = new AccountSelection(application);
+                    ;
+                    Link target = targets.get(appName);
+                    if (target == null) {
+                        selection.setAllowCreate(true);
+                        selection.setRoleName(roleName);
+                        selection.setDoCreate(true);
+                    } else {
+                        RoleTarget roleTarget = new RoleTarget(target);
+                        selection.setAllowCreate(false);
+                        selection.setRoleName(roleName);
+                        selection.addAccountInfo(target);
+                        selection.setSelection(roleTarget.getNativeIdentity());
+                    }
+                    ProvisioningTarget provisioningTarget = new ProvisioningTarget(assignmentKey, role);
+                    provisioningTarget.setRole(roleName);
+                    provisioningTarget.setApplication(appName);
+                    provisioningTarget.addAccountSelection(selection);
+                    provisioningTargetSelectors.add(provisioningTarget);
+                }
+
+                provisioningPlan.setProvisioningTargets(provisioningTargetSelectors);
+            }
+
+            void removeUserRole(ProvisioningPlan provisioningPlan, String roleName) throws GeneralException {
+                removeUserRole(provisioningPlan, roleName, false);
+            }
+
+            void removeUserRole(ProvisioningPlan provisioningPlan, RoleAssignment targetAssignment) throws GeneralException {
+                if (targetAssignment.isNegative()) {
+                    throw new IllegalArgumentException("Cannot remove a negative assignment using this API");
+                }
+                ProvisioningPlan.Operation roleOp = ProvisioningPlan.Operation.Remove;
+                if (Util.nullSafeEq(targetAssignment.getSource(), "Rule")) {
+                    roleOp = ProvisioningPlan.Operation.Revoke;
+                }
+                ProvisioningPlan.AccountRequest accountRequest = _getIIQRequest(provisioningPlan);
+                ProvisioningPlan.AttributeRequest attributeRequest = new ProvisioningPlan.AttributeRequest("assignedRoles", roleOp, targetAssignment.getRoleName());
+                attributeRequest.setAssignmentId(targetAssignment.getAssignmentId());
+                accountRequest.add(attributeRequest);
+                provisioningPlan.add(accountRequest);
+            }
+
+            void removeUserRole(ProvisioningPlan provisioningPlan, String roleName, boolean revoke) throws GeneralException {
+                Bundle role = context.getObjectByName(Bundle.class, roleName);
+                if (role == null) {
+                    throw new IllegalArgumentException("Role " + roleName + " does not exist");
+                }
+                ProvisioningPlan.AccountRequest accountRequest = _getIIQRequest(provisioningPlan);
+                accountRequest.setOperation(ProvisioningPlan.AccountRequest.Operation.Modify);
+                accountRequest.setApplication("IIQ");
+                ProvisioningPlan.AttributeRequest attributeRequest = new ProvisioningPlan.AttributeRequest();
+                attributeRequest.setOperation(revoke ? ProvisioningPlan.Operation.Revoke : ProvisioningPlan.Operation.Remove);
+                attributeRequest.setName("assignedRoles");
+                attributeRequest.setValue(roleName);
+                accountRequest.add(attributeRequest);
+                provisioningPlan.add(accountRequest);
+            }
+
+            void removeUserRole(ProvisioningPlan provisioningPlan, String roleName, Link target) throws GeneralException {
+                // We have to generate our own assignment ID in this case
+                Bundle role = context.getObjectByName(Bundle.class, roleName);
+                if (role == null) {
+                    throw new IllegalArgumentException("Role " + roleName + " does not exist");
+                }
+                Identity identity = provisioningPlan.getIdentity();
+                List<RoleAssignment> existingAssignments = identity.getRoleAssignments(role);
+                RoleAssignment targetAssignment = null;
+                for (RoleAssignment ra : existingAssignments) {
+                    RoleTarget rt = new RoleTarget(target);
+                    if (ra.hasMatchingRoleTarget(rt)) {
+                        targetAssignment = ra;
+                        break;
+                    }
+                }
+                if (targetAssignment == null) {
+                    throw new IllegalArgumentException("The user " + identityName + " does not have a role " + roleName + " targeting " + target.getApplicationName() + " account " + target.getNativeIdentity());
+                }
+                ProvisioningPlan.AccountRequest accountRequest = _getIIQRequest(provisioningPlan);
+                ProvisioningPlan.AttributeRequest attributeRequest = new ProvisioningPlan.AttributeRequest("assignedRoles", ProvisioningPlan.Operation.Remove, roleName);
+                attributeRequest.setAssignmentId(targetAssignment.getAssignmentId());
+                accountRequest.add(attributeRequest);
+                provisioningPlan.add(accountRequest);
+                return provisioningPlan;
+            }
+        ]]></Source>
+</Rule>
