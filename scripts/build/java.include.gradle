@@ -11,35 +11,21 @@ java {
     }
 }
 
-tasks.withType(Jar).configureEach {
-    def gitVersion = System.getenv("CI_COMMIT_SHORT_SHA") ?: "${grgit?.head()?.abbreviatedId}"
-    def year = LocalDate.now().year;
-
-    manifest {
-        attributes(
-                'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
-                'Build-Revision' : gitVersion ?: getDistVersion(),
-                'Created-By'     : "Gradle ${gradle.gradleVersion}",
-                'Subset'         : "Public",
-                'Copyright'      : "$year Identity Works LLC https://www.identityworksllc.com/"
-        )
-    }
-}
-
 tasks.named("sourcesJar") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-tasks.register("javadocJar", Jar) {
-    if (JavaVersion.current().isJava11Compatible()) {
+if (JavaVersion.current().isJava11Compatible()) {
+    tasks.register("javadocJar", Jar) {
         dependsOn tasks.named("java11doc").get()
         from tasks.named("java11doc").get().outputs
-    } else {
-        dependsOn tasks.named("javadoc").get()
-        from tasks.named("javadoc").get().outputs
+
+        archiveClassifier = "javadoc"
     }
 
-    archiveClassifier = "javadoc"
+    tasks.named("jar").configure {
+        finalizedBy tasks.named("javadocJar")
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -56,6 +42,21 @@ tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
     options.setMemberLevel(JavadocMemberLevel.PUBLIC)
     options.links('https://docs.oracle.com/javase/8/docs/api/')
+}
+
+tasks.withType(Jar).configureEach {
+    def gitVersion = System.getenv("CI_COMMIT_SHORT_SHA") ?: "${grgit?.head()?.abbreviatedId}"
+    def year = LocalDate.now().year;
+
+    manifest {
+        attributes(
+                'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
+                'Build-Revision' : gitVersion ?: getDistVersion(),
+                'Created-By'     : "Gradle ${gradle.gradleVersion}",
+                'Subset'         : "Public",
+                'Copyright'      : "$year Identity Works LLC https://www.identityworksllc.com/"
+        )
+    }
 }
 
 tasks.register('java11doc', JavaExec) {
