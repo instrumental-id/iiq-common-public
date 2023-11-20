@@ -1,10 +1,10 @@
 package com.identityworksllc.iiq.common.integration;
 
+import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.connector.UnsupportedConnector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
-import sailpoint.integration.AbstractIntegrationExecutor;
 import sailpoint.object.*;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
@@ -33,6 +33,11 @@ import java.util.Map;
 public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
 
     private static final Log log = LogFactory.getLog(NoOpIntegrationExecutor.class);
+
+    /**
+     * The native identity rule, if needed
+     */
+    private Rule nativeIdentityRule;
 
     /**
      * If true, the after provisioning rule will be executed
@@ -77,16 +82,57 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
             if (attributes.containsKey("runAfterRule")) {
                 this.runAfterRule = attributes.getBoolean("runAfterRule");
             }
+            if (attributes.containsKey("nativeIdentityRule")) {
+                String ruleName = attributes.getString("nativeIdentityRule");
+                if (Util.isNotNullOrEmpty(ruleName)) {
+                    this.nativeIdentityRule = context.getObject(Rule.class, ruleName);
+                    if (this.nativeIdentityRule != null) {
+                        this.nativeIdentityRule = Utilities.detach(context, this.nativeIdentityRule);
+                    }
+                }
+            }
         }
     }
 
     /**
-     * Finds the existing Link in IIQ based on the account request
+     * Runs a rule to create the native identity, given the AccountRequest. This is
+     * required whenever the application would normally receive the native ID from
+     * the target system on create, such as an Azure GUID.
+     *
+     * @param application The application being provisioned to
+     * @param accountRequest The account request
+     * @return The native ID to use for this account
+     * @throws GeneralException if anything fails
+     */
+    private String createNativeIdentity(Application application, ProvisioningPlan.AccountRequest accountRequest) throws GeneralException {
+        if (this.nativeIdentityRule != null) {
+            Map<String, Object> ruleInputs = new HashMap<>();
+            ruleInputs.put("request", accountRequest);
+            ruleInputs.put("application", application);
+
+            Object output = getContext().runRule(this.nativeIdentityRule, ruleInputs);
+
+            if (output instanceof String) {
+                return (String) output;
+            } else if (output != null) {
+                log.warn("Native Identity rule did not return a string object");
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Finds the existing Link in IIQ based on the account request and (if that doesn't
+     * work) the provisioning plan. The Link will be located by application and native ID
+     * first, and then by Link + Identity if needed.
+     *
+     * @param plan The provisioning plan
      * @param acctReq The account request being provisioned
      * @return The Link, if any, otherwise null
      * @throws GeneralException if the AccountRequest matches more than one Link
      */
-    protected Link findExistingLink(ProvisioningPlan.AccountRequest acctReq) throws GeneralException {
+    protected Link findExistingLink(ProvisioningPlan plan, ProvisioningPlan.AccountRequest acctReq) throws GeneralException {
         Filter filter = Filter.and(Filter.eq("application.name", acctReq.getApplicationName()), Filter.eq("nativeIdentity", acctReq.getNativeIdentity()));
         QueryOptions qo = new QueryOptions();
         qo.addFilter(filter);
@@ -96,7 +142,18 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
         } else if (existingLinks.size() == 1) {
             return existingLinks.get(0);
         } else {
-            throw new GeneralException("The provisioning plan with app = " + acctReq.getApplicationName() + ", native identity = " + acctReq.getNativeIdentity() + " matches " + existingLinks.size() + " existing Links??");
+            int originalSize = existingLinks.size();
+            if (plan.getIdentity() != null) {
+                qo.addFilter(Filter.eq("identity.id", plan.getIdentity().getId()));
+                existingLinks = super.getContext().getObjects(Link.class, qo);
+
+                if (existingLinks == null || existingLinks.size() == 0) {
+                    return null;
+                } else if (existingLinks.size() == 1) {
+                    return existingLinks.get(0);
+                }
+            }
+            throw new GeneralException("The provisioning plan with app = " + acctReq.getApplicationName() + ", native identity = " + acctReq.getNativeIdentity() + " matches " + originalSize + " existing Links??");
         }
     }
 
@@ -111,12 +168,18 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
     @SuppressWarnings("unchecked")
     protected ResourceObject generateResourceObject(Link existingLink, ProvisioningPlan.AccountRequest acctReq) throws GeneralException {
         ResourceObject ro = new ResourceObject();
+        Application application = acctReq.getApplication(getContext());
         if (acctReq.getOperation() != null && acctReq.getOperation() == ProvisioningPlan.AccountRequest.Operation.Delete) {
             ro.setDelete(true);
             ro.setRemove(true);
+            ro.setAttribute(application.getAccountSchema().getIdentityAttribute(), acctReq.getNativeIdentity());
         } else {
+            String nativeIdentity;
             if (existingLink != null) {
                 ro.setAttributes(existingLink.getAttributes().mediumClone());
+                nativeIdentity = existingLink.getNativeIdentity();
+            } else {
+                nativeIdentity = createNativeIdentity(application, acctReq);
             }
 
             if (acctReq.getOperation() != null && acctReq.getOperation() == ProvisioningPlan.AccountRequest.Operation.Disable) {
@@ -125,7 +188,9 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
                 ro.setAttribute("IIQDisabled", false);
             }
 
-            ro.setIdentity(acctReq.getNativeIdentity());
+            ro.setIdentity(nativeIdentity);
+            ro.setAttribute(application.getAccountSchema().getIdentityAttribute(), nativeIdentity);
+
             if (acctReq.getAttributeRequests() != null) {
                 for(ProvisioningPlan.AttributeRequest attr : acctReq.getAttributeRequests()) {
                     if (attr.getOperation() == ProvisioningPlan.Operation.Set) {
@@ -138,7 +203,10 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
                         if (attr.getValue() instanceof Collection) {
                             values.addAll((Collection<? extends String>) attr.getValue());
                         } else {
-                            values.add((String) attr.getValue());
+                            String attrValue = Util.otoa(attr.getValue());
+                            if (Util.isNotNullOrEmpty(attrValue)) {
+                                values.add(attrValue);
+                            }
                         }
                         ro.setAttribute(attr.getName(), values);
                     } else if (attr.getOperation() == ProvisioningPlan.Operation.Remove) {
@@ -161,8 +229,6 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
                 }
             }
         }
-        Application application = acctReq.getApplication(getContext());
-        ro.setAttribute(application.getAccountSchema().getIdentityAttribute(), acctReq.getNativeIdentity());
         if (log.isDebugEnabled()) {
             log.debug("Returning ResourceObject " + ro.toXml());
         }
@@ -245,7 +311,7 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
      */
     private void provision(ProvisioningPlan plan, ProvisioningPlan.AccountRequest acctReq) throws GeneralException {
         beforeProvisionAccount(plan, acctReq);
-        Link existingLink = findExistingLink(acctReq);
+        Link existingLink = findExistingLink(plan, acctReq);
         ProvisioningResult accountResult = new ProvisioningResult();
         accountResult.setStatus(ProvisioningResult.STATUS_COMMITTED);
         accountResult.setObject(generateResourceObject(existingLink, acctReq));
