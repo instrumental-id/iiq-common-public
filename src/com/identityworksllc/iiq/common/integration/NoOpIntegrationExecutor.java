@@ -174,11 +174,16 @@ public class NoOpIntegrationExecutor extends AbstractCommonIntegrationExecutor {
             ro.setRemove(true);
             ro.setAttribute(application.getAccountSchema().getIdentityAttribute(), acctReq.getNativeIdentity());
         } else {
-            String nativeIdentity;
+            String nativeIdentity = acctReq.getNativeIdentity();
+
             if (existingLink != null) {
                 ro.setAttributes(existingLink.getAttributes().mediumClone());
-                nativeIdentity = existingLink.getNativeIdentity();
-            } else {
+                if (Util.isNullOrEmpty(nativeIdentity) || Util.nullSafeEq("???", nativeIdentity)) {
+                    nativeIdentity = existingLink.getNativeIdentity();
+                }
+            }
+
+            if (Util.isNullOrEmpty(nativeIdentity) || Util.nullSafeEq("???", nativeIdentity)) {
                 nativeIdentity = createNativeIdentity(application, acctReq);
             }
 
