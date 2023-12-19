@@ -957,7 +957,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
 	        }
 
 	        if (extraParameters != null) {
-				extraParameters.putAll(workflowParameters);
+				workflowParameters.putAll(extraParameters);
 	        }
 
 	        Workflow wf = context.getObjectByName(Workflow.class, provisioningArguments.getWorkflowName());
@@ -1196,7 +1196,7 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
 
 		ObjectUtil.saveDecacheAttach(context, identity);
 	}
-    
+
 	/**
 	 * Removes all entitlements from all accounts of the given type on the given user
 	 * @param identity The identity to target
@@ -1472,6 +1472,10 @@ public class ProvisioningUtilities extends AbstractBaseUtility {
 	
 	public void setProjectDebugger(Consumer<ProvisioningProject> projectDebugger) {
 		this.projectDebugger = projectDebugger;
+	}
+
+	public void setLauncher(String who) {
+		addWorkflowArgument("launcher", who);
 	}
 
 	/**
