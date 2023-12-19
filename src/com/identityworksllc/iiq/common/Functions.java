@@ -1845,6 +1845,23 @@ public class Functions {
     }
 
     /**
+     * Resolves to true if the input object matches the filter. This ought to be thread-safe
+     * if the SailPointFactory's current context is correct for the thread.
+     *
+     * {@link HybridObjectMatcher} is used to do the matching.
+     *
+     * @param filter The Filter to evaluate against the input object
+     * @param matchType The class to match, which does not need to be a SailPointObject
+     * @return A predicate returning true when the filter matches the input
+     */
+    public static <T> PredicateWithError<T> matches(Filter filter, Class<T> matchType) {
+        return object -> {
+            HybridObjectMatcher matcher = new HybridObjectMatcher(SailPointFactory.getCurrentContext(), filter, false);
+            return matcher.matches(object);
+        };
+    }
+
+    /**
      * Resolves to true if the input object matches the filter. The filter will be
      * compiled when this method is called, and then the remainder is a simple
      * forward to {@link #matches(Filter)}.
