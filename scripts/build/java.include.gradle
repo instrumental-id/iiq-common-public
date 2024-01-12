@@ -3,7 +3,11 @@ import java.time.LocalDate
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(8)
+        if (project.extensions["iiqVersion"] >= "8.4") {
+            languageVersion = JavaLanguageVersion.of(11)
+        } else {
+            languageVersion = JavaLanguageVersion.of(8)
+        }
     }
 
     withSourcesJar()

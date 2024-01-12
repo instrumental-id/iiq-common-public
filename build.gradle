@@ -1,5 +1,6 @@
 import java.text.SimpleDateFormat
 import java.time.LocalDate
+import java.util.zip.ZipFile
 
 buildscript {
     repositories { obj ->
@@ -21,6 +22,34 @@ buildscript {
         } else {
             classpath("gradle.plugin.org.jdrupes.mdoclet:gradle-plugin:1.0.10")
         }
+    }
+
+
+    def iiqJar = file("./lib/sailpoint/identityiq.jar")
+    if (iiqJar.exists()) {
+
+        def searchString = "Implementation-Version: "
+        def file = new ZipFile(iiqJar)
+        def contents = file.entries()
+                .findAll { it.name.endsWith("MANIFEST.MF") }
+                .collect {
+                    try (InputStream is = file.getInputStream(it)) {
+                        return is.text
+                    }
+                }
+
+        if (contents) {
+            def manifest = contents[0]
+            def line = manifest.readLines().find {
+                it.startsWith(searchString)
+            }
+            if (line) {
+                def iiqVersion = line.substring(searchString.length(), line.indexOf(" ", searchString.length() + 1))
+                project.extensions.add("iiqVersion", iiqVersion)
+            }
+        }
+    } else {
+        throw new StopActionException("You must add an 'identityiq.jar' to lib/sailpoint")
     }
 }
 
