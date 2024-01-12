@@ -1,3 +1,4 @@
+import org.apache.tools.ant.taskdefs.condition.Os
 import java.time.LocalDate
 
 java {
@@ -60,7 +61,7 @@ tasks.withType(Jar).configureEach {
 }
 
 tasks.register('java11doc', JavaExec) {
-    enabled = JavaVersion.current().isJava11Compatible()
+    enabled = JavaVersion.current().isJava11Compatible() && !Os.isFamily(Os.FAMILY_WINDOWS)
 
     dependsOn "classes"
 
