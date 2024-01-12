@@ -1,3 +1,5 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
 checkstyle {
     showViolations = false
     toolVersion = '9.3'
@@ -9,10 +11,18 @@ tasks.withType(Checkstyle).configureEach {
     }
 
     finalizedBy tasks.named('transmuteCheckstyleOutput').get()
+
+    onlyIf {
+        !Os.isFamily(Os.FAMILY_WINDOWS)
+    }
 }
 
 tasks.register("transmuteCheckstyleOutput", Exec) {
     commandLine 'scripts/ci/convert-checkstyle.sh'
     inputs.dir file("${buildDir}/reports/checkstyle")
     outputs.files file("${buildDir}/reports/checkstyle/main.json")
+
+    onlyIf {
+        !Os.isFamily(Os.FAMILY_WINDOWS)
+    }
 }
