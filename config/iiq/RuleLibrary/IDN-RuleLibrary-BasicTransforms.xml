@@ -1,0 +1,176 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="IDW - Rule Library - Standalone Utils">
+    <Description>Rule library containing various standalone utility functions</Description>
+    <Source><![CDATA[
+        import bsh.This;
+
+        import java.text.SimpleDateFormat;
+        import java.time.Duration;
+        import java.time.Instant;
+        import java.time.LocalDate;
+        import java.time.LocalDateTime;
+        import java.time.Period;
+        import java.time.ZoneId;
+        import java.time.ZonedDateTime;
+        import java.time.format.DateTimeFormatter;
+        import java.time.format.DateTimeParseException;
+        import java.time.temporal.ChronoUnit;
+        import java.util.HashMap;
+
+        import org.apache.commons.lang.StringUtils;
+        import org.apache.commons.lang.WordUtils;
+        import com.google.gson.Gson;
+
+        import sailpoint.tools.Util;
+
+        String isoDateFormat = "yyyy-MM-dd'T'HH:mm:ssZ";
+
+            Date _deriveDate(String input) {
+                if (input == null || input.isEmpty()) {
+                    return null;
+                }
+
+                SimpleDateFormat sdf;
+
+                if (input.length() == 8) {
+                    sdf = new SimpleDateFormat("yyyyMMdd");
+                } else if (input.length() == 10) {
+                    sdf = new SimpleDateFormat("yyyy-MM-dd");
+                } else {
+                    sdf = new SimpleDateFormat(isoDateFormat);
+                }
+
+                return sdf.parse(input);
+            }
+
+            String timestamp() {
+                SimpleDateFormat formatter = new SimpleDateFormat(isoDateFormat);
+                return formatter.format(new Date());
+            }
+
+            String secondsBetween(String firstDateString, String secondDateString) {
+                Date firstDate = _deriveDate(firstDateString);
+                Date secondDate = _deriveDate(secondDateString);
+
+                if (firstDate == null || secondDate == null) {
+                    return null;
+                }
+
+                LocalDateTime ldt1 = firstDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+                LocalDateTime ldt2 = secondDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+                if (ldt1.isAfter(ldt2)) {
+                    LocalDateTime tmp = ldt2;
+                    ldt2 = ldt1;
+                    ldt1 = tmp;
+                }
+
+                Duration duration = Duration.between(ldt1, ldt2);
+
+                return String.valueOf(duration.getSeconds());
+            }
+
+            String daysBetween(String firstDateString, String secondDateString) {
+                Date firstDate = _deriveDate(firstDateString);
+                Date secondDate = _deriveDate(secondDateString);
+
+                if (firstDate == null || secondDate == null) {
+                    return null;
+                }
+
+                LocalDateTime ldt1 = firstDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+                LocalDateTime ldt2 = secondDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+                if (ldt1.isAfter(ldt2)) {
+                    LocalDateTime tmp = ldt2;
+                    ldt2 = ldt1;
+                    ldt1 = tmp;
+                }
+
+                Duration duration = Duration.between(ldt1, ldt2);
+
+                return String.valueOf(duration.toDays());
+            }
+
+            String getCsvItemAtIndex(String input, String indexStr) {
+                if (input == null) {
+                    return null;
+                }
+
+                int index = 0;
+
+                try {
+                    if (indexStr != null && indexStr.length() > 0) {
+                        index = Integer.parseInt(indexStr);
+                    }
+                } catch(NumberFormatException e) {
+                    // TODO how to log errors??
+                }
+
+                List items = Util.otol(input);
+
+                if (index < 0) {
+                    index = items.size() + index;
+                }
+
+                if (index < 0 || index >= items.size()) {
+                    return null;
+                }
+
+                return items.get(index);
+            }
+
+            boolean getCsvContains(String input, String search) {
+                // No search, trivial true
+                if (Util.isNullOrEmpty(search)) {
+                    return true;
+                }
+
+                // No input, trivial false
+                if (Util.isNullOrEmpty(input)) {
+                    return false;
+                }
+
+                List items = Util.otol(input);
+
+                return items.contains(search.trim());
+            }
+
+            String isFlagSet(Object anything) {
+                boolean flag = false;
+
+                if (anything instanceof String) {
+                    String str = (String) anything;
+                    flag = str.equalsIgnoreCase("Y") || str.equalsIgnoreCase("1") || str.equalsIgnoreCase("TRUE");
+                }
+
+                return String.valueOf(flag);
+            }
+
+            try {
+                switch (operation) {
+                    case "timestamp":
+                        return timestamp();
+
+                    case "secondsBetween":
+                        return secondsBetween(firstDate, secondDate);
+
+                    case "daysBetween":
+                        return daysBetween(firstDate, secondDate);
+
+                    case "csvItemAtIndex":
+                        return getCsvItemAtIndex(input, index);
+
+                    case "csvContains":
+                        return String.valueOf(getCsvContains(input, search));
+
+                    default:
+                        return null;
+                }
+            } catch(Exception e) {
+                // TODO how to do error logging??
+                return null;
+            }
+        ]]></Source>
+</Rule>
