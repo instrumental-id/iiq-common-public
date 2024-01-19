@@ -70,6 +70,57 @@ import java.util.function.Consumer;
 public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor implements PrivateContextObjectConsumer<T> {
 
     /**
+     * The default threaded task listener
+     */
+    private class DefaultThreadedTaskListener extends ThreadedTaskListener<T> {
+        /**
+         * The task result to update with output
+         */
+        private final TaskResult taskResult;
+
+        public DefaultThreadedTaskListener(TaskResult taskResult) {
+            this.taskResult = taskResult;
+        }
+
+        @Override
+        public void afterBatch(SailPointContext threadContext) throws GeneralException {
+            AbstractThreadedTask.this.beforeBatch(threadContext);
+        }
+
+        @Override
+        public void beforeBatch(SailPointContext taskContext) throws GeneralException {
+            AbstractThreadedTask.this.beforeBatch(taskContext);
+        }
+
+        @Override
+        public void beforeExecution(Thread theThread, T input) {
+            if (beforeExecutionHook != null) {
+                beforeExecutionHook.accept(theThread, input);
+            }
+        }
+
+        @Override
+        public void handleException(Exception e) {
+            taskResult.addException(e);
+        }
+
+        @Override
+        public void handleFailure(T input) {
+            failureMarker.accept(input);
+        }
+
+        @Override
+        public void handleSuccess(T input) {
+            successMarker.accept(input);
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return AbstractThreadedTask.this.terminated.get();
+        }
+    }
+
+    /**
      * The batch size, which may be zero for no batching
      */
     private int batchSize;
@@ -413,44 +464,7 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
 
         // Default listener allowing individual worker state to be propagated up
         // through the various callbacks, hooks, and listeners on this task.
-        ThreadedTaskListener<T> taskContext = new ThreadedTaskListener<T>() {
-            @Override
-            public void afterBatch(SailPointContext threadContext) throws GeneralException {
-                AbstractThreadedTask.this.beforeBatch(threadContext);
-            }
-
-            @Override
-            public void beforeBatch(SailPointContext taskContext) throws GeneralException {
-                AbstractThreadedTask.this.beforeBatch(taskContext);
-            }
-
-            @Override
-            public void beforeExecution(Thread theThread, T input) {
-                if (beforeExecutionHook != null) {
-                    beforeExecutionHook.accept(theThread, input);
-                }
-            }
-
-            @Override
-            public void handleException(Exception e) {
-                taskResult.addException(e);
-            }
-
-            @Override
-            public void handleFailure(T input) {
-                failureMarker.accept(input);
-            }
-
-            @Override
-            public void handleSuccess(T input) {
-                successMarker.accept(input);
-            }
-
-            @Override
-            public boolean isTerminated() {
-                return AbstractThreadedTask.this.terminated.get();
-            }
-        };
+        ThreadedTaskListener<T> taskContext = new DefaultThreadedTaskListener(taskResult);
         try {
             prepareExecutor();
             AtomicInteger totalCount = new AtomicInteger();
