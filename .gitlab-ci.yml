@@ -30,7 +30,7 @@ build:
     # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
     # - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
-    - ./gradlew build allJavadoc -x checkstyleMain -x checkstyleTest
+    - ./gradlew build javadoc -x checkstyleMain -x checkstyleTest
   artifacts:
     name: "iiqcommon-public-library"
     paths:
