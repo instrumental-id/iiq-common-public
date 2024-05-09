@@ -19,7 +19,7 @@ before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
   - export GIT_SSH_COMMAND=/usr/bin/ssh
   - git checkout "$CI_COMMIT_REF_NAME"
-  - export JAVA_HOME=$JAVA_8
+  - export JAVA_HOME=$JAVA_11
 
 build:
   stage: build
