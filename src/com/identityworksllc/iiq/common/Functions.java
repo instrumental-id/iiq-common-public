@@ -769,6 +769,32 @@ public class Functions {
     }
 
     /**
+     * Returns a function that extracts the Nth matching group from applying the
+     * regular expression to the input string.
+     *
+     * The return value will be an empty Optional if the input does not match the
+     * regular expression or if the group was not matched. Otherwise, it will be
+     * an Optional containing the contents of the matched group.
+     *
+     * @param regex The regular expression
+     * @param matchGroup Which match group to return (starting with 1)
+     * @return A function with the above behavior
+     */
+    public static Function<String, Optional<String>> extractRegexMatchGroup(final String regex, final int matchGroup) {
+        Pattern pattern = Pattern.compile(regex);
+
+        return string -> {
+            Matcher matcher = pattern.matcher(string);
+            if (matcher.find()) {
+                String group = matcher.group(matchGroup);
+                return Optional.ofNullable(group);
+            } else {
+                return Optional.empty();
+            }
+        };
+    }
+
+    /**
      * Type-free version of {@link Functions#f(String, Class)}
      */
     public static <K> Function<K, Object> f(String methodName) {
@@ -851,23 +877,6 @@ public class Functions {
                 throw new RuntimeException(e);
             }
         };
-    }
-
-    /**
-     * Constructs a Supplier that 'curries' the given Function, applying
-     * it to the input object and returning the result. This allows you to
-     * do logger-related structures like this in Beanshell:
-     *
-     * ftoc(someObject, getStringAttribute("hi"))
-     *
-     * @param inputObject The input object to curry
-     * @param function The function to apply to the input object
-     * @return A supplier wrapping the object and function call
-     * @param <In> The input object type
-     * @param <Out> The output object type
-     */
-    public static <In, Out> Supplier<Out> ftoc(In inputObject, Function<? super In, ? extends Out> function) {
-        return () -> function.apply(inputObject);
     }
 
     /**
@@ -1117,6 +1126,23 @@ public class Functions {
             }
             return null;
         };
+    }
+
+    /**
+     * Constructs a Supplier that 'curries' the given Function, applying
+     * it to the input object and returning the result. This allows you to
+     * do logger-related structures like this in Beanshell:
+     *
+     * ftoc(someObject, getStringAttribute("hi"))
+     *
+     * @param inputObject The input object to curry
+     * @param function The function to apply to the input object
+     * @return A supplier wrapping the object and function call
+     * @param <In> The input object type
+     * @param <Out> The output object type
+     */
+    public static <In, Out> Supplier<Out> ftoc(In inputObject, Function<? super In, ? extends Out> function) {
+        return () -> function.apply(inputObject);
     }
 
     /**
@@ -1630,7 +1656,6 @@ public class Functions {
         return (link) -> Util.nullSafeEq(link.getApplicationId(), applicationId);
     }
 
-
     /**
      * Returns a functional getter for a map of a given type
      * @param index The index to get
@@ -1985,18 +2010,6 @@ public class Functions {
     }
 
     /**
-     * Returns a Beanshell-friendly equivalent to the JDK 9 Optional::stream
-     * function. The stream will have zero or one elements and is intended
-     * for use with {@link Stream#flatMap(Function)}.
-     *
-     * @return A function from an Optional to a Stream
-     * @param <T> The type of the object
-     */
-    public static <T> Function<Optional<T>, Stream<T>> optionalToStream() {
-        return o -> o.map(Stream::of).orElseGet(Stream::empty);
-    }
-
-    /**
      * Resolves to true if the given AccountRequest's operation equals the given value
      */
     public static Predicate<ProvisioningPlan.AccountRequest> operationEquals(ProvisioningPlan.AccountRequest.Operation operation) {
@@ -2008,6 +2021,34 @@ public class Functions {
      */
     public static Predicate<ProvisioningPlan.AttributeRequest> operationEquals(ProvisioningPlan.Operation operation) {
         return attributeRequest -> Util.nullSafeEq(attributeRequest.getOperation(), operation);
+    }
+
+    /**
+     * Returns a predicate that resolves to true if the input Optional is empty
+     * @return The predicate
+     */
+    public static Predicate<Optional<?>> optionalEmpty() {
+        return Optional::isEmpty;
+    }
+
+    /**
+     * Returns a predicate that resolves to true if the input Optional is present
+     * @return The predicate
+     */
+    public static Predicate<Optional<?>> optionalPresent() {
+        return Optional::isPresent;
+    }
+
+    /**
+     * Returns a Beanshell-friendly equivalent to the JDK 9 Optional::stream
+     * function. The stream will have zero or one elements and is intended
+     * for use with {@link Stream#flatMap(Function)}.
+     *
+     * @return A function from an Optional to a Stream
+     * @param <T> The type of the object
+     */
+    public static <T> Function<Optional<T>, Stream<T>> optionalToStream() {
+        return o -> o.map(Stream::of).orElseGet(Stream::empty);
     }
 
     /**
@@ -2280,6 +2321,45 @@ public class Functions {
                 return false;
             }
         };
+    }
+
+    /**
+     * Returns a Predicate that evaluates to true if the predicate's input
+     * string matches the given regular expression.
+     *
+     * @param regex The regex
+     * @return A predicate that matches the regex
+     */
+    public static Predicate<String> regexMatches(final String regex) {
+        return string -> string.matches(regex);
+    }
+
+    /**
+     * Returns a Predicate that evaluates to true if the predicate's input
+     * string matches the given regular expression.
+     *
+     * Unlike the version of {@link #regexMatches(String)} taking a String,
+     * this one uses {@link Matcher#find()}, meaning it will match partial
+     * strings.
+     *
+     * @param regex The regex
+     * @return A predicate that matches the regex
+     */
+    public static Predicate<String> regexMatches(final Pattern regex) {
+        return string -> regex.matcher(string).find();
+    }
+
+    /**
+     * Returns a Predicate that evaluates to true if the predicate's input
+     * string matches the given regular expression.
+     *
+     * @param regex The regex
+     * @return A predicate that matches the regex
+     */
+    public static Predicate<String> regexMatchesPartial(final String regex) {
+        Pattern pattern = Pattern.compile(regex);
+
+        return string -> pattern.matcher(string).find();
     }
 
     /**
