@@ -1278,11 +1278,15 @@ public class Utilities {
 						if (getter != null) {
 							current = getter.invoke(current);
 						} else {
-							Attributes<String, Object> attrs = Utilities.getAttributes(current);
-							if (attrs != null) {
-								current = PropertyUtils.getProperty(attrs, property);
+							if (current instanceof Identity) {
+								current = ((Identity) current).getAttribute(property);
 							} else {
-								current = PropertyUtils.getProperty(current, property);
+								Attributes<String, Object> attrs = Utilities.getAttributes(current);
+								if (attrs != null) {
+									current = PropertyUtils.getProperty(attrs, property);
+								} else {
+									current = PropertyUtils.getProperty(current, property);
+								}
 							}
 						}
 					} else {
