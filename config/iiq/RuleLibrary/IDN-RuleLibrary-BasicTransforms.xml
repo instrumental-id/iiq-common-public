@@ -17,6 +17,9 @@
         import java.time.format.DateTimeParseException;
         import java.time.temporal.ChronoUnit;
         import java.util.HashMap;
+        import java.util.Map;
+        import java.util.List;
+        import java.util.ArrayList;
 
         import org.apache.commons.lang.StringUtils;
         import org.apache.commons.lang.WordUtils;
@@ -24,7 +27,7 @@
 
         import sailpoint.tools.Util;
 
-        String isoDateFormat = "yyyy-MM-dd'T'HH:mm:ssZ";
+            String isoDateFormat = "yyyy-MM-dd'T'HH:mm:ssZ";
 
             Date _deriveDate(String input) {
                 if (input == null || input.isEmpty()) {
@@ -104,7 +107,7 @@
                     if (indexStr != null && indexStr.length() > 0) {
                         index = Integer.parseInt(indexStr);
                     }
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     // TODO how to log errors??
                 }
 
@@ -148,6 +151,92 @@
                 return String.valueOf(flag);
             }
 
+            String isNothing(Object anything) {
+                boolean result = false;
+
+                if (anything == null) {
+                    result = true;
+                } else if (anything instanceof String) {
+                    result = (StringUtils.trimToNull((String) anything) == null);
+                } else if (anything instanceof List) {
+                    result = ((List) anything).isEmpty();
+                } else if (anything instanceof Map) {
+                    result = ((Map) anything).isEmpty();
+                }
+
+                return String.valueOf(result);
+            }
+
+            String isBlank(Object anything) {
+                boolean result = false;
+
+                if (anything == null) {
+                    result = true;
+                } else if (anything instanceof String) {
+                    String str = StringUtils.trimToNull((String) anything);
+                    result = (str == null);
+                }
+
+                return String.valueOf(result);
+            }
+
+            String containsFuzzy(Object probablyList, String search) {
+                boolean result = false;
+
+                // Only a populated list can contain something
+                if (!isEmpty(probablyList)) {
+                    List container;
+
+                    if (probablyList instanceof String) {
+                        Gson gson = new Gson();
+                        container = gson.fromJson((String) probablyList, List.class);
+                    } else if (probablyList instanceof List) {
+                        container = (List) probablyList;
+                    }
+
+                    if (container == null) {
+                        throw new IllegalArgumentException("Input must be a JSON list or an actual Java list");
+                    }
+
+                    String trimmedSearch = StringUtils.trimToEmpty(search);
+                    boolean inputEmpty = trimmedSearch.isEmpty();
+
+                    for (Object obj : container) {
+                        // If the input is empty and this object is also blank
+                        if (inputEmpty && obj == null) {
+                            result = true;
+                            break;
+                        }
+                        if (obj instanceof String) {
+                            String objStr = StringUtils.trimToEmpty((String) obj);
+                            if (inputEmpty && objStr.isEmpty()) {
+                                result = true;
+                                break;
+                            } else if (obj.caseInsensitiveEquals(search)) {
+                                result = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                return String.valueOf(result);
+            }
+
+            String debug(Object anything) {
+                Gson gson = new Gson();
+
+                Map container = new HashMap();
+                container.put("object", anything);
+                if (anything != null) {
+                    container.put("type", anything.getClass().getName());
+                } else {
+                    container.put("type", "null");
+                }
+
+                return gson.toJson(container);
+            }
+
             try {
                 switch (operation) {
                     case "timestamp":
@@ -165,10 +254,22 @@
                     case "csvContains":
                         return String.valueOf(getCsvContains(input, search));
 
+                    case "isFlagSet":
+                        return isFlagSet(input);
+
+                    case "isBlank":
+                        return isBlank(input);
+
+                    case "containsFuzzy":
+                        return containsFuzzy(input, search);
+
+                    case "debug":
+                        return debug(input);
+
                     default:
                         return null;
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 // TODO how to do error logging??
                 return null;
             }
