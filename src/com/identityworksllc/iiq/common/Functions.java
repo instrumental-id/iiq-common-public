@@ -2028,7 +2028,7 @@ public class Functions {
      * @return The predicate
      */
     public static Predicate<Optional<?>> optionalEmpty() {
-        return Optional::isEmpty;
+        return (o) -> !o.isPresent();
     }
 
     /**
