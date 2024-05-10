@@ -12,11 +12,7 @@ import sailpoint.search.JavaPropertyMatcher;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * This class implements an extension to SailPoint's most advanced matcher, the {@link HybridReflectiveMatcher},
@@ -348,6 +344,47 @@ public class HybridObjectMatcher extends HybridReflectiveMatcher {
                 }
             } else {
                 this.evaluationStack.push(false);
+            }
+        }
+    }
+
+    /**
+     * Performs a 'like' evaluation, which includes starts-with, contains, and ends-with.
+     * This forwards to the default implementation first, then attempts to evaluate against
+     * each item in the list, as Hibernate would do.
+     *
+     * @param filter The filter to evaluate
+     * @throws GeneralException if anything goes wrong
+     */
+    @Override
+    public void visitLike(Filter.LeafFilter filter) throws GeneralException {
+        super.visitLike(filter);
+        boolean result = this.evaluationStack.peek();
+
+        if (!result) {
+            if (filter.getValue() instanceof String) {
+                evaluationStack.pop();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Failed to match like() in default mode; attempting a Hibernate-like 'contains'");
+                }
+
+                Object actual = this.getPropertyValue(filter, this.objectToMatch);
+
+                boolean matches = false;
+                if (actual instanceof Collection) {
+                    for(Object value : ((Collection<?>) actual)) {
+                        if (value instanceof String) {
+                            String listItem = (String) value;
+                            JavaPropertyMatcher jpm = new JavaPropertyMatcher(filter);
+                            matches = jpm.matches(listItem);
+                        }
+
+                        if (matches) {
+                            break;
+                        }
+                    }
+                }
+                evaluationStack.push(matches);
             }
         }
     }
