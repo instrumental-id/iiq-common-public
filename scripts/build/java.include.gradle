@@ -2,13 +2,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import java.time.LocalDate
 
 java {
-    toolchain {
-        if (project.extensions["iiqVersion"] >= "8.4") {
-            languageVersion = JavaLanguageVersion.of(11)
-        } else {
-            languageVersion = JavaLanguageVersion.of(8)
-        }
-    }
+    sourceCompatibility = JavaLanguageVersion.of(8)
+    targetCompatibility = JavaLanguageVersion.of(8);
 
     withSourcesJar()
     if (!JavaVersion.current().isJava11Compatible()) {
