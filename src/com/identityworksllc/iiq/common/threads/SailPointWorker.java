@@ -334,6 +334,14 @@ public abstract class SailPointWorker implements Runnable, Serializable {
 	}
 
 	/**
+	 * Gets the monitor associated with this worker (if any)
+	 * @return The monitor, which may be null
+	 */
+	public TaskMonitor getMonitor() {
+		return monitor;
+	}
+
+	/**
 	 * Retrieves the parent task of this one
 	 * @return The parent task
 	 */

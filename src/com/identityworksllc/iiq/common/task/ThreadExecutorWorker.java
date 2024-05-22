@@ -83,7 +83,8 @@ public class ThreadExecutorWorker<T> extends SailPointWorker {
                     args.put("logger", slogger);
                     args.put("object", in);
                     args.put("worker", this);
-                    args.put("taskListener", taskListener);
+                    args.put("taskListener", this.taskListener);
+                    args.put("monitor", this.monitor);
                     try {
                         consumer.threadExecute(threadContext, args, in);
                         taskListener.handleSuccess(in);
