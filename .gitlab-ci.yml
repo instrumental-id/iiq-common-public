@@ -34,7 +34,9 @@ build:
   artifacts:
     name: "iiqcommon-public-library"
     paths:
-      - build/**
+      - build/docs/**
+      - build/libs/**
+      - build/reports/**
     # expire_in: 1 month
 
 checkstyle:
