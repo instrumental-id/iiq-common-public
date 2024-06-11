@@ -212,7 +212,7 @@
                             if (inputEmpty && objStr.isEmpty()) {
                                 result = true;
                                 break;
-                            } else if (obj.caseInsensitiveEquals(search)) {
+                            } else if (obj.equalsIgnoreCase(search)) {
                                 result = true;
                                 break;
                             }
