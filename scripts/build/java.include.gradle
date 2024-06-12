@@ -16,7 +16,7 @@ tasks.named("sourcesJar") {
 }
 
 if (JavaVersion.current().isJava11Compatible()) {
-    tasks.register("javadocJar", Jar) {
+    tasks.register("javadoc11Jar", Jar) {
         dependsOn tasks.named("java11doc").get()
         from tasks.named("java11doc").get().outputs
 
@@ -24,7 +24,7 @@ if (JavaVersion.current().isJava11Compatible()) {
     }
 
     tasks.named("jar").configure {
-        finalizedBy tasks.named("javadocJar")
+        finalizedBy tasks.named("javadoc11Jar")
     }
 }
 
@@ -76,7 +76,7 @@ tasks.register('java11doc', JavaExec) {
             '--add-exports', 'jdk.javadoc/jdk.javadoc.internal.tool=ALL-UNNAMED',
             '--add-exports', 'jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
             '-doclet', 'org.jdrupes.mdoclet.MDoclet',
-            '-docletpath', (configurations.markdownDoclet.files as List).join(":"),
+            '-docletpath', (configurations.named("markdownDoclet").get().files as List).join(":"),
             '-d', file("${project.buildDir}/docs/javadoc"),
             '-sourcepath', 'src/',
             '-subpackages', 'com.identityworksllc.iiq.common',

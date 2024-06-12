@@ -3,8 +3,11 @@ publishing {
         mavenJava(MavenPublication) {
             from components.java
 
-            pom {
+            if (JavaVersion.current().isJava11Compatible()) {
+                artifact tasks.named("javadoc11Jar")
+            }
 
+            pom {
                 name = 'IIQ Common Public'
                 description = 'A library of common SailPoint IdentityIQ utilities for Rules and Java code'
                 url = 'https://www.identityworksllc.com/utilities/iiqcommon'
@@ -20,8 +23,8 @@ publishing {
                 }
 
                 organization {
-                    name = "Identity Works LLC"
-                    url = "https://www.identityworksllc.com"
+                    name = "Instrumental Identity"
+                    url = "https://www.instrumentalidentity.com"
                 }
 
                 developers {
@@ -29,7 +32,7 @@ publishing {
                         id = "drosenbauer"
                         name = "Devin Rosenbauer"
                         email = "devin@instrumentalid.com"
-                        organization = "Identity Works LLC"
+                        organization = "Instrumental Identity"
                     }
                 }
 

@@ -118,14 +118,6 @@ repositories {
     }
 }
 
-apply from: "./scripts/build/java.include.gradle"
-
-apply from: "./scripts/build/pub.include.gradle"
-
-apply from: "./scripts/build/checkstyle.build.gradle"
-
-apply from: "./scripts/build/tools.include.gradle"
-
 /**
  * Disables the Gradle Module Metadata, which breaks on the IIQ JARs that have
  * no versions defined.
@@ -135,14 +127,14 @@ tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
 }
 
-def includeLib = fileTree(dir: "${libRoot}/included")
-includeLib.include "*.jar"
-
 configurations {
     markdownDoclet
     toolLibraries
     implementation.extendsFrom toolLibraries
 }
+
+def includeLib = fileTree(dir: "${libRoot}/included")
+includeLib.include "*.jar"
 
 dependencies {
     markdownDoclet "org.jdrupes.mdoclet:doclet:2.1.0"
@@ -191,3 +183,12 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+
+apply from: "./scripts/build/java.include.gradle"
+
+apply from: "./scripts/build/pub.include.gradle"
+
+apply from: "./scripts/build/checkstyle.build.gradle"
+
+apply from: "./scripts/build/tools.include.gradle"
