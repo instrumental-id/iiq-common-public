@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.ConditionalTask" name="IDW - Conditional Task" progressInterval="5000" progressMode="String" template="true" type="System">
+    <Description>
+        Executes a given rule, and, if the rule returns true, executes a child task
+    </Description>
+    <Signature>
+        <Inputs>
+            <Argument name="conditionalRuleName" type="string">
+                <Prompt>Conditional rule:</Prompt>
+            </Argument>
+            <Argument name="taskName" type="string">
+                <Prompt>Task to run if the rule returns true:</Prompt>
+            </Argument>
+            <Argument name="awaitCompletion" type="boolean">
+                <Prompt>Wait for the child task to complete before exiting:</Prompt>
+            </Argument>
+        </Inputs>
+    </Signature>
+</TaskDefinition>
