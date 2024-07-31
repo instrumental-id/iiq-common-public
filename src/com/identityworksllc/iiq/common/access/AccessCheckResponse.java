@@ -14,6 +14,7 @@ import sailpoint.tools.Message;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -102,7 +103,7 @@ public class AccessCheckResponse implements Mappable {
         this.messages.add(new StampedMessage(LogLevel.WARN, reason));
         deny();
         if (log.isDebugEnabled()) {
-            log.debug(reason);
+            log.debug("Access denied: " + reason);
         }
     }
 
@@ -143,5 +144,14 @@ public class AccessCheckResponse implements Mappable {
         }
 
         messages.addAll(other.messages);
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", AccessCheckResponse.class.getSimpleName() + "[", "]")
+                .add("allowed=" + allowed)
+                .add("messages=" + messages)
+                .add("timestamp=" + timestamp)
+                .toString();
     }
 }

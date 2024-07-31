@@ -25,6 +25,7 @@ public abstract class TaskCallback<T, O> implements Serializable {
     /**
      * Invoked prior to the start of the task
      * @param task The task that is about to start
+     * @throws GeneralException on failures; aborts the task
      */
     public void beforeStart(T task) throws GeneralException {
         /* Nothing by default */

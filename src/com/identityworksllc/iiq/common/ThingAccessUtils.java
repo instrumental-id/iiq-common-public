@@ -8,13 +8,8 @@ import org.apache.commons.logging.LogFactory;
 import sailpoint.api.DynamicScopeMatchmaker;
 import sailpoint.api.Matchmaker;
 import sailpoint.api.SailPointContext;
-import sailpoint.object.Capability;
-import sailpoint.object.CustomGlobal;
-import sailpoint.object.DynamicScope;
-import sailpoint.object.Filter;
-import sailpoint.object.Identity;
-import sailpoint.object.IdentitySelector;
-import sailpoint.object.Script;
+import sailpoint.object.*;
+import sailpoint.plugin.PluginsCache;
 import sailpoint.rest.plugin.BasePluginResource;
 import sailpoint.server.Environment;
 import sailpoint.tools.GeneralException;
@@ -127,6 +122,7 @@ public class ThingAccessUtils {
          * @param csc The security config
          * @param source The source identity name
          * @param target The target identity name
+         * @param state The state of the security operation
          */
         public SecurityCacheToken(CommonSecurityConfig csc, String source, String target, Map<String, Object> state) {
             this.commonSecurityConfig = csc.toMap();
@@ -230,8 +226,15 @@ public class ThingAccessUtils {
             target = currentUser;
         }
         if (configuration == null || configuration.isEmpty()) {
-            log.debug("Configuration for " + thingName + " is empty; assuming that access is allowed");
-            return true;
+            Configuration systemConfig = Configuration.getSystemConfig();
+            boolean defaultDeny = systemConfig.getBoolean("IIQCommon.ThingAccessUtils.denyOnEmpty", false);
+            if (defaultDeny) {
+                log.debug("Configuration for " + thingName + " is empty; assuming that access is NOT allowed");
+                return false;
+            } else {
+                log.debug("Configuration for " + thingName + " is empty; assuming that access is allowed");
+                return true;
+            }
         }
         CommonSecurityConfig config = CommonSecurityConfig.decode(configuration);
         return checkThingAccess(pluginContext, target, thingName, config);
@@ -284,15 +287,15 @@ public class ThingAccessUtils {
                 if (cachedResult.isPresent()) {
                     return cachedResult.get();
                 }
-                result = checkThingAccessImpl(input, null);
+                result = checkThingAccessImpl(input);
                 getCacheMap().put(cacheToken, new SecurityResult(result));
             } else {
-                result = checkThingAccessImpl(input, null);
+                result = checkThingAccessImpl(input);
             }
         } catch(Exception e) {
             result = new AccessCheckResponse();
             result.denyMessage("Caught an exception evaluating criteria: " + e.getMessage());
-            log.error("Caught an exception evaluating access criteria", e);
+            log.error("Caught an exception evaluating access criteria to " + input.getThingName(), e);
         }
         return result;
     }
@@ -305,10 +308,8 @@ public class ThingAccessUtils {
      * @return True if the user has access to the thing based on the configuration
      * @throws GeneralException if any check failures occur (this should be interpreted as "no access")
      */
-    private static AccessCheckResponse checkThingAccessImpl(final AccessCheckInput input, AccessCheckResponse result) throws GeneralException {
-        if (result == null) {
-            result = new AccessCheckResponse();
-        }
+    private static AccessCheckResponse checkThingAccessImpl(final AccessCheckInput input) throws GeneralException {
+        AccessCheckResponse result = new AccessCheckResponse();
         BasePluginResource pluginContext = input.getPluginResource();
 
         final Identity currentUser = pluginContext.getLoggedInUser();
@@ -317,6 +318,14 @@ public class ThingAccessUtils {
         final CommonSecurityConfig config = input.getConfiguration();
         final String thingName = input.getThingName();
 
+        Configuration systemConfig = Configuration.getSystemConfig();
+        boolean beanshellGetsPluginContext = systemConfig.getBoolean("IIQCommon.ThingAccessUtils.beanshellGetsPluginContext", false);
+
+
+        if (log.isTraceEnabled()) {
+            log.trace("START: Checking access for subject = " + currentUser.getName() + ", target = " + target.getName() + ", thing = " + thingName + ", config = " + config);
+        }
+
         if (config.isDisabled()) {
             result.denyMessage("Access denied to " + thingName + " because the configuration is marked disabled");
         }
@@ -324,7 +333,7 @@ public class ThingAccessUtils {
             boolean anyMatch = false;
             for(CommonSecurityConfig sub : config.getOneOf()) {
                 AccessCheckInput child = new AccessCheckInput(input, sub);
-                AccessCheckResponse childResponse = checkThingAccessImpl(child, null);
+                AccessCheckResponse childResponse = checkThingAccessImpl(child);
                 if (childResponse.isAllowed()) {
                     anyMatch = true;
                     break;
@@ -338,7 +347,7 @@ public class ThingAccessUtils {
             boolean allMatch = true;
             for(CommonSecurityConfig sub : config.getAllOf()) {
                 AccessCheckInput child = new AccessCheckInput(input, sub);
-                AccessCheckResponse childResponse = checkThingAccessImpl(child, null);
+                AccessCheckResponse childResponse = checkThingAccessImpl(child);
                 if (!childResponse.isAllowed()) {
                     allMatch = false;
                     break;
@@ -352,7 +361,7 @@ public class ThingAccessUtils {
             boolean anyMatch = false;
             for(CommonSecurityConfig sub : config.getNot()) {
                 AccessCheckInput child = new AccessCheckInput(input, sub);
-                AccessCheckResponse childResponse = checkThingAccessImpl(child, null);
+                AccessCheckResponse childResponse = checkThingAccessImpl(child);
                 if (childResponse.isAllowed()) {
                     anyMatch = true;
                     break;
@@ -368,7 +377,7 @@ public class ThingAccessUtils {
                 result.denyMessage("Access denied to " + thingName + " because the feature " + config.getSettingOffSwitch() + " is disabled in plugin settings");
             }
         }
-        if (result.isAllowed() && config.getAccessCheckScript() != null) {
+        if (result.isAllowed() && config.getAccessCheckScript() != null && Util.isNotNullOrEmpty(config.getAccessCheckScript().getSource())) {
             Script script = Utilities.getAsScript(config.getAccessCheckScript());
             Map<String, Object> scriptArguments = new HashMap<>();
             scriptArguments.put("subject", currentUser);
@@ -380,6 +389,11 @@ public class ThingAccessUtils {
             scriptArguments.put("context", pluginContext.getContext());
             scriptArguments.put("log", LogFactory.getLog(pluginContext.getClass()));
             scriptArguments.put("state", input.getState());
+            if (beanshellGetsPluginContext) {
+                scriptArguments.put("pluginContext", pluginContext);
+            } else {
+                scriptArguments.put("pluginContext", null);
+            }
 
             Object output = pluginContext.getContext().runScript(script, scriptArguments);
             // If the script returns a non-null value, it will be considered the authoritative
@@ -404,9 +418,16 @@ public class ThingAccessUtils {
             scriptArguments.put("context", pluginContext.getContext());
             scriptArguments.put("log", LogFactory.getLog(pluginContext.getClass()));
             scriptArguments.put("state", input.getState());
-
+            if (beanshellGetsPluginContext) {
+                scriptArguments.put("pluginContext", pluginContext);
+            } else {
+                scriptArguments.put("pluginContext", null);
+            }
+            if (log.isTraceEnabled()) {
+                log.trace("Running access check rule " + config.getAccessCheckRule().getName() + " for subject = " + currentUserName + ", target = " + target.getName());
+            }
             Object output = pluginContext.getContext().runRule(config.getAccessCheckRule(), scriptArguments);
-            // If the script returns a non-null value, it will be considered the authoritative
+            // If the rule returns a non-null value, it will be considered the authoritative
             // response. No further checks will be done. If the output is null, the access
             // checks will defer farther down.
             if (output != null) {
@@ -424,7 +445,7 @@ public class ThingAccessUtils {
             if (userRights != null) {
                 for(String right : Util.safeIterable(userRights)) {
                     if (rights.contains(right)) {
-                        result.addMessage("Matching SPRight: " + right);
+                        result.addMessage("Subject matched required SPRight: " + right);
                         userAllowed = true;
                         break;
                     }
@@ -440,7 +461,7 @@ public class ThingAccessUtils {
             List<Capability> loggedInUserCapabilities = pluginContext.getLoggedInUserCapabilities();
             for(Capability cap : Util.safeIterable(loggedInUserCapabilities)) {
                 if (capabilities.contains(cap.getName())) {
-                    result.addMessage("Matching Capability: " + cap.getName());
+                    result.addMessage("Subject matched required capability: " + cap.getName());
                     userAllowed = true;
                     break;
                 }
@@ -456,7 +477,7 @@ public class ThingAccessUtils {
             if (userRights != null) {
                 for(String right : Util.safeIterable(userRights)) {
                     if (rights.contains(right)) {
-                        result.addMessage("Matching excluded SPRight: " + right);
+                        result.addMessage("Subject matched excluded SPRight: " + right);
                         userAllowed = false;
                         break;
                     }
@@ -472,7 +493,7 @@ public class ThingAccessUtils {
             List<Capability> loggedInUserCapabilities = pluginContext.getLoggedInUserCapabilities();
             for(Capability cap : Util.safeIterable(loggedInUserCapabilities)) {
                 if (capabilities.contains(cap.getName())) {
-                    result.addMessage("Matching excluded Capability: " + cap.getName());
+                    result.addMessage("Subject matched excluded Capability: " + cap.getName());
                     userAllowed = false;
                     break;
                 }
@@ -504,6 +525,8 @@ public class ThingAccessUtils {
 
             if (!hom.matches(currentUser)) {
                 result.denyMessage("Access denied to " + thingName + " because subject user " + currentUserName + " does not match the access check filter");
+            } else {
+                result.addMessage("Subject user matches filter: " + filterString);
             }
         }
         if (result.isAllowed() && config.getAccessCheckSelector() != null) {
@@ -511,6 +534,23 @@ public class ThingAccessUtils {
             Matchmaker matchmaker = new Matchmaker(pluginContext.getContext());
             if (!matchmaker.isMatch(selector, currentUser)) {
                 result.denyMessage("Access denied to " + thingName + " because subject user " + currentUserName + " does not match the access check selector");
+            } else {
+                result.addMessage("Subject user matches selector: " + selector.toXml());
+            }
+        }
+        if (result.isAllowed() && Util.isNotNullOrEmpty(config.getMirrorRole())) {
+            String role = config.getMirrorRole();
+            Bundle bundle = pluginContext.getContext().getObject(Bundle.class, role);
+            if (bundle.getSelector() == null && !Util.isEmpty(bundle.getProfiles())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Running mirrorRole access check on an IT role; this may have performance concerns");
+                }
+            }
+            MatchUtilities matchUtilities = new MatchUtilities(pluginContext.getContext());
+            if (!matchUtilities.matches(currentUser, bundle)) {
+                result.denyMessage("Access denied to " + thingName + " because subject user " + currentUserName + " does not match the selector or profile on role " + bundle.getName());
+            } else {
+                result.addMessage("Subject user matches role criteria: " + bundle.getName());
             }
         }
         if (result.isAllowed() && Util.isNotNullOrEmpty(config.getMirrorQuicklinkPopulation())) {
@@ -520,10 +560,13 @@ public class ThingAccessUtils {
                 DynamicScope dynamicScope = pluginContext.getContext().getObject(DynamicScope.class, quicklinkPopulation);
                 boolean matchesDynamicScope = dynamicScopeMatchmaker.isMatch(dynamicScope, currentUser);
                 if (matchesDynamicScope) {
-                    result.addMessage("Subject user matches DynamicScope " + quicklinkPopulation);
+                    result.addMessage("Subject user matches DynamicScope: " + quicklinkPopulation);
                     DynamicScope.PopulationRequestAuthority populationRequestAuthority = dynamicScope.getPopulationRequestAuthority();
                     if (populationRequestAuthority != null && !populationRequestAuthority.isAllowAll()) {
                         matchesDynamicScope = dynamicScopeMatchmaker.isMember(currentUser, target, populationRequestAuthority);
+                        if (matchesDynamicScope) {
+                            result.addMessage("Target user matches DynamicScope: " + quicklinkPopulation);
+                        }
                     }
                 }
                 if (!matchesDynamicScope) {
@@ -538,7 +581,7 @@ public class ThingAccessUtils {
             if (userRights != null) {
                 for(String right : Util.safeIterable(userRights)) {
                     if (rights.contains(right)) {
-                        result.addMessage("Excluded right matched: " + right);
+                        result.addMessage("Target matched excluded right: " + right);
                         userAllowed = false;
                         break;
                     }
@@ -555,7 +598,7 @@ public class ThingAccessUtils {
             if (capabilities != null) {
                 for(Capability capability : Util.safeIterable(capabilities)) {
                     if (rights.contains(capability.getName())) {
-                        result.addMessage("Excluded capability matched: " + capability.getName());
+                        result.addMessage("Target matched excluded capability: " + capability.getName());
                         userAllowed = false;
                         break;
                     }
@@ -582,7 +625,6 @@ public class ThingAccessUtils {
             if (!userAllowed) {
                 result.denyMessage("Access denied to " + thingName + " because target user " + target.getName() + " does not match any of the required workgroups " + workgroups);
             }
-
         }
         if (result.isAllowed() && !Util.isEmpty(config.getValidTargetCapabilities())) {
             boolean userAllowed = false;
@@ -591,6 +633,7 @@ public class ThingAccessUtils {
             if (capabilities != null) {
                 for(Capability capability : Util.safeIterable(capabilities)) {
                     if (rights.contains(capability.getName())) {
+                        result.addMessage("Target matched capability: " + capability.getName());
                         userAllowed = true;
                     }
                 }
@@ -615,6 +658,10 @@ public class ThingAccessUtils {
             if (!hom.matches(target)) {
                 result.denyMessage("Access denied to " + thingName + " because target user " + target.getName() + " does not match the valid target filter");
             }
+        }
+        if (log.isTraceEnabled()) {
+            String resultString = result.isAllowed() ? "ALLOWED access" : "DENIED access";
+            log.trace("FINISH: " + resultString + " for subject = " + currentUser.getName() + ", target = " + target.getName() + ", thing = " + thingName + ", result = " + result);
         }
         return result;
     }
@@ -643,14 +690,18 @@ public class ThingAccessUtils {
      * we create and store a new one. Since this is just for efficiency, we don't really
      * care about synchronization.
      *
+     * A new cache will be created whenever a new plugin is installed, incrementing the
+     * Environment's plugin version.
+     *
      * @return The cache map
      */
     private static ConcurrentHashMap<SecurityCacheToken, SecurityResult> getCacheMap() {
+        String versionedKey = CACHE_KEY + "." + getPluginVersion();
         @SuppressWarnings("unchecked")
-        ConcurrentHashMap<SecurityCacheToken, SecurityResult> cacheMap = (ConcurrentHashMap<SecurityCacheToken, SecurityResult>) CustomGlobal.get(CACHE_KEY);
+        ConcurrentHashMap<SecurityCacheToken, SecurityResult> cacheMap = (ConcurrentHashMap<SecurityCacheToken, SecurityResult>) CustomGlobal.get(versionedKey);
         if (cacheMap == null) {
             cacheMap = new ConcurrentHashMap<>();
-            CustomGlobal.put(CACHE_KEY, cacheMap);
+            CustomGlobal.put(versionedKey, cacheMap);
         }
         return cacheMap;
     }
@@ -671,6 +722,21 @@ public class ThingAccessUtils {
         } else {
             return cachedEntry.get();
         }
+    }
+
+    /**
+     * Gets the current plugin version from the environment, or NA if not defined
+     * @return The current plugin cache version
+     */
+    private static String getPluginVersion() {
+        String version = "NA";
+        if (Environment.getEnvironment() != null) {
+            PluginsCache cache = Environment.getEnvironment().getPluginsCache();
+            if (cache != null) {
+                version = String.valueOf(cache.getVersion());
+            }
+        }
+        return version;
     }
 
     /**

@@ -151,6 +151,12 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
      * The check will pass if the given Quicklink Population would allow access for the subject and target
      */
     /*package*/ String mirrorQuicklinkPopulation;
+
+    /**
+     * The check will pass if the given Bundle's access criteria matches this user. The Bundle must
+     * have an IdentitySelector attached, which can be of any type.
+     */
+    /*package*/ String mirrorRole;
     /**
      * True if we should NOT cache the results of this check
      */
@@ -271,6 +277,10 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
         return mirrorQuicklinkPopulation;
     }
 
+    public String getMirrorRole() {
+        return mirrorRole;
+    }
+
     public List<CommonSecurityConfig> getNot() {
         return not;
     }
@@ -388,6 +398,10 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
 
     public void setMirrorQuicklinkPopulation(String mirrorQuicklinkPopulation) {
         this.mirrorQuicklinkPopulation = mirrorQuicklinkPopulation;
+    }
+
+    public void setMirrorRole(String mirrorRole) {
+        this.mirrorRole = mirrorRole;
     }
 
     public void setNoCache(boolean noCache) {
@@ -561,6 +575,9 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
         }
         if ((invalidTargetFilter) != null) {
             joiner.add("invalidTargetFilter='" + invalidTargetFilter + "'");
+        }
+        if (mirrorRole != null) {
+            joiner.add("mirrorRole='" + mirrorRole + "'");
         }
         if ((mirrorQuicklinkPopulation) != null) {
             joiner.add("mirrorQuicklinkPopulation='" + mirrorQuicklinkPopulation + "'");

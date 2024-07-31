@@ -25,14 +25,7 @@ import sailpoint.server.AbstractSailPointContext;
 import sailpoint.server.Environment;
 import sailpoint.server.SPKeyStore;
 import sailpoint.server.SailPointConsole;
-import sailpoint.tools.BrandingServiceFactory;
-import sailpoint.tools.Console;
-import sailpoint.tools.GeneralException;
-import sailpoint.tools.Message;
-import sailpoint.tools.RFC4180LineParser;
-import sailpoint.tools.Reflection;
-import sailpoint.tools.Util;
-import sailpoint.tools.VelocityUtil;
+import sailpoint.tools.*;
 import sailpoint.tools.xml.ConfigurationException;
 import sailpoint.tools.xml.XMLObjectFactory;
 import sailpoint.web.BaseBean;
@@ -102,32 +95,26 @@ public class Utilities {
 			return Objects.hash("");
 		}
 	}
-
+	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
 	/**
 	 * The name of the worker pool, stored in CustomGlobal by default
 	 */
 	public static final String IDW_WORKER_POOL = "idw.worker.pool";
-
 	/**
 	 * The key used to store the user's most recent locale on their UIPrefs,
 	 * captured by {@link #tryCaptureLocationInfo(SailPointContext, Identity)}
 	 */
 	public static final String MOST_RECENT_LOCALE = "mostRecentLocale";
-
 	/**
 	 * The key used to store the user's most recent timezone on their UIPrefs,
 	 * captured by {@link #tryCaptureLocationInfo(SailPointContext, Identity)}
 	 */
 	public static final String MOST_RECENT_TIMEZONE = "mostRecentTimezone";
-
 	/**
 	 * A magic constant for use with the {@link Utilities#getQuickProperty(Object, String)} method.
 	 * If the property is not an available 'quick property', this object will be returned.
 	 */
 	public static final Object NONE = new PropertyLookupNone();
-
-	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
-
 	/**
 	 * Indicates whether velocity has been initialized in this Utilities class
 	 */
@@ -137,6 +124,13 @@ public class Utilities {
 	 * The internal logger
 	 */
 	private static final Log logger = LogFactory.getLog(Utilities.class);
+
+	/**
+	 * Private utility constructor
+	 */
+	private Utilities() {
+
+	}
 
 	/**
 	 * Adds the given value to a {@link Collection} at the given key in the map.
@@ -965,34 +959,6 @@ public class Utilities {
 	}
 
 	/**
-	 * Returns a default Jackson object mapper, independent of IIQ versions.
-	 * The template ObjectMapper is generated on the
-	 *
-	 * @return A copy of our cached ObjectMapper
-	 */
-	public static ObjectMapper getJacksonObjectMapper() {
-		if (DEFAULT_OBJECT_MAPPER.get() == null) {
-			synchronized (CustomGlobal.class) {
-				if (DEFAULT_OBJECT_MAPPER.get() == null) {
-					ObjectMapper objectMapper = new ObjectMapper();
-					objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-					objectMapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
-					objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-					DefaultPrettyPrinter.Indenter indenter = new DefaultIndenter("    ", DefaultIndenter.SYS_LF);
-					DefaultPrettyPrinter printer = new DefaultPrettyPrinter();
-					printer.indentObjectsWith(indenter);
-					printer.indentArraysWith(indenter);
-					objectMapper.setDefaultPrettyPrinter(printer);
-
-					DEFAULT_OBJECT_MAPPER.set(objectMapper);
-				}
-			}
-		}
-
-		return DEFAULT_OBJECT_MAPPER.get().copy();
-	}
-
-	/**
 	 * Returns the first item in the input that is not nothing according to the {@link #isNothing(Object)} method.
 	 *
 	 * @param items The input items
@@ -1075,6 +1041,34 @@ public class Utilities {
 			throw new GeneralException(e);
 		}
 		return props;
+	}
+
+	/**
+	 * Returns a default Jackson object mapper, independent of IIQ versions.
+	 * The template ObjectMapper is generated on the
+	 *
+	 * @return A copy of our cached ObjectMapper
+	 */
+	public static ObjectMapper getJacksonObjectMapper() {
+		if (DEFAULT_OBJECT_MAPPER.get() == null) {
+			synchronized (CustomGlobal.class) {
+				if (DEFAULT_OBJECT_MAPPER.get() == null) {
+					ObjectMapper objectMapper = new ObjectMapper();
+					objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+					objectMapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
+					objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+					DefaultPrettyPrinter.Indenter indenter = new DefaultIndenter("    ", DefaultIndenter.SYS_LF);
+					DefaultPrettyPrinter printer = new DefaultPrettyPrinter();
+					printer.indentObjectsWith(indenter);
+					printer.indentArraysWith(indenter);
+					objectMapper.setDefaultPrettyPrinter(printer);
+
+					DEFAULT_OBJECT_MAPPER.set(objectMapper);
+				}
+			}
+		}
+
+		return DEFAULT_OBJECT_MAPPER.get().copy();
 	}
 
 	/**
@@ -2738,6 +2732,56 @@ public class Utilities {
 	}
 
 	/**
+	 * The same as {@link #sortMapListByKey(List, Object)}, except that the list will be
+	 * copied and returned, rather than sorted in place.
+	 *
+	 * @param listOfMaps The list of maps to sort
+	 * @param key        The key to extract from each map and sort by
+	 * @param <K>        The type of the key
+	 * @return A new list, copied from the input, sorted according to the given key
+	 */
+	public static <K> List<Map<? super K, ?>> sortCopiedMapListByKey(final List<Map<? super K, ?>> listOfMaps, final K key) {
+		List<Map<? super K, ?>> newList = new ArrayList<>(listOfMaps);
+		sortMapListByKey(newList, key);
+		return newList;
+	}
+
+	/**
+	 * Sorts the given list of Maps *in place* by the value of the given key. If
+	 * the value is a {@link Number}, it will be passed to {@link String#valueOf(Object)}.
+	 * If the value is a {@link Date}, its epoch millisecond timestamp will be passed
+	 * to {@link String#valueOf(Object)}. Otherwise, the input will be passed to
+	 * {@link Util#otoa(Object)}.
+	 *
+	 * Nulls will always be sorted higher than non-nulls, both if the List contains
+	 * a null instead of a Map object, or if the value corresponding to the sort key
+	 * is null.
+	 *
+	 * @param listOfMaps The list of maps to sort
+	 * @param key        The key to extract from each map and sort by
+     * @param <K>        The type of the key
+	 */
+	public static <K> void sortMapListByKey(final List<Map<? super K, ?>> listOfMaps, final K key) {
+		listOfMaps.sort(
+				Comparator.nullsLast(
+						Comparator.comparing(
+								m -> {
+									Object val = m.get(key);
+									if (val instanceof Number) {
+										return String.valueOf(((Number) val).longValue());
+									} else if (val instanceof Date) {
+										return String.valueOf(((Date) val).getTime());
+									} else {
+										return Util.otoa(val);
+									}
+								},
+								Comparator.nullsLast(Comparator.naturalOrder())
+						)
+				)
+		);
+	}
+
+	/**
 	 * Adds the given key and value to the Map if no existing value for the key is
 	 * present. The Map will be synchronized so that only one thread is guaranteed
 	 * to be able to insert the initial value.
@@ -3369,13 +3413,6 @@ public class Utilities {
 		} finally {
 			ObjectUtil.unlockObject(context, object, PersistenceManager.LOCK_TYPE_TRANSACTION);
 		}
-	}
-
-	/**
-	 * Private utility constructor
-	 */
-	private Utilities() {
-
 	}
 
 }
