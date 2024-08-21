@@ -3,15 +3,12 @@ package com.identityworksllc.iiq.common.auth;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.Capability;
 import sailpoint.object.Identity;
+import sailpoint.plugin.PluginContext;
 import sailpoint.rest.plugin.BasePluginResource;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
+import sailpoint.web.UserContext;
 
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.PathSegment;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -19,7 +16,7 @@ import java.util.List;
 /**
  * Creates a fake plugin context for use outside of a plugin.
  */
-public class DummyPluginResource extends BasePluginResource {
+public class DummyPluginResource extends BasePluginResource implements UserContext, PluginContext {
     /**
      * The context
      */
