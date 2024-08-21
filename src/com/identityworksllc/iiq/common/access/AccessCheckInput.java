@@ -1,10 +1,12 @@
 package com.identityworksllc.iiq.common.access;
 
 import com.identityworksllc.iiq.common.CommonSecurityConfig;
-import com.identityworksllc.iiq.common.ThingAccessUtils;
 import sailpoint.object.Identity;
 import sailpoint.rest.plugin.BasePluginResource;
+import sailpoint.tools.GeneralException;
+import sailpoint.web.UserContext;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -19,7 +21,7 @@ public final class AccessCheckInput {
     /**
      * The plugin resource
      */
-    private BasePluginResource pluginResource;
+    private UserContext userContext;
 
     /**
      * The state from this access check
@@ -50,78 +52,132 @@ public final class AccessCheckInput {
      * @param config The 'child' config to replace with
      */
     public AccessCheckInput(AccessCheckInput parent, CommonSecurityConfig config) {
-        this.state = parent.state;
-        this.pluginResource = parent.pluginResource;
-        this.thingName = parent.thingName;
-        this.target = parent.target;
-        this.configuration = config;
+        this(parent.userContext, parent.target, parent.thingName, config, parent.state);
     }
 
     /**
      * Access check input taking a plugin or target
      *
-     * @param pluginResource The plugin resource
+     * @param userContext    The user context (likely a BasePluginResource)
+     * @param config         The config
+     */
+    public AccessCheckInput(UserContext userContext, CommonSecurityConfig config) {
+        this(userContext, null, AccessCheck.ANONYMOUS_THING, config, null);
+    }
+    /**
+     * Access check input taking a plugin or target
+     *
+     * @param userContext    The user context (likely a BasePluginResource)
      * @param target         The target
      * @param config         The config
      */
-    public AccessCheckInput(BasePluginResource pluginResource, Identity target, CommonSecurityConfig config) {
-        this.pluginResource = pluginResource;
-        this.target = target;
-        this.configuration = config;
+    public AccessCheckInput(UserContext userContext, Identity target, CommonSecurityConfig config) {
+        this(userContext, target, AccessCheck.ANONYMOUS_THING, config, null);
     }
 
     /**
      * Access check input taking a plugin or target
      *
-     * @param pluginResource The plugin resource
+     * @param userContext    The user context (likely a BasePluginResource)
      * @param target         The target
      * @param thingName      The thing name
      * @param config         The config
      */
-    public AccessCheckInput(BasePluginResource pluginResource, Identity target, String thingName, CommonSecurityConfig config) {
-        this.pluginResource = pluginResource;
-        this.target = target;
-        this.configuration = config;
-        this.thingName = thingName;
+    public AccessCheckInput(UserContext userContext, Identity target, String thingName, CommonSecurityConfig config) {
+        this(userContext, target, thingName, config, null);
     }
 
+    /**
+     * Access check input taking a plugin or target
+     *
+     * @param userContext    The user context (likely a BasePluginResource)
+     * @param target         The target
+     * @param thingName      The thing name
+     * @param config         The config
+     * @param state          Any persistent state in the access checks
+     */
+    public AccessCheckInput(UserContext userContext, Identity target, String thingName, CommonSecurityConfig config, Map<String, Object> state) {
+        this.userContext = userContext;
+        this.target = target;
+        this.configuration = config;
+        if (thingName == null || thingName.isEmpty()) {
+            this.thingName = AccessCheck.ANONYMOUS_THING;
+        } else {
+            this.thingName = thingName;
+        }
+        this.state = (state != null) ? state : new HashMap<>();
+    }
+
+    /**
+     * Gets the configuration object
+     * @return The common security configuration object
+     */
     public CommonSecurityConfig getConfiguration() {
         return configuration;
     }
 
-    public BasePluginResource getPluginResource() {
-        return pluginResource;
+    /**
+     * @deprecated Use {@link #getUserContext()} instead
+     * @return The configured plugin resource / user context
+     */
+    @Deprecated
+    public UserContext getPluginResource() {
+        return userContext;
+    }
+
+    public UserContext getUserContext() {
+        return userContext;
     }
 
     public Map<String, Object> getState() {
         return state;
     }
 
-    public Identity getTarget() {
-        return target;
+    public Identity getTarget() throws GeneralException {
+        if (this.target != null) {
+            return target;
+        } else {
+            return userContext.getLoggedInUser();
+        }
     }
 
     public String getThingName() {
         return thingName;
     }
 
-    public void setConfiguration(CommonSecurityConfig configuration) {
+    public AccessCheckInput setConfiguration(Map<String, Object> configuration) throws GeneralException {
+        this.configuration = CommonSecurityConfig.decode(configuration);
+        return this;
+    }
+
+
+    public AccessCheckInput setConfiguration(CommonSecurityConfig configuration) {
         this.configuration = configuration;
+        return this;
     }
 
-    public void setPluginResource(BasePluginResource pluginResource) {
-        this.pluginResource = pluginResource;
+    @Deprecated
+    public AccessCheckInput setPluginResource(BasePluginResource pluginResource) {
+        return setUserContext(pluginResource);
     }
 
-    public void setState(Map<String, Object> state) {
+    public AccessCheckInput setUserContext(UserContext userContext) {
+        this.userContext = userContext;
+        return this;
+    }
+
+    public AccessCheckInput setState(Map<String, Object> state) {
         this.state = state;
+        return this;
     }
 
-    public void setTarget(Identity target) {
+    public AccessCheckInput setTarget(Identity target) {
         this.target = target;
+        return this;
     }
 
-    public void setThingName(String thingName) {
+    public AccessCheckInput setThingName(String thingName) {
         this.thingName = thingName;
+        return this;
     }
 }

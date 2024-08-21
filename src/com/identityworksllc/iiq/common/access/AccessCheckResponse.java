@@ -5,36 +5,42 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.identityworksllc.iiq.common.Mappable;
+import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.vo.LogLevel;
 import com.identityworksllc.iiq.common.vo.StampedMessage;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.tools.Message;
+import sailpoint.tools.Util;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The output of {@link com.identityworksllc.iiq.common.ThingAccessUtils#checkThingAccess(AccessCheckInput)}.
+ * The output of {@link AccessCheck#accessCheck(AccessCheckInput)}.
  */
 @JsonAutoDetect
 public class AccessCheckResponse implements Mappable {
+    /**
+     * A logger used to record errors
+     */
     private static final Log log = LogFactory.getLog(AccessCheckResponse.class);
-
     /**
      * Whether the access was allowed
      */
     @JsonSerialize(using = StdJdkSerializers.AtomicBooleanSerializer.class)
     private final AtomicBoolean allowed;
-
     /**
      * Any output messages from the access check
      */
     private final List<StampedMessage> messages;
-
     /**
      * The timestamp of the check
      */
@@ -70,6 +76,52 @@ public class AccessCheckResponse implements Mappable {
         } else {
             this.timestamp = timestamp;
         }
+    }
+
+    /**
+     * Decodes an AccessCheckResponse from the given String, which should be a JSON
+     * formatted value.
+     *
+     * @param input The input JSON
+     * @return The decoded AccessCheckResponse
+     * @throws IOException if JSON decoding fails
+     */
+    public static AccessCheckResponse decode(String input) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(new StringReader(input), AccessCheckResponse.class);
+    }
+
+    /**
+     * Decodes an AccessCheckResponse from the given Map, which may have been generated using
+     * this class's {@link #toMap()}. The Map may contain a long 'timestamp', a set of 'messages',
+     * and an 'allowed' boolean.
+     * @param input The Map input
+     * @return The decoded AccessCheckResponse
+     */
+    public static AccessCheckResponse decode(Map<String, Object> input) {
+        long timestamp = System.currentTimeMillis();
+        if (input.get("timestamp") instanceof Long) {
+            timestamp = (Long)input.get("timestamp");
+        }
+
+        List<StampedMessage> messages = new ArrayList<>();
+        if (input.get("messages") instanceof List) {
+            for(Object o : Util.asList(input.get("messages"))) {
+                if (o instanceof StampedMessage) {
+                    messages.add((StampedMessage)o);
+                } else if (o instanceof Message) {
+                    messages.add(new StampedMessage((Message)o));
+                } else if (o instanceof String) {
+                    messages.add(new StampedMessage((String)o));
+                } else {
+                    log.debug("Unrecognized object type in 'messages' List: " + Utilities.safeClassName(o));
+                }
+            }
+        }
+
+        boolean result = Util.otob(input.get("allowed"));
+
+        return new AccessCheckResponse(result, messages, timestamp);
     }
 
     /**
