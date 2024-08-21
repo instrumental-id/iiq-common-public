@@ -1,6 +1,5 @@
 package com.identityworksllc.iiq.common.cache;
 
-import java.security.AccessControlException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiPredicate;
@@ -68,7 +67,6 @@ public class GuardedCacheValue<ValueType, GuardType> {
      *
      * @param guardTest The guard test value
      * @return An optional containing the stored value, if the guard value input matches, or else an empty optional object
-     * @throws AccessControlException if the test token doesn't match
      */
     public Optional<ValueType> getValue(GuardType guardTest) {
         if (this.matcher.test(guardTest, guardToken)) {

@@ -18,6 +18,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Implements a timestampped log message similar to what would be logged by a
@@ -81,7 +82,7 @@ public class StampedMessage implements Serializable {
 
     /**
      * Creates a log from a SailPoint Message object
-     * @param message
+     * @param message A Sailpoint message
      */
     public StampedMessage(Message message) {
         this(message, null);
