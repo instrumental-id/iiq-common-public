@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.export.IDWDataExporter" name="IDW Data Export" progressInterval="5000" progressMode="String" subType="task_item_type_system" template="true" type="System">
+    <Description>
+        Template for the IDW Data Exporter task
+    </Description>
+    <Signature>
+        <Inputs>
+            <Argument name="requestDefinitionName" required="true" type="string">
+                <Prompt>SailpointWorker request definition name</Prompt>
+            </Argument>
+            <Argument name="driver" type="string">
+                <Prompt>DB Driver</Prompt>
+            </Argument>
+            <Argument name="url" required="true" type="string">
+                <Prompt>DB URL</Prompt>
+            </Argument>
+            <Argument name="username" required="true" type="string">
+                <Prompt>DB Username</Prompt>
+            </Argument>
+            <Argument name="password" type="secret">
+                <Prompt>DB Password</Prompt>
+            </Argument>
+            <Argument name="configurationName" required="true" type="string">
+                <Prompt>Configuration name</Prompt>
+            </Argument>
+            <Argument name="identityFilters" required="true" type="string" multiValued="true">
+                <Prompt>Identity partition filters</Prompt>
+            </Argument>
+            <Argument name="linkFilters" required="true" type="string" multiValued="true">
+                <Prompt>Link partition filters</Prompt>
+            </Argument>
+            <Argument name="linkFilters2" required="true" type="string" multiValued="true">
+                <Prompt>Link partition filters (second set)</Prompt>
+            </Argument>
+            <Argument name="linkCleanup" type="boolean">
+                <Prompt>Detect deleted links</Prompt>
+            </Argument>
+        </Inputs>
+        <Returns>
+            <Argument name="exportedIdentities" type="int">
+                <Prompt>Identities exported</Prompt>
+            </Argument>
+            <Argument name="exportedLinks" type="int">
+                <Prompt>Links exported</Prompt>
+            </Argument>
+            <Argument name="exportedRoles" type="int">
+                <Prompt>Roles exported</Prompt>
+            </Argument>
+        </Returns>
+    </Signature>
+</TaskDefinition>

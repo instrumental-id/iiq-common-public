@@ -1,0 +1,66 @@
+create table de_identity (
+    id varchar2(64 char),
+    name varchar2(256 char),
+    type varchar2(128 char),
+    firstname varchar2(384 char),
+    lastname varchar2(384 char),
+    email varchar2(600 char),
+    manager_id varchar2(64 char),
+    administrator_id varchar2(64 char),
+    created DATE,
+    modified DATE,
+    last_refresh DATE,
+    de_timestamp DATE,
+
+    PRIMARY KEY (id)
+);
+
+create unique index de_identity_idx on de_identity(id, name);
+
+create table de_identity_attr (
+    id varchar2(64 char),
+    attribute_name varchar2(256 char),
+    attribute_value varchar2(4000 char)
+);
+
+create index de_identity_attr_idx on de_identity_attr(id, attribute_name);
+
+create table de_identity_roles (
+    id varchar2(64),
+    role_name varchar2(400),
+    role_type varchar2(256),
+    role_date DATE
+);
+
+create index de_identity_roles_idx on de_identity_roles(id, role_name);
+
+
+create table de_link (
+    id varchar2(64 char),
+    identity_id varchar2(64 char),
+    application varchar2(384 char),
+    native_identity varchar2(384 char),
+    created DATE,
+    modified DATE,
+    last_refresh DATE,
+    de_timestamp DATE,
+
+    PRIMARY KEY (id)
+);
+
+create index de_link_identity on de_link(identity_id, application);
+
+create index de_link_app_ni on de_link(application, native_identity);
+
+create table de_link_attr (
+    id varchar2(64 char),
+    attribute_name varchar2(256 char),
+    attribute_value varchar2(4000 char)
+);
+
+create index de_link_attr_idx on de_link_attr(id, attribute_name);
+
+create table de_runs (
+    last_start_time NUMBER,
+    config_hash VARCHAR2(32 char)
+);

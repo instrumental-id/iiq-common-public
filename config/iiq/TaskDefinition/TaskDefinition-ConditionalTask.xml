@@ -10,7 +10,8 @@
                 <Prompt>Conditional rule:</Prompt>
             </Argument>
             <Argument name="taskName" type="string">
-                <Prompt>Task to run if the rule returns true:</Prompt>
+                <Prompt>Task to run if the rule retu
+                    rns true:</Prompt>
             </Argument>
             <Argument name="awaitCompletion" type="boolean">
                 <Prompt>Wait for the child task to complete before exiting:</Prompt>

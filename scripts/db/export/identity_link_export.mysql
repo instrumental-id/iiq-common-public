@@ -1,0 +1,65 @@
+create table de_identity (
+    id varchar(64),
+    name varchar(256),
+    type varchar(128),
+    firstname varchar(384),
+    lastname varchar(384),
+    email varchar(600),
+    manager_id varchar(64),
+    administrator_id varchar(64),
+    created DATETIME,
+    modified DATETIME,
+    last_refresh DATETIME,
+    de_timestamp DATETIME,
+
+    PRIMARY KEY (id)
+);
+
+create unique index de_identity_idx on de_identity(id, name);
+
+create table de_identity_attr (
+    id varchar(64),
+    attribute_name varchar(256),
+    attribute_value varchar(4000)
+);
+
+create index de_identity_attr_idx on de_identity_attr(id, attribute_name);
+
+create table de_identity_roles (
+    id varchar(64),
+    role_name varchar(400),
+    role_type varchar(256),
+    role_date DATETIME
+);
+
+create index de_identity_roles_idx on de_identity_roles(id, role_name);
+
+create table de_link (
+    id varchar(64),
+    identity_id varchar(64),
+    application varchar(384),
+    native_identity varchar(384),
+    created DATETIME,
+    modified DATETIME,
+    last_refresh DATETIME,
+    de_timestamp DATETIME,
+
+    PRIMARY KEY (id)
+);
+
+create index de_link_identity on de_link(identity_id, application);
+
+create index de_link_app_ni on de_link(application, native_identity);
+
+create table de_link_attr (
+    id varchar(64),
+    attribute_name varchar(256),
+    attribute_value varchar(4000)
+);
+
+create index de_link_attr_idx on de_link_attr(id, attribute_name);
+
+create table de_runs (
+    last_start_time BIGINT,
+    config_hash varchar(32)
+);

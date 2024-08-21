@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE RequestDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<RequestDefinition executor="com.identityworksllc.iiq.common.request.SailPointWorkerExecutor" name="IDW Worker Executor">
+    <Description>The request definition corresponding to the SailPointWorkerExecutor, an extension used throughout IIQCommon, particularly for task partitions</Description>
+    <Attributes>
+        <Map>
+            <entry key="hostSpecific" value="false"/>
+            <entry key="maxThreads" value="4"/>
+            <entry key="orphanAction" value="delete"/>
+        </Map>
+    </Attributes>
+</RequestDefinition>
