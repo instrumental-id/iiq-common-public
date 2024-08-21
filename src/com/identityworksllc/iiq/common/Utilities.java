@@ -20,6 +20,7 @@ import sailpoint.api.PersistenceManager;
 import sailpoint.api.SailPointContext;
 import sailpoint.api.SailPointFactory;
 import sailpoint.object.*;
+import sailpoint.plugin.PluginsCache;
 import sailpoint.rest.BaseResource;
 import sailpoint.server.AbstractSailPointContext;
 import sailpoint.server.Environment;
@@ -1166,6 +1167,22 @@ public class Utilities {
 
 		return message.getLocalizedMessage(locale, tz);
 	}
+
+	/**
+	 * Gets the current plugin version from the environment, or NA if not defined
+	 * @return The current plugin cache version
+	 */
+	public static String getPluginVersion() {
+		String version = "NA";
+		if (Environment.getEnvironment() != null) {
+			PluginsCache cache = Environment.getEnvironment().getPluginsCache();
+			if (cache != null) {
+				version = String.valueOf(cache.getVersion());
+			}
+		}
+		return version;
+	}
+
 
 	/**
 	 * Gets the given property by introspection
