@@ -1,0 +1,130 @@
+= Hybrid Object Matcher utility
+:toc:
+:attribute-missing: drop
+
+This page documents the Hybrid Object Matcher utility and associated code.
+
+[sidebar]
+Document generated on {docdatetime}. Latest Git commit ID is `{gitVersion}`.
+
+== Example
+
+[source,java]
+----
+public boolean matchIdentity(SailPointContext context, Identity toCheck) {
+
+    Filter filter = Filter.and(
+        Filter.eq("sponsor.manager.title", "Director"),
+        Filter.in("links.application.name", List.of("Active Directory", "Workday HR"))
+    );
+
+    HybridObjectMatcher matcher = new HybridObjectMatcher(context, filter);
+
+    // In theory, any Java object could be matched here, not
+    // only those provided by IIQ.
+    return matcher.matches(toCheck);
+}
+----
+
+== `HybridObjectMatcher`
+
+This class expands on IIQ's HybridReflectiveMatcher to walk property paths and handle special cases more effectively. This allows matching in-code on property paths like `links[0].identity.manager.jobTitle`.
+
+NOTE: This class works entirely on in-memory objects (with the exception of the`subquery` filter type). This means the advanced matching cannot be used for searching the database. Sorry.
+
+Property paths that return certain objects (e.g. `manager`) will be transformed into the correct value depending on the key being matched. So, for example, the filter `Filter.eq(&quot;manager.id&quot;, identityObject)` will work, as will `Filter.eq(&quot;manager&quot;, &quot;ff12345678d6ac7e1f55...&quot;)`.
+
+Properties are pulled using the dot-walking logic in `Utilities.getProperty`.
+
+=== Multi-valued property path weirdness
+
+To match a weirdness of the Hibernate Filter-to-HQL translator, property paths that return multiple values (e.g. `links.application.name` where the user has more than one account) will match a single value using `eq`, `in`, or `like`.
+
+So this works as you would expect a SQL-backed Filter to work:
+
+`Filter.eq("links.application.name", "Active Directory")`
+
+This does NOT work with IIQ's usual CompositeFilter matcher.
+
+=== Property paths using indexes
+
+`Filter.compile` does not support the `[0]` or `[key]` index syntax. If you need to compile an entire Filter using `Filter.compile`, you can substitute `_0` or `_key`instead. This is not a limitation if you build your Filter objects using, for example, `Filter.eq`.
+
+* This works: `Filter.eq("links[0].nativeIdentity", "joe")`
+* This fails: `Filter.compile("links[0].nativeIdentity == \"joe\"")`
+* This works: `Filter.compile("links._0.nativeIdentity == \"joe\"")`
+
+=== Property walking on both ends
+
+Additionally, if you use the three-argument constructor, passing true for the third parameter, you may use another object property as the match value for 'eq', 'ne', 'containsAll', and 'in' queries. For example, you can do something like, `Filter.eq("links[0].username", "links[1].username")` to match users where those two accounts have the same username value.
+
+No OOTB SailPoint matcher allows this.
+
+=== Instrumental ID internal uses of HybridReflectiveMatcher
+
+This class is useful on its own, but also enables the test harness to work. The `FakeContext` class implements its search functionality using this matcher. It is also part of the Complex Role Membership Plugin and various access control checks.
+
+=== Subqueries (`Filter.subquery`)
+
+The superclass, `HybridReflectiveMatcher`, supports `Filter.subquery` against the database. (That's what makes it "Hybrid" and not simply "Reflective".) In a live IIQ environment, these subqueries run against Hibernate and do _not_ support any of the special `getProperty` syntax. Within the test harness, all queries ultimately run through HybridObjectMatcher, so will support these.
+
+== `Utilities.getProperty()`
+
+The general-purpose `Utilities.getProperty()` method implements the dot-walking function used by `HybridObjectMatcher`.
+
+You may call the two-argument version, in which case bad or null paths are not handled gracefully (i.e. they throw exceptions), or you may enable graceful path handling using the three-argument version.
+
+=== Examples
+
+* `name`
+* `manager.name`
+* `links[0].nativeIdentity`
+* `links[0].attributes[cn]`
+* `links.application.name`
+
+=== Overall flow
+
+. Tries to use `Utilities.getQuickProperty` to retrieve a known, named property or property path without having to resort to reflection.
+
+. Sets the input object as the "current value".
+
+. Splits the property path into segments on unescaped dots (`.`). For each segment:
+
+.. If the current value is null:
+
+... If graceful handling is off, throw a `NullPointerException` with helpful
+    path information.
+
+... If graceful handling is on, return null.
+
+.. Handle lists and maps:
+
+... If this looks like a list index (e.g. `a[0]`) and the current value is a list, perform an index lookup. (If the index is out of bounds, graceful path handling will result in a null, otherwise, a `ListIndexOutOfBounds` exception.)
+
+... If the current value is a List and this is *not* a list index, invoke
+    `Utilities.getProperty()` for each item in the list. This allows constructs like `links.application` to produce a list of applications, where `links` is a collection and `application` is a property of each Link.
+
+... If this looks like a map index (e.g. `a[RACF]`) and the current value is a Map, use `Util.get` to null-safely retrieve the Map key.
+
+.. If this isn't an indexed lookup:
+
+... Try a `Utilities.getQuickProperty` on just the current segment and target.
+
+... If the current object is an `Identity`, and the attribute is an _Identity_ type attribute (e.g., extendedIdentity3), retrieve the nested `Identity`.
+
+... Try to find a getter for the named property (e.g. `name` -> `getName()`), and if one exists, invoke it.
+
+... If this object has attributes, according to `Utilities.getAttributes()`, try to look up the property in the attributes map.
+
+... If all else fails, use Apache BeanUtils' `PropertyUtils.getProperty` to try deriving a value from the segment name.
+
+.. If any of the above produced a non-null value, set it as the current value for the next segment.
+
+. Once all segments are exhausted, return the most recent "current value".
+
+== `Utilities.getQuickProperty()`
+
+The `Utilities.getQuickProperty()` method takes advantage of the fact that
+a tree of `if` statements is _far_ faster than reflection or even newer techniques like method handles. It recognizes a common subset of properties and property paths (e.g. `name` or `nativeIdentity`) and directly invokes the appropriate method to return a value.
+
+Only a handful of properties and paths are available on only a handful of object types, but the efficiency gains on many lookups done rapidly (as in a custom plugin task, for example) should be well worth it.

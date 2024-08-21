@@ -1,0 +1,134 @@
+= SailPointWorker
+:toc:
+:attribute-missing: drop
+
+`SailPointWorker` is a robust superclass for parallel or distributed actions that can be used in a variety of contexts.
+
+This class handles boilerplate initialization, setup, serialization, phased execution, and child operations. Workers can translate themselves into most concurrency structures supported by Java. Workers ensure that their actions are executed in a private SailPointContext, regardless of how they are executed.
+
+In most cases, you will only need to override a single method and perhaps set a handful of parameters in your constructor.
+
+SailPointWorker is also the underlying magic behind the AbstractThreadedTask and AbstractPartitionedTask classes, along with some other cool parts of IIQCommon.
+
+[sidebar]
+Document generated on {docdatetime}. Latest Git commit ID is `{gitVersion}`.
+
+== Basic worker
+
+The most basic worker is a class that extends `SailPointWorker` and implements some action in `Object execute(SailPointContext context, Log logger) throws Exception`.
+
+Your worker will generally have some state. For example, you might submit a bunch of workers to a thread pool to remove roles from a bunch of identities. In this case, each worker would contain the ID of the Identity to process and its `execute` method would do the role removal.
+
+A worker can be as small or as large as you want. For example, the role-removal worker described above may actually contain a whole _List_ of Identity IDs instead of just one. (This may avoid some overhead involved in opening and closing a zillion private contexts.)
+
+Your `execute` method will always be invoked with a private SailPointContext.
+
+You don't have to return anything specific from `execute`, but values you do return can be made available in various ways.
+
+=== Worker names
+
+Each worker can be given a name by passing a String to its constructor. If no name is provided (i.e., you pass null or call the zero-args constructor), the worker will receive a random UUID name. This will normally be fine, but will hinder some more advanced uses.
+
+=== Terminations and timeouts
+
+Workers that are running as part of a thread pool or a request can be terminated at any time by their container. When a worker is terminated, its `isTerminated()` method will return true and its `checkCancel()` method will throw an exception. Well-behaved workers should exit as soon as possible when a termination is detected by any means.
+
+You can set a timeout on a worker using `setTimeout` before it is executed. When the timeout period has elapsed, the `isTerminated()` method will return true.
+
+Workers that are executing a task in a loop should invoke `checkCancel()` periodically and allow the `CancellationException` to abort the loop.
+
+=== Shared counters
+
+Before execution, you can provide a completion counter and a failure counter to all of your workers by providing AtomicInteger objects to `setCompletedCounter` and `setFailedCounter`. These will be incremented by each worker (e.g., in a thread pool) as they complete or fail.
+
+Completion and failure counters will be propagated to any registered child workers.
+
+=== Shared exception handling
+
+Before execution, you can register a `SailPointWorker.ExceptionHandler` listener with each worker using `setExceptionHandler`. Its `handleError(Throwable)` method will be invoked if the worker's `execute()` method throws an error. As many workers as needed can share an ExceptionHandler.
+
+Completion and failure counters will be propagated to any registered child workers.
+
+These listeners are for local use only and will not survive serialization.
+
+=== TaskCallback listeners
+
+You can register one or more `TaskCallback<SailPointWorker>` listeners on each worker by invoking `addTaskCallback`.
+
+The following methods will be invoked on the listener as appropriate:
+
+* `beforeStart`: Invoked prior to the creation of a private context; if it throws an exception, this worker will fail
+* `onSuccess`: Invoked when the worker finishes normally, providing the object returned from _execute_
+* `onFailure`: Invoked when the worker fails with an exception
+* `afterFinish`: Invoked after the worker finishes, regardless of outcome; sort of like a 'finally'
+
+=== Worker as Runnable or Callable
+
+A worker can be converted to a Runnable or a Callable using the `runnable()` and `toCallable()` methods. When used as a Callable, the return from `execute` will be returned as the Callable's output.
+
+== Worker as Request
+
+IIQCommon provides an IIQ request executor - _com.identityworksllc.iiq.common.request.SailPointWorkerExecutor_ - which can be exposed via a RequestDefinition. Requests submitted to such an executor are serialized SailPointWorker objects that can perform arbitrary distributed actions.
+
+SailPointWorkers can convert themselves to single-worker Requests by invoking `toRequest()` on the worker object, providing the RequestDefinition. You can also invoke the static method `SailPointWorker.toRequest` to wrap a whole List of workers in a Request.
+
+If you are invoking these Requests as partitions, SailPoint supports the concept of phases and dependent phases. A Request with dependent phase 1 will not run until all Requests with phase 1 are finished. You can set both a phase and a dependent phase on  your SailPointWorkers, often in the constructor.
+
+When running via _SailPointWorkerExecutor_, a `monitor` (TaskMonitor) will be set on each worker object before execution. This can be used by the worker to update the partition state to be displayed in the UI.
+
+NOTE: If you are using `AbstractPartitionedTask`, this is ultimately what it's doing with the workers you give it.
+
+== Worker with dependencies
+
+NOTE: You should not use this unless you know what you're doing. This can be sort of arcane. Child workers probably suffice in most cases. Also note that dependencies will be resolved prior to executing child workers.
+
+Workers can be created with dependencies on multiple other workers. Dependencies differ from child workers in that they do not need to have a tree shape. In other works, many workers can depend on many other workers in a complicated graph. This is accomplished using standard Java https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/Future.html[`Future`] objects.
+
+Workers will _block indefinitely_ on the Futures associated with their dependencies by invoking `Future.get()`. I recommend using a https://www.baeldung.com/java-executors-cached-fixed-threadpool[cached thread pool] for running these.
+
+When all dependencies complete, the outputs from their `execute()` will be made available using `getDependencyOutput(name)`. If any dependencies fail or time out, the dependent worker will also fail with an exception.
+
+=== Submitting a worker with dependencies
+
+SailPointWorker exposes a static API for automatically wiring up dependent workers: `SailPointWorker.submitWithListeners()`. An example will probably make it clearer than an explanation.
+
+[source,jshelllanguage]
+----
+// Scenario: We have four workers with some dependencies
+
+// Workers 2 and 3 depend on worker 1
+SailPointWorker.submitWithListeners(executorService, worker1, worker2, worker3);
+
+// Nothing depends on worker 2
+SailPointWorker.submitWithListeners(executorService, worker2);
+
+// Worker 4 depends on worker 3
+SailPointWorker.submitWithListeners(executorService, worker3, worker4);
+
+// Nothing depends on worker 4
+SailPointWorker.submitWithListeners(executorService, worker4);
+----
+
+The `submitWithListeners` method submits the first parameter (e.g., `worker1`) to the given `ExecutorService`, which returns a `Future`. It then provides that `Future` to the remaining workers listed (e.g., `worker2` and `worker3`).
+
+== Worker with children
+
+Workers can be nested in a tree with child workers using the `addChild()` method. Children are invoked in one of two ways, one much more sophisticated than the other.
+
+In both cases, the output of each child's `execute()` will be available to its parents using `getDependencyOutput(name)`. Obviously, when using workers that have children, you should give the child workers sensible names.
+
+If a child fails, it will cause the parent worker to terminate before executing. Other child workers of the same parent may still proceed to completion, depending on the situation.
+
+If a child worker times out, the parent worker will be aborted with an error.
+
+=== Simple execution
+
+Before a worker is executed, any child workers are executed in the same thread and private SailPointContext. This is the default behavior when a worker is invoked as a Runnable, Callable, or Request.
+
+=== Fork-join execution
+
+Calling `toForkJoinTask()` on any top-most parent workers will produce https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/RecursiveTask.html[RecursiveTask] objects that you can submit to a https://www.baeldung.com/java-fork-join[ForkJoinPool].
+
+Child workers will fork themselves off and execute in parallel. The parent worker will wait for its children to complete before proceeding.
+
+In this mode, the child workers will run in their own threads and SailPointContexts.

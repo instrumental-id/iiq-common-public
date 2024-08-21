@@ -1,0 +1,159 @@
+= BaseCommonPluginResource
+:toc: macro
+:toclevels: 3
+:attribute-missing: drop
+
+The Plugin REST API superclass, `BaseCommonPluginResource`, implements some useful methods to avoid boilerplate code in plugin REST API methods. It extends IIQ's provided `BasePluginResource`.
+
+toc::[]
+
+[sidebar]
+Document generated on {docdatetime}. Latest Git commit ID is `{gitVersion}`.
+
+== Extra objects
+
+The `BaseCommonPluginResource` exposes the following fields beyond what IIQ already provides:
+
+* `log`: An instance of SLogger
+* `resourceInfo`: A JAX-RS ResourceInfo object
+* `response`: The servlet response
+* `servletContext`: The servlet context
+
+These fields are _protected_ and thus accessible to your resource class.
+
+== The `handle` method
+
+Plugins extending `BaseCommonPluginResource` have access to a functional method called `handle` which takes a no-args lambda expression (here called the _body_). It will execute the body and wrap its output appropriately. The `handle` method always returns a JAX-RS Response object and never throws an exception. Your REST API method should return the output of `handle` directly, as in the example below.
+
+IMPORTANT: Most of the features below only work properly when wrapped in `handle`, so if you use this plugin model at all, I recommend using `handle`.
+
+Example of usage:
+
+[source,java]
+----
+@Path("refresh/{Identity}")
+@POST
+@RequiredRight("IDW_Enhanced_Attributes_Buttons")
+public Response refresh(@PathParam("Identity") String target) {
+	return handle(() -> {
+		Identity id = super.getContext().getObject(Identity.class, target);
+		new IdentityUtilities(getContext()).refresh(id, true);
+		Map<String, String> response = new HashMap<>();
+		response.put("message", "Refresh complete!");
+		return response;
+	});
+}
+----
+
+The body may return a JAX-RS `Response` object, which will be returned as-is, or any values from the below list which will be serialized to JSON. Any other return values will result in a logged warning and an empty _200 OK_ response.
+
+Allowed list of outputs:
+
+* String
+* Collection
+* Map
+* Number
+* Date
+* Any type that extends `AbstractXmlObject`, including any `SailPointObject`
+* Any type that extends `RestObject` (provided in IIQCommon-plugins)
+* Any type indicated by `isAllowedOutput()`
+
+**Null outputs are not allowed by default and will throw an exception.** However, if you annotate your resource method or class with `@NoReturnValue`, the output will be ignored and `null` will be permitted. In this case, a successful execution will just produce an empty _200 OK_ response.
+
+=== Custom object types
+
+To implement your own custom type, it should extend `RestObject`.
+
+If you cannot extend RestObject for some reason (e.g., you don't have access to the source code of the object), you may override the `isAllowedOutput()` method. This method will be passed the output from the `handle` body and must return true if the object can be serialized. Most objects conforming to the Java Bean structure can be serialized without any special work.
+
+=== Exception handling
+
+Any exceptions thrown by the `handle` body will be caught and wrapped in an appropriate `Response` object with a standard structure:
+
+[source,json]
+----
+{
+    "exception": "<the qualified exception class name>",
+    "message": "<exception message>",
+    "quickKey": "<the syslog key for this error>"
+}
+----
+
+Most exceptions will map to a _500 Internal Server Error_ response code. However:
+
+* SailPoint's `UnauthorizedAccessException` will result in a _403 Forbidden_
+* SailPoint's `ObjectNotFoundException` and Java's built-in `NotFoundException` will result in a _404 Not Found_
+* `IllegalArgumentException` will result in a _400 Bad Request)
+
+Your resource class may override `getExceptionMapping(Throwable)` to provide your own "exception to Map" output. You may override `handleException(Throwable)` to return a custom `Response` for certain
+(or all) exceptions.
+
+=== Authorization
+
+In addition to the out-of-box IIQ REST endpoint authorization annotations, use of `handle()` allows more advanced authorization structures. If you use these, you will want to annotate your method with IIQ's `@Deferred` authorization type so that IIQ knows that you intend to do your own authorization.
+
+==== Using Sailpoint Authorizers
+
+SailPoint provides a `sailpoint.authorization.Authorizer` interface for its own use in various parts of the product. These can be used in three different ways in a plugin endpoint. All three mechanisms can be used at once. They will be checked in the order below.
+
+* **As a parameter to `handle`:** You may pass any `Authorizer` instance as a first parameter to `handle`. The body of the method will only be executed if the authorizer passes. You can also pass them to `authorize` within the body of your `handle` method (which is out-of-box IIQ behavior).
+
+* **As a class-level authorization check**: Your REST resource class, in its constructor, can pass a custom `PluginAuthorizationCheck` implementation to `setPluginAuthorizationCheck`. This object's `checkAccess` method will be invoked and must throw an UnauthorizedAccessException on invalid access. (I recommend using a lambda, method reference, or non-static inner class here to retain access to the endpoint context.)
+
+* **In your class structure**: If your REST resource class itself implements `Authorizer`, its `authorize()` method will be invoked before calling your `handle()` body. If the class implements `PluginAuthorizationCheck`, its `checkAccess()` method will be similarly invoked.
+
+The class-level authorization check could also be used to do other custom actions, like auditing endpoint access.
+
+==== Using the AuthorizedBy annotation
+
+The plugin subset also includes authorization annotations that can be used to authorize access in various complex ways. The `@AuthorizedBy` annotation can be added on the endpoint method, the resource class, or any superclass or interface.
+
+If the annotation is present on both method and class, the one on the method will be used.
+
+Authorization is checked before invoking your `handle()` body.
+
+The annotation allows the following authorization options, passed as annotation attributes:
+
+* `systemAdmin` (boolean): If true, access will be allowed if the user is a system administrator.
+* `right` (string): Access will be allowed if the user has the given SPRight.
+* `rightsList` (string array): Access will be allowed if the user has any of the rights in the list.
+* `capability` (string): Access will be allowed if the user has the given Capability.
+* `capabilitiesList` (string array): Access will be allowed if the user has any of the capabilities in the list.
+* `authorizerClass` (class): Access will be allowed if the given Authorizer allows access (by not throwing an exception).
+* `attribute` (string): Access will be allowed if the attribute value on the Identity matches `attributeValue` (string) or any value in `attributeValueIn` (string array). The _Sameness_ class is used to match values.
+* `population` (string): Access will be allowed if the named population's selector matches the user.
+* `authorizerRule` (string): Access will be allowed if the named Rule returns boolean `true`. The rule is passed the user being authorized (`identity`), a ResourceInfo JAX-RS object (`resourceInfo`), and a UserContext object (`userContext`).
+
+The first populated attribute in this list will be the one checked. All other checks will be ignored entirely. If _no_ attributes are provided, the result will always be "not authorized".
+
+Lists of `AuthorizedBy` annotations can be combined using the annotations `AuthorizeAny` or `AuthorizeAll`. Only one of these three annotations can be present on a given resource class or method. If `AuthorizedBy` is present, the others will be ignored. If both `Any` and `By` are present, an error will be thrown.
+
+==== Using methods within the handle body
+
+You may use the usual Sailpoint REST endpoint `authorize()` methods within the `handle` method. These take `Authorizer` instances and throw an exception on failures.
+
+You may also use the custom `checkThingAccess()`, which will invoke IIQCommon's `ThingAccessUtils` to do a "common security" check. An exception will be thrown on failure.
+
+=== Validation
+
+You may perform validations inline using the `validate()` methods. These work similarly to JUnit methods. They will throw an `IllegalArgumentException` if the provided validator (which will usually be implemented via lambda) returns false or throws an exception.
+
+The `handle` method will translate this to a 400 Bad Request response.
+
+=== Metering
+
+Before executing its body, `handle` will set up a SailPoint performance Meter called _pluginRest:_, followed by the API endpoint path. For example, _pluginRest:/path/to/endpoint_.
+
+The `Meter.publishMeters()` method will also be invoked to save any metering from within your own code. You do not need to do this explicitly.
+
+== 404-friendly `getObject` methods
+
+The plugin superclass includes `getObject`, `getObjectByName`, and `getObjectById` which behave identically to the `SailPointContext` versions except that they will throw a 404 Not Found exception when no object is found.
+
+There are also two methods `getDistinctObject(context, filter)` and `getDistinctObject(context, queryOptions)`, which will return a value if only one result matches the query, and will throw either a 404 Not Found if no results match or 400 Bad Request if more than one matches.
+
+== FacesContext
+
+SailPoint's REST APIs do not run behind the FacesServlet, which means that they technically don't have a JSF context.
+
+If you need a JSF context in a plugin (e.g. for using many of the `sailpoint.services` or `DTO` classes), a `getFacesContext()` method is available. This will construct a new FacesContext object from the servlet request and response if needed, then clean it up at the end of `handle()`. If you are not using `handle()`, you'll want to call `release()` on your FacesContext in a finally block to avoid polluting the Tomcat thread cache.

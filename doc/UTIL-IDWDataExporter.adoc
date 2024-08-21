@@ -1,0 +1,113 @@
+= IDW IIQ Common Data Exporter
+
+IIQCommon ships with a replacement for SailPoint's data export utilities, called `IDW Data Export`. The task writes Identity, Link, and Role information to a set of flattened tables starting with `de_` in a specified database.
+
+The task implementation is `com.identityworksllc.iiq.common.task.export.IDWDataExporter`. Its partition worker implementations are in the same task.
+
+== Target database
+
+You must set up the target database by setting the appropriate parameters in the TaskDefinition. These are essentially identical to the parameters defined on a JDBC application:
+
+* driver
+* url
+* username
+* password
+
+The password must be encrypted.
+
+=== Included DDL scripts
+
+You will need to run the supplied Data Exporter DDL scripts on the target database. These will install several tables and corresponding indexes, all starting with _de_ (for Data Export).
+
+Find the version corresponding to your database, such as _identity_link_export.oracle_ and run it in the target schema.
+
+NOTE: You do not need to use one of the IIQ schemas, such as _identityiqPlugin_ for this, but you certainly can. Our customers typically do, and then use external BI processes to extract the desired data to a warehouse for processing.
+
+== Specifying targets
+
+You may specify a set of identities and a set of links to export by listing IIQ search filter strings in the TaskDefinition. Each filter will run in a separate partition, so for efficiency, it's best to break down your set into as many partitions as possible.
+
+Identity partitions are specified in `identityFilters`. Each filter will launch one partition, which will export the identities matched by that filter. Identity partitions will export identity attributes, role assignments, and role detections.
+
+Link partitions are specified with _two_ filter lists: `linkFilters` and `linkFilters2`. These will be combined like an M-by-N matrix, so that you end up with the following sorts of Link export partitions:
+
+* linkFilters[0] AND linkFilters2[0]
+* linkFilters[0] AND linkFilters2[1]
+* linkFilters[0] AND linkFilters2[2]
+* linkFilters[1] AND linkFilters2[0]
+
+And so forth. If you don't specify a `linkFilters2`, it will behave as though it contains a single no-op filter.
+
+=== Delete and add
+
+For each identity or link, a single transaction will be used to delete all existing rows for that entity and then insert a fresh copy of the data, in that order. This should prevent any external queries from seeing partially formed data. It will also prevent unique indexes from being violated.
+
+== Request definition
+
+This task creates partition requests that are executed by the _SailPointWorkerExecutor_ from iiq-common-public. An appropriate RequestDefinition must be imported, such as the _IDW Worker Executor_ included with IIQCommon.
+
+If you use a differently named RequestDefinition, specify its name in your TaskDefinition under the key `requestDefinitionName`.
+
+If you don't specify, the default name _IDW Worker Executor_ will be used.
+
+== Configuration
+
+The task also includes a Configuration object, which is specified by name in the TaskDefinition, under key `configurationName`.
+
+|===
+|Entry |Type |Purpose
+
+|excludeRoles
+|List
+|A list of role names to exclude from export. These are case sensitive.
+
+|excludeRoleTypes
+|List
+|A list of role _types_ (not names) to exclude from the export. For example, you may want to export business roles and another custom type of role, but not IT roles.
+
+|excludeIdentityColumns
+|List
+|A list of Identity columns to exclude from export, either because they are sensitive or irrelevant.
+
+|excludeLinkColumns
+|Map
+|See below
+|===
+
+=== Excluding Link columns
+
+Link columns can be excluded at three levels: globally, per connector (e.g., Active Directory or JDBC), or per application. Application names can be static strings or regular expressions. If regular expressions are used, applications can match more than one list of fields.
+
+These are all specified as lists under the `excludeLinkColumns` entry.
+
+The combined set of all fields from all relevant lists will be excluded from export.
+
+[source,xml]
+----
+<entry name="excludeLinkColumns">
+  <value>
+    <Map>
+      <entry name="global">
+        <value><List>
+          <String>ssn</String>
+          <String>password</String>
+          <String>globalSecretField</String>
+        </List></value>
+      </entry>
+      <entry name="connector:Active Directory - Direct">
+        <value><List>
+          <String>password</String>
+          <String>userAccountControl</String>
+        </List></value>
+      </entry>
+      <entry name="regex:AD-.*">
+        <value><List>
+          <String>extensionAttribute10</String>
+        </List></value>
+      </entry>
+    </Map>
+  </value>
+</entry>
+----
+
+If your application is called `AD-Milwaukee`, the export will exclude all five listed fields: ssn, password, globalSecretField, userAccountControl, and extensionAttribute10. All other fields will be included.
