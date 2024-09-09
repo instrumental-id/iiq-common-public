@@ -1,5 +1,5 @@
 include:
-  - component: $CI_SERVER_FQDN/idw/pipeline-catalog/website-javadoc-uploader-component@0.0.2-16f3cd8b
+  - component: $CI_SERVER_FQDN/idw/pipeline-catalog/website-javadoc-uploader-component@0.0.2-1ec6c4e2
     inputs: 
       stage: publish
       target_branch: main
