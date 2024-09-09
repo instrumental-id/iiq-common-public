@@ -46,6 +46,9 @@ checkstyle:
 
 deploy:
   stage: publish
+  needs:
+    - job: build
+      artifacts: true
   script:
     - ./gradlew publish
     # Trigger website javadoc update
