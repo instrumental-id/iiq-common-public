@@ -20,15 +20,11 @@ before_script:
   - export GIT_SSH_COMMAND=/usr/bin/ssh
   - git checkout "$CI_COMMIT_REF_NAME"
   - export JAVA_HOME=$JAVA_11
+  - set_java_version
+  - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
 
 build:
   stage: build
-  before_script:
-      - set_java_version
-      - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
-    # - mkdir -p lib/sailpoint
-    # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
-    # - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script: 
     - ./gradlew build javadoc -x checkstyleMain -x checkstyleTest
   artifacts:
@@ -41,9 +37,6 @@ build:
 
 checkstyle:
   stage: reporting
-  before_script:
-    - set_java_version
-    - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
   script:
     - ./gradlew checkstyleMain
   artifacts:
@@ -54,13 +47,10 @@ checkstyle:
 
 deploy:
   stage: publish
-  before_script:
-    - set_java_version
-    - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
-    # - mkdir -p lib/sailpoint
-    # - cp /identityiq/WEB-INF/lib/identityiq.jar lib/sailpoint
-    # - cp /identityiq/WEB-INF/lib/connector-bundle-identityiq.jar lib/sailpoint
   script:
     - ./gradlew publish
+    # Trigger website javadoc update
+    - curl --request POST --form "variables[PROJECT_ID]=$CI_PROJECT_ID" --form "variables[BRANCH]=$CI_COMMIT_BRANCH" --form "variables[JOB_NAME]=build" "$GITLAB_URL/api/v4/projects/197/trigger/pipeline?token=$CI_JOB_TOKEN&ref=main"
+
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
