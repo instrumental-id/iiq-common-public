@@ -6,8 +6,7 @@ image: $PLUGIN_BUILDER_IMAGE
 # isolated from any previous builds.
 
 stages:
-  - build
-  - reporting
+  - build_reporting
   - publish
 
 variables:
@@ -24,7 +23,7 @@ before_script:
   - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
 
 build:
-  stage: build
+  stage: build_reporting
   script: 
     - ./gradlew build javadoc -x checkstyleMain -x checkstyleTest
   artifacts:
@@ -36,7 +35,7 @@ build:
     # expire_in: 1 month
 
 checkstyle:
-  stage: reporting
+  stage: build_reporting
   script:
     - ./gradlew checkstyleMain
   artifacts:
@@ -50,7 +49,7 @@ deploy:
   script:
     - ./gradlew publish
     # Trigger website javadoc update
-    - curl --request POST --form "variables[PROJECT_ID]=$CI_PROJECT_ID" --form "variables[BRANCH]=$CI_COMMIT_BRANCH" --form "variables[JOB_NAME]=build" "$GITLAB_URL/api/v4/projects/197/trigger/pipeline?token=$CI_JOB_TOKEN&ref=main"
+    - curl --request POST --form "variables[PROJECT_ID]=$CI_PROJECT_ID" --form "variables[BRANCH]=$CI_COMMIT_BRANCH" --form "variables[JOB_NAME]=build" "$CI_SERVER_URL/api/v4/projects/197/trigger/pipeline?token=$CI_JOB_TOKEN&ref=main"
 
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
