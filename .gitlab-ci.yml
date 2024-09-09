@@ -57,7 +57,5 @@ deploy:
       artifacts: true
   script:
     - ./gradlew publish
-    # Trigger website javadoc update
-    # - curl --request POST --form "variables[PROJECT_ID]=$CI_PROJECT_ID" --form "variables[BRANCH]=$CI_COMMIT_BRANCH" --form "variables[JOB_NAME]=build" "$CI_SERVER_URL/api/v4/projects/197/trigger/pipeline?token=$CI_JOB_TOKEN&ref=main"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
