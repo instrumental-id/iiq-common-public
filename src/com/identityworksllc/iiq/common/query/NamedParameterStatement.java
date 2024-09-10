@@ -18,7 +18,29 @@ import java.util.List;
 
 /**
  * Named parameter prepared statement wrapper, derived from various examples
- * around the Internet.
+ * around the Internet. Rather than setting arguments by position, you can
+ * set them by name, the way Hibernate or certain JDBC drivers permit.
+ *
+ * Tokens have the form `:name` and must be alphanumeric.
+ *
+ * The same tokens can be re-used more than once in your query.
+ *
+ * ```
+ * NamedParameterStatement stmt = new NamedParameterStatement(
+ * 	  connection,
+ * 	  "select id from spt_identity where (extended3 = :username or name = :username) and extended4 = :department"
+ * );
+ *
+ * stmt.setString("username", someUsername);
+ * stmt.setString("department", someDepartment);
+ *
+ * // Use the statement like any other
+ * ```
+ *
+ * If you attempt to set a token that does not exist, such as `stmt.setString("xyz", str)` in the
+ * above example, the default behavior is to throw an {@link IllegalArgumentException}. You can use
+ * {@link #setAllowMissingAttributes(boolean)} to disable this behavior.
+ *
  */
 @SuppressWarnings("unused")
 public final class NamedParameterStatement extends AbstractNamedParameterStatement<PreparedStatement> {

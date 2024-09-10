@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * The input VO for {@link QueryUtil#iterateQuery(IterateQueryOptions)}, mainly to
- * collect all of the inputs in one place and allow variable inputs.
+ * encapsulate the variety of inputs in one place.
  */
 @SuppressWarnings("unused")
 public final class IterateQueryOptions {

@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Simplifies querying by automatically enclosing queries in a result processing loop.
  * This is copied from an older project. IIQ also provides a number of similar utilities
- * in their JdbcUtil class.
+ * in their {@link sailpoint.tools.JdbcUtil} class.
  *
  * @param <T> The type returned from the result processor
  */

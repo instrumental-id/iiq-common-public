@@ -3,6 +3,7 @@ package com.identityworksllc.iiq.common.cache;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 
 /**
  * A cache value wrapper that allows access based on matching an
@@ -12,10 +13,14 @@ import java.util.function.BiPredicate;
  * This can be used, for example, to detect changes to permissions
  * or logged in users and clear the cache accordingly.
  *
+ * This is similar to {@link java.util.concurrent.atomic.AtomicStampedReference}, but can
+ * use any value or behavior as the 'stamp'. With a guard type of Integer, and the
+ * default matcher of Object::equals, this class would be identical to that.
+ *
  * @param <ValueType> The type of the thing being stored here
  * @param <GuardType> The type of the guard value
  */
-public class GuardedCacheValue<ValueType, GuardType> {
+public class GuardedCacheValue<ValueType, GuardType> implements Function<GuardType, Optional<ValueType>> {
 
     /**
      * The value that must be matched for the value to return
@@ -61,6 +66,16 @@ public class GuardedCacheValue<ValueType, GuardType> {
         } else {
             this.matcher = matcher;
         }
+    }
+
+    /**
+     * Functional version of {@link #getValue(Object)}.
+     * @param guardTest the function argument
+     * @return An optional containing the stored value, if the guard value input matches, or else an empty optional object
+     */
+    @Override
+    public Optional<ValueType> apply(GuardType guardTest) {
+        return getValue(guardTest);
     }
 
     /**

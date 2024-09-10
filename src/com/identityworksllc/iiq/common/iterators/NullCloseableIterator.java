@@ -5,8 +5,9 @@ import sailpoint.tools.CloseableIterator;
 import java.util.NoSuchElementException;
 
 /**
- * A null class implementing CloseableIterator. The hasNext() method will always
- * return false and the next() method will always throw an exception.
+ * An implementation of CloseableIterator that always contains no items.
+ *
+ * The hasNext() method will always return false and the next() method will always throw a {@link NoSuchElementException}.
  *
  * @param <T> The type being wrapped
  */

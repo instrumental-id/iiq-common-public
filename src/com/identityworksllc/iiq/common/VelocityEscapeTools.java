@@ -7,7 +7,7 @@ import java.net.URLEncoder;
 
 /**
  * Velocity has its own 'escape tools' package, but it is not included with
- * Sailpoint. We will make our own.
+ * IIQ, so we made our own
  */
 public class VelocityEscapeTools {
     /**

@@ -42,7 +42,7 @@ public final class AccessCheckInput {
      * Constructs a basic access check input
      */
     public AccessCheckInput() {
-
+        this.thingName = AccessCheck.ANONYMOUS_THING;
     }
 
     /**
@@ -143,6 +143,14 @@ public final class AccessCheckInput {
 
     public String getThingName() {
         return thingName;
+    }
+
+    public void putState(String name, Object value) {
+        if (this.state == null) {
+            this.state = new HashMap<>();
+        }
+
+        this.state.put(name, value);
     }
 
     public AccessCheckInput setConfiguration(Map<String, Object> configuration) throws GeneralException {

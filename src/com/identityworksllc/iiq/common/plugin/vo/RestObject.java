@@ -1,14 +1,16 @@
 package com.identityworksllc.iiq.common.plugin.vo;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A standard REST object implementing the HATEOAS standard
+ * An abstract REST object implementing the <a href="https://spring.io/understanding/HATEOAS">HATEOAS</a> standard.
  *
- * See here: https://spring.io/understanding/HATEOAS
+ * This is one of the output types allowed by default in {@link com.identityworksllc.iiq.common.plugin.BaseCommonPluginResource},
+ * as extending this class indicates that you have considered its implications as an API response.
  */
 public abstract class RestObject {
     /**
@@ -40,6 +42,7 @@ public abstract class RestObject {
      * @return The list of links
      */
     @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public List<Link> getLinks() {
         return links;
     }

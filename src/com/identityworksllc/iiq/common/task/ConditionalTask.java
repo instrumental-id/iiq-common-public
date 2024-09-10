@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.task;
 
+import com.identityworksllc.iiq.common.Experimental;
 import sailpoint.api.SailPointContext;
 import sailpoint.api.TaskManager;
 import sailpoint.object.*;
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * BETA!
  */
+@Experimental
 public class ConditionalTask extends AbstractTaskExecutor {
     private TaskManager taskManager;
     private final AtomicBoolean terminated;

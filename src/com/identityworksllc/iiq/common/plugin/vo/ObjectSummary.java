@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 /**
- * A default implementation of an object summary VO object
+ * A default example implementation of an object summary VO object
  */
 @JsonAutoDetect
 public class ObjectSummary extends RestObject {

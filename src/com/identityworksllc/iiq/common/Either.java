@@ -5,9 +5,9 @@ import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
- * A common 'functional' class from languages like Scala. It will contain
- * either the left object or the right object, but never both. This can be used
- * in a variety of functional data flows.
+ * A functional programming concept that will contain either the left object or
+ * the right object, but never both. This can be used in a variety of functional
+ * data flows.
  *
  * @param <L> The left object type
  * @param <R> The right object type

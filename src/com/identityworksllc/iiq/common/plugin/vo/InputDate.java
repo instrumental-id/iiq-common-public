@@ -14,8 +14,15 @@ import java.util.Date;
 
 /**
  * The JAX-RS spec requires that an input bean for {@link javax.ws.rs.QueryParam}
- * or {@link javax.ws.rs.PathParam }have either a String constructor or a static
+ * or {@link javax.ws.rs.PathParam} have either a String constructor or a static
  * valueOf(String) method. This is that bean, for dates.
+ *
+ * The string input must either the ISO8601 local date, offset date time, or instant
+ * formats. Other formats will not be interpreted successfully.
+ *
+ * The stored value will be a {@link ZonedDateTime} by default.
+ *
+ * @see <a href="https://docs.oracle.com/javaee/7/api/javax/ws/rs/QueryParam.html">QueryParam</a>
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class InputDate {

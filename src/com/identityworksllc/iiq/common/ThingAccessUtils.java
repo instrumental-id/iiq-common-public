@@ -14,15 +14,16 @@ import sailpoint.web.UserContext;
 import java.util.Map;
 
 /**
- * Implements the "Common Security" protocol that was originally part of the
- * UPE plugin. This allows more detailed authorization to check access to
- * various objects within IIQ.
+ * Implements the "Common Security" protocol described in the documentation. This
+ * allows more detailed authorization to check access to various objects within IIQ.
  *
  * There are two users involved in thing access: an subject Identity and a target
  * Identity. The subject is the one doing the thing while the target is the one
  * the thing is being done to. Some actions may be 'self' actions, where both the
  * subject and the target are the same. Other actions don't have a 'target' concept
  * and are treated as 'self' actions.
+ *
+ * See the `COMMON-SECURITY.adoc` documentation.
  *
  * @see AccessCheck
  */

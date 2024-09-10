@@ -2,6 +2,10 @@ package com.identityworksllc.iiq.common.plugin.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+/**
+ * A simplified VO object that can wrap an Identity and some of its useful
+ * properties.
+ */
 public class IdentityVO extends ObjectSummary {
 
 	private boolean correlated;

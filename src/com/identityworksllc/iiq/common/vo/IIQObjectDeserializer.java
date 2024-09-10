@@ -15,7 +15,16 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * A Jackson de-serializer for an IIQ object. The input is expected to
+ * have a 'type' and an 'xml'. The XML will be parsed using Sailpoint's
+ * default {@link sailpoint.tools.xml.XMLObjectFactory} parser into an
+ * object of the given type.
+ */
 public class IIQObjectDeserializer extends StdDeserializer<Object> {
+    /**
+     * The list of valid types apart from `sailpoint.object.*` classes
+     */
     private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
             "java.util.Map",
             "java.util.List",
@@ -24,10 +33,17 @@ public class IIQObjectDeserializer extends StdDeserializer<Object> {
             "java.util.Date"
     ));
 
+    /**
+     * The constructor expected by Jackson
+     */
     protected IIQObjectDeserializer() {
         this(null);
     }
 
+    /**
+     * The constructor expected by Jackson, providing the type of this object
+     * @param t This type
+     */
     public IIQObjectDeserializer(Class<Object> t) {
         super(t);
     }

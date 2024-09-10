@@ -14,10 +14,26 @@ import java.util.StringJoiner;
 /**
  * A generic class to represent (and perhaps log) some operation outcome.
  * It contains fields for generic start/stop tracking, as well as fields
- * for a slew of output and logging indicators. These are not intended
- * to be used in any particular way.
+ * for a slew of output and logging indicators.
+ *
+ * This class is not intended to be used in any particular way. It is used
+ * for various purposes throughout Instrumental ID's codebase.
+ *
+ * This class implements {@link AutoCloseable} so that it can be used in the
+ * following sort of structure:
+ *
+ * ```
+ * Outcome outcome;
+ *
+ * try(outcome = Outcome.start()) {
+ *     // Do things, recording the outcome
+ * }
+ *
+ * // Your outcome will have a proper start/stop time for that block here
+ * ```
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Outcome implements AutoCloseable, Serializable {
 
     /**

@@ -25,11 +25,6 @@ import java.util.function.Supplier;
  */
 public final class AccessCheck {
     /**
-     * The access check name used for an anonymous input
-     */
-    public static final String ANONYMOUS_THING = "anonymous";
-
-    /**
      * The container object to hold the cached ThingAccessUtil results
      */
     public static final class SecurityResult implements Supplier<Optional<AccessCheckResponse>> {
@@ -155,7 +150,10 @@ public final class AccessCheck {
             return Objects.hash(pluginVersion, commonSecurityConfig, target, source, state);
         }
     }
-
+    /**
+     * The access check name used for an anonymous input
+     */
+    public static final String ANONYMOUS_THING = "anonymous";
     /**
      * The cache key in CustomGlobal
      */
@@ -174,19 +172,43 @@ public final class AccessCheck {
     }
 
     /**
-     * Creates a native IIQ authorizer that performs a CommonSecurityConfig check
-     * @param config The configuration
-     * @return The authorizer
+     * Returns an 'allowed' response if the logged in user can access the item based on the
+     * common configuration parameters.
+     *
+     * Results for the same CommonSecurityConfig, source, and target user will be cached for up to one minute
+     * unless the CommonSecurityConfig object has noCache set to true.
+     *
+     * @param input The input containing the configuration for the checkThingAccess utility
+     * @return True if the user has access to the thing based on the configuration
      */
-    public static Authorizer createAuthorizer(CommonSecurityConfig config) {
-        return userContext -> {
-            AccessCheckInput input = new AccessCheckInput(userContext, config);
-            AccessCheckResponse response = AccessCheck.accessCheck(input);
-            if (!response.isAllowed()) {
-                log.debug("Access denied with messages: " + response.getMessages());
-                throw new UnauthorizedAccessException("Access denied");
+    public static AccessCheckResponse accessCheck(AccessCheckInput input) {
+        if (input.getConfiguration() == null) {
+            throw new IllegalArgumentException("An access check must contain a CommonSecurityConfig");
+        }
+
+        if (input.getUserContext() == null) {
+            throw new IllegalArgumentException("An access check must specify a UserContext for accessing the IIQ context and the logged in user");
+        }
+
+        AccessCheckResponse result;
+        try {
+            if (!input.getConfiguration().isNoCache()) {
+                SecurityCacheToken cacheToken = new SecurityCacheToken(input);
+                Optional<AccessCheckResponse> cachedResult = getCachedResult(cacheToken);
+                if (cachedResult.isPresent()) {
+                    return cachedResult.get();
+                }
+                result = accessCheckImpl(input);
+                getCacheMap().put(cacheToken, new SecurityResult(result));
+            } else {
+                result = accessCheckImpl(input);
             }
-        };
+        } catch(Exception e) {
+            result = new AccessCheckResponse();
+            result.denyMessage("Caught an exception evaluating criteria: " + e.getMessage());
+            log.error("Caught an exception evaluating access criteria to " + input.getThingName(), e);
+        }
+        return result;
     }
 
     /**
@@ -555,51 +577,27 @@ public final class AccessCheck {
     }
 
     /**
-     * Returns an 'allowed' response if the logged in user can access the item based on the
-     * common configuration parameters.
-     *
-     * Results for the same CommonSecurityConfig, source, and target user will be cached for up to one minute
-     * unless the CommonSecurityConfig object has noCache set to true.
-     *
-     * @param input The input containing the configuration for the checkThingAccess utility
-     * @return True if the user has access to the thing based on the configuration
-     */
-    public static AccessCheckResponse accessCheck(AccessCheckInput input) {
-        if (input.getConfiguration() == null) {
-            throw new IllegalArgumentException("An access check must contain a CommonSecurityConfig");
-        }
-
-        if (input.getUserContext() == null) {
-            throw new IllegalArgumentException("An access check must specify a UserContext for accessing the IIQ context and the logged in user");
-        }
-
-        AccessCheckResponse result;
-        try {
-            if (!input.getConfiguration().isNoCache()) {
-                SecurityCacheToken cacheToken = new SecurityCacheToken(input);
-                Optional<AccessCheckResponse> cachedResult = getCachedResult(cacheToken);
-                if (cachedResult.isPresent()) {
-                    return cachedResult.get();
-                }
-                result = accessCheckImpl(input);
-                getCacheMap().put(cacheToken, new SecurityResult(result));
-            } else {
-                result = accessCheckImpl(input);
-            }
-        } catch(Exception e) {
-            result = new AccessCheckResponse();
-            result.denyMessage("Caught an exception evaluating criteria: " + e.getMessage());
-            log.error("Caught an exception evaluating access criteria to " + input.getThingName(), e);
-        }
-        return result;
-    }
-
-    /**
      * An optional clear-cache method that can be used by plugin code
      */
     public static void clearCachedResults() {
         ConcurrentHashMap<AccessCheck.SecurityCacheToken, AccessCheck.SecurityResult> cacheMap = getCacheMap();
         cacheMap.clear();
+    }
+
+    /**
+     * Creates a native IIQ authorizer that performs a CommonSecurityConfig check
+     * @param config The configuration
+     * @return The authorizer
+     */
+    public static Authorizer createAuthorizer(CommonSecurityConfig config) {
+        return userContext -> {
+            AccessCheckInput input = new AccessCheckInput(userContext, config);
+            AccessCheckResponse response = AccessCheck.accessCheck(input);
+            if (!response.isAllowed()) {
+                log.debug("Access denied with messages: " + response.getMessages());
+                throw new UnauthorizedAccessException("Access denied");
+            }
+        };
     }
 
     /**
@@ -663,5 +661,24 @@ public final class AccessCheck {
             }
         }
         return matchesWorkgroup;
+    }
+
+    /**
+     * Returns a new {@link FluentAccessCheck}, permitting a nice flow-y API for this class.
+     *
+     * For example:
+     *
+     *   AccessCheck
+     *      .setup()
+     *      .config(commonSecurityObject)
+     *      .name("some name")
+     *      .subject(pluginResource) // contains the logged-in username, so counts as a subject
+     *      .target(targetIdentity)
+     *      .isAllowed()
+     *
+     * @return The fluent access check builder
+     */
+    public static FluentAccessCheck setup() {
+        return new FluentAccessCheck();
     }
 }

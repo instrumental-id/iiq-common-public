@@ -1,7 +1,7 @@
 package com.identityworksllc.iiq.common.plugin;
 
 /**
- * A superclass to ensure that the BaseCommonPlugin* classes all implement the same methods
+ * An interface to ensure that the BaseCommonPlugin* classes all implement the same methods
  */
 public interface CommonExtendedPluginContext {
 

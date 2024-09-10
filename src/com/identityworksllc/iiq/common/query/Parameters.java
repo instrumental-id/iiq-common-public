@@ -9,8 +9,10 @@ import java.sql.Types;
 import java.util.Date;
 
 /**
- * Utility class for setting the parameters on a query based on the input,
- * invoking the appropriately-typed input values.
+ * Utility class for setting the parameters on a {@link java.sql.Statement} based on the input,
+ * invoking the typed setXYZ methods (e.g., setString for a string).
+ *
+ * Unrecognized input types will be set via `setString`.
  */
 public class Parameters {
     /**

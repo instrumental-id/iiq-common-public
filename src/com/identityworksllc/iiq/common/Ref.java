@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Constructs IIQ Reference objects using a standardized API
+ * Constructs IIQ {@link Reference} objects using a standardized API
  */
 public final class Ref {
     /**

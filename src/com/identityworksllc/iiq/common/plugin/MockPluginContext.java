@@ -19,10 +19,12 @@ import java.util.TimeZone;
 
 /**
  * A mock plugin resource to use in any situation where an API requires one
- * but we're not running in a plugin context. This must be associated with a
+ * but your code is not running in a plugin context. This must be associated with a
  * real plugin (by name).
+ *
+ * In particular, {@link com.identityworksllc.iiq.common.ThingAccessUtils} requires a
+ * plugin context, which this can provide.
  */
-@SuppressWarnings("unused")
 public class MockPluginContext extends BasePluginResource {
     private static final Log log = LogFactory.getLog(MockPluginContext.class);
 

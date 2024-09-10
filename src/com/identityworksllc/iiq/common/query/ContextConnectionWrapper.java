@@ -10,17 +10,20 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
+ * Use this class instead of {@link SailPointContext#getJdbcConnection()} to work around
+ * a known glitch.
+ *
  * The {@link SailPointContext#getJdbcConnection()} method caches the connection that
- * the context uses. Subsequent calls to the getJdbcConnection() on the same context
+ * the context uses. Subsequent calls to the `getJdbcConnection()` on the same context
  * will return the same object.
  *
- * This means that if you close() that connection, as you should if you are writing correct
+ * This means that if you `close()` that connection, as you should if you are writing correct
  * JDBC code, then on the second retrieval, you will get back a wrapper for an already
  * closed connection. In theory, this ought to just pull a new connection from the pool,
- * but Sailpoint has a glitch that prevents this. When you attempt to use the connection,
+ * but IIQ has a glitch that prevents this. When you attempt to use the connection,
  * you will receive a "connection is null" error from deep within DBCP2.
  *
- * This utility goes directly to the configured Spring DataSource to get a pooled connection.
+ * This utility goes directly to the configured Spring {@link DataSource} to get a pooled connection.
  *
  * Note that this glitch doesn't affect Hibernate-based sessions because those already use
  * their own Hibernate Session Factory that also directly calls to the underlying DataSource.

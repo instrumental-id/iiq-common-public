@@ -9,7 +9,7 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * A {@link Comparator} to sort SPOs in a reliable way: first by date, and if the dates are
+ * A {@link Comparator} to sort {@link SailPointObject}s in a reliable way: first by date, and if the dates are
  * identical, by ID. SPOs may have a null modified date, in which case the created
  * date is checked.
  *

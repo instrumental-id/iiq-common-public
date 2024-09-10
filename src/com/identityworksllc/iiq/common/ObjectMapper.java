@@ -22,6 +22,10 @@ import java.util.function.Supplier;
  * A utility to decode a Map structure into the fields of a POJO object. This makes
  * configurations type-safe and allows code accessing them to be verified.
  *
+ * While similar to Jackson's own ObjectMapper, this class also natively supports
+ * a variety of SailPoint object types. It is intended for use with _Custom_ and
+ * _Configuration_ objects.
+ *
  * ----
  *
  * TYPE MAPPINGS:

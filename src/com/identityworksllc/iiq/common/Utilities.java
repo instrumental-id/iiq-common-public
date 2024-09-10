@@ -56,10 +56,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -96,7 +93,16 @@ public class Utilities {
 			return Objects.hash("");
 		}
 	}
+
+	/**
+	 * THe default Jackson object mapper, created on first use
+	 */
 	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
+
+	/**
+	 * The prefix in {@link CustomGlobal} used by {@link #getPluginVersionedGlobalMap()}.
+	 */
+	public static final String GLOBAL_MAP_PREFIX = "com.identityworksllc.iiq.common.Utilities.globalMap.";
 	/**
 	 * The name of the worker pool, stored in CustomGlobal by default
 	 */
@@ -1046,7 +1052,8 @@ public class Utilities {
 
 	/**
 	 * Returns a default Jackson object mapper, independent of IIQ versions.
-	 * The template ObjectMapper is generated on the
+	 * The template ObjectMapper is generated on the first invocation. All returned
+	 * values will be copies of that.
 	 *
 	 * @return A copy of our cached ObjectMapper
 	 */
@@ -1183,6 +1190,71 @@ public class Utilities {
 		return version;
 	}
 
+	/**
+	 * Gets the current plugin version from the environment, or NA if not defined
+	 * @return The current plugin cache version
+	 */
+	public static int getPluginVersionInt() {
+		int version = 0;
+		if (Environment.getEnvironment() != null) {
+			PluginsCache cache = Environment.getEnvironment().getPluginsCache();
+			if (cache != null) {
+				version = cache.getVersion();
+			}
+		}
+		return version;
+	}
+
+	/**
+	 * Iterates through the {@link CustomGlobal}, removing any object with the prefix
+	 * plus older plugin versions. For example, if you have just added new versioned
+	 * object 'some.object.2', because the plugin version is 2, you will want to remove
+	 * 'some.object.1' and 'some.object.0' if they exist. This method does that.
+	 *
+	 * Note that the final dot in 'some.object.' is part of the prefix that you must
+	 * provide. This method will NOT assume that the prefix ought to end with a dot.
+	 *
+	 * @param prefix The prefix
+	 * @param currentVersion The current object version
+	 */
+	public static void cleanVersionedCache(String prefix, int currentVersion) {
+		// Clean up previous versions of the cache
+		for(int i = currentVersion - 1; i >= 0; i--) {
+			CustomGlobal.remove(prefix + i);
+		}
+	}
+
+	/**
+	 * Gets a {@link ConcurrentHashMap} from {@link CustomGlobal} that will be replaced with a new,
+	 * empty Map whenever the plugin version is incremented. This will prevent plugins from
+	 * accidentally accessing objects from an older version of the plugin classloader.
+	 * When a new storage map is created, older maps in {@link CustomGlobal} will be cleaned up by
+	 * invoking {@link #cleanVersionedCache(String, int)}.
+	 *
+	 * The cache prefix is 'com.identityworksllc.iiq.common.Utilities.globalMap.'
+	 *
+	 * @return A {@link ConcurrentHashMap} specific to the current plugin version
+	 */
+	@SuppressWarnings("unchecked")
+	public static ConcurrentHashMap<String, Object> getPluginVersionedGlobalMap() {
+		int pluginVersion = getPluginVersionInt();
+		String cacheKeyPrefix = GLOBAL_MAP_PREFIX;
+		String cacheKey = cacheKeyPrefix + pluginVersion;
+		ConcurrentHashMap<String, Object> map = (ConcurrentHashMap<String, Object>) CustomGlobal.get(cacheKey);
+		if (map == null) {
+			synchronized (CustomGlobal.class) {
+				map = (ConcurrentHashMap<String, Object>) CustomGlobal.get(cacheKey);
+				if (map == null) {
+					map = new ConcurrentHashMap<>();
+					CustomGlobal.put(cacheKey, map);
+				}
+
+				cleanVersionedCache(cacheKeyPrefix, pluginVersion);
+			}
+		}
+
+		return map;
+	}
 
 	/**
 	 * Gets the given property by introspection
@@ -2801,7 +2873,9 @@ public class Utilities {
 	/**
 	 * Adds the given key and value to the Map if no existing value for the key is
 	 * present. The Map will be synchronized so that only one thread is guaranteed
-	 * to be able to insert the initial value.
+	 * to be able to insert the initial value using this method.
+	 *
+	 * We make no guarantees about 'put' operations done other ways.
 	 *
 	 * If possible, you should use a {@link java.util.concurrent.ConcurrentMap}, which
 	 * already handles this situation with greater finesse.

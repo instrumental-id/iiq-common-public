@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common.cache;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import sailpoint.tools.Util;
 
 import java.io.ObjectStreamException;
@@ -8,7 +10,11 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Implements a Cache that exposes itself as a regular Map. Cached entries will be removed
@@ -21,7 +27,7 @@ import java.util.function.BiConsumer;
  * @param <K> The key type
  * @param <V> The value type
  */
-public class CacheMap<K, V> implements Map<K, V>, Serializable {
+public class CacheMap<K, V> implements Map<K, V>, Serializable, Function<K, Optional<V>> {
 
 	/**
 	 * The cache map entry class that will be returned by getEntry()
@@ -112,7 +118,7 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	/**
 	 * Serialization UID
 	 */
-	private static final long serialVersionUID = 8575644570548892660L;
+	private static final long serialVersionUID = 3L;
 
 	/**
 	 * Creates a before expiration hook
@@ -127,12 +133,18 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	/**
 	 * The internal map associated with this cache containing keys to cache entries
 	 */
-	private final ConcurrentMap<K, CacheEntry<? extends V>> internalMap;
+	/*package*/ final ConcurrentMap<K, CacheEntry<? extends V>> internalMap;
 
 	/**
 	 * A class used to generate new values for get() if they don't exist already
 	 */
 	private final CacheGenerator<? extends V> valueGenerator;
+
+	/**
+	 * The lock object to
+	 */
+	@JsonIgnore
+	private transient final ReentrantReadWriteLock lock;
 
 	/**
 	 * Constructs a new cache map with the default expiration time of 10 minutes
@@ -192,6 +204,18 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 		}
 		this.valueGenerator = generator;
 		this.beforeExpirationHook = this::beforeExpiration;
+
+		this.lock = new ReentrantReadWriteLock();
+	}
+
+	/**
+	 * Returns an Optional wrapping a non-expired value, for use in streams, for example.
+	 * @param k The key
+	 * @return An Optional of the value, if it is present and non-expired, otherwise an empty Optional
+	 */
+	@Override
+	public Optional<V> apply(K k) {
+		return Optional.ofNullable(get(k));
 	}
 
 	/**
@@ -281,6 +305,14 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	}
 
 	/**
+	 * Gets the internal map, for use by subclasses only
+	 * @return The internal map
+	 */
+	protected ConcurrentMap<K, CacheEntry<? extends V>> getInternalMap() {
+		return internalMap;
+	}
+
+	/**
 	 * Returns a new Date object offset from the current date by the default expiration duration in seconds
 	 *
 	 * @return The date of expiration starting now
@@ -357,12 +389,20 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	}
 
 	/**
+	 * Puts all entries from the other map into this one. If the other Map is a CacheMap,
+	 * forwards to {@link #putAllInternal(CacheMap)}, which retains expiration.
+	 *
 	 * @see java.util.Map#putAll(java.util.Map)
 	 */
 	@Override
+	@SuppressWarnings("unchecked")
 	public void putAll(Map<? extends K, ? extends V> m) {
-		for (K key : m.keySet()) {
-			put(key, m.get(key));
+		if (m instanceof CacheMap) {
+			putAllInternal((CacheMap<K, V>) m);
+		} else {
+			for (K key : m.keySet()) {
+				put(key, m.get(key));
+			}
 		}
 	}
 
@@ -373,7 +413,7 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	 *
 	 * @param other The other CacheMap object
 	 */
-	public void putAll(CacheMap<? extends K, ? extends V> other) {
+	protected void putAllInternal(CacheMap<? extends K, ? extends V> other) {
 		for (K key : other.keySet()) {
 			CacheEntry<? extends V> entry = other.internalMap.get(key);
 			if (entry != null && !entry.isExpired()) {
@@ -395,6 +435,8 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	}
 
 	/**
+	 * Returns the size of the cache, after excluding expired records.
+	 *
 	 * @see java.util.Map#size()
 	 */
 	@Override
@@ -419,6 +461,8 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	}
 
 	/**
+	 * Returns all non-expired values from this Map.
+	 *
 	 * @see java.util.Map#values()
 	 */
 	@Override
@@ -454,7 +498,8 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable {
 	}
 	
 	/**
-	 * This method, called on serialization, will replace this cache with a static HashMap. This will allow this class to be used in remote EJB calls, etc.
+	 * This method, called on serialization, will replace this cache with a static HashMap
+	 * via {@link #snapshot()}. This will allow this class to be used in remote EJB calls, etc.
 	 * 
 	 * See here: https://docs.oracle.com/javase/6/docs/platform/serialization/spec/output.html#5324
 	 * 

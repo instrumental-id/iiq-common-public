@@ -4,6 +4,9 @@ import sailpoint.object.TaskResult;
 import sailpoint.task.TaskMonitor;
 import sailpoint.tools.GeneralException;
 
+/**
+ * Utilities for TaskDefinitions and TaskResults
+ */
 public class TaskUtil {
 
     /**

@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Utility methods for detecting sameness in two objects, since IIQ is inconsistent about it.
+ * Utility methods for detecting whether two objects are the same, since IIQ is inconsistent about it.
  * The primary method in here is {@link Sameness#isSame(Object, Object, boolean)}. This class
  * is heavily used throughout the IIQCommon libraries as well as the IDW plugins.
  */

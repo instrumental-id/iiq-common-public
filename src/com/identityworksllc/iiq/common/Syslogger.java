@@ -13,7 +13,7 @@ import java.io.StringWriter;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * A utility for generating Syslog events, even where IIQ would not
+ * A utility for generating and committing Syslog events, even where IIQ would not
  * produce them. The events are saved via an autonomous transaction.
  */
 public class Syslogger {

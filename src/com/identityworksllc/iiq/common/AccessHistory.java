@@ -16,10 +16,12 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * A singleton utility for retrieving AccessHistory data, even in versions
- * of IIQ less than 8.4. This is useful for creating multi-version plugins.
+ * A singleton utility for retrieving AccessHistory-related objects, gracefully
+ * failing in pre-8.4 versions of IIQ.
+ *
+ * In versions of IIQ where Access History is not supported, the various
+ * methods will return empty {@link Optional} objects.
  */
-@SuppressWarnings("JavaReflectionMemberAccess")
 public class AccessHistory {
 
     /**

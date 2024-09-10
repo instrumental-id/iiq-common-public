@@ -16,6 +16,8 @@ import java.util.Map;
  * Encapsulates a variety of ways of opening connections to a database,
  * from Beanshell callbacks to connection info to specifying that we should
  * use the IIQ or Plugin DB.
+ *
+ * This is mainly an attempt to reduce parameter explosion in other classes.
  */
 public class ConnectOptions {
 

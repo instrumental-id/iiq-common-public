@@ -23,14 +23,15 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * A command-line tool to run one or more SQL Scripts via the Plugin SQL execution
- * tool.
+ * A command-line entry point to run one or more SQL scripts via the internal IIQ utility
+ * that runs your SQL scripts when you install or update a plugin.
  *
- * You need to use this via the Launcher entry point, aka the 'iiq' command. The Launcher
- * automatically loads command classes from WEB-INF, so it's sufficient for IIQ Common
- * to be there, along with picocli.
+ * You need to use this via IIQ's Launcher entry point, aka the 'iiq' command. This command
+ * typically takes one of the built-in entry points, such as 'console', but can be supplied
+ * with any number of others. The Launcher automatically loads command classes from WEB-INF,
+ * so it's sufficient for this library (iiq-common-public.jar) to be there, along with `picocli`.
  *
- * Usage: ./iiq com.identityworksllc.iiq.common.tools.RunSQLScript path/to/script1 path/to/script2...
+ * Usage: `./iiq com.identityworksllc.iiq.common.tools.RunSQLScript path/to/script1.sql path/to/script2.sql ...`
  */
 @CommandLine.Command(name = "sql-script", synopsisHeading = "", customSynopsis = {
         "Usage: ./iiq com.identityworksllc.iiq.common.tools.RunSQLScript FILE [FILE...]"

@@ -9,11 +9,13 @@ import java.util.function.Predicate;
  * A functional "monad" that contains either a non-null value of the given type
  * or an exception, but never both. The idea here is:
  *
+ * ```
  * objectList
  *  .stream()
  *  .map(obj -> Maybe.wrap(String.class, some::functionThatCanFail))
  *  .filter(Maybe.fnHasValue())
  *  .forEach(items);
+ * ```
  *
  * @param <T> The type that this object might contain
  */

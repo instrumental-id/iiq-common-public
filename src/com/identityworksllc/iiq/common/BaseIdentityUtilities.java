@@ -24,8 +24,6 @@ import java.util.Map;
 
 /**
  * Utilities for handling Identity operations
- *
- * TODO javadocs
  */
 public class BaseIdentityUtilities extends AbstractBaseUtility {
 
@@ -34,7 +32,24 @@ public class BaseIdentityUtilities extends AbstractBaseUtility {
     }
 
     /**
-     * Gets the default set of refresh options, with or without process-events
+     * Gets the default set of refresh options, with or without process-events.
+     *
+     * The refresh options set to true are:
+     *
+     *  - provision
+     *  - correlateEntitlements
+     *  - promoteManagedAttributes
+     *  - refreshRoleMetadata
+     *  - promoteAttributes
+     *  - synchronizeAttributes
+     *  - refreshManagerStatus
+     *  - noResetNeedsRefresh
+     *  - refreshProvisioningRequests
+     *  - checkHistory
+     *
+     * If the provided _shouldProcessEvents_ is true, then _processTriggers_ will also be
+     * set to true. This is optional because triggers can prolong a refresh considerably.
+     *
      * @param shouldProcessEvents True if we should also process events, false if not
      * @return A new Attributes with the default set of refresh options
      */
@@ -92,10 +107,28 @@ public class BaseIdentityUtilities extends AbstractBaseUtility {
         }
     }
 
+    /**
+     * Returns a recursive list of all subordinates of the given Identity by recursively navigating
+     * other Identity objects starting with this one as their 'manager'.
+     *
+     * @param parent The parent Identity
+     * @return A list of object arrays, containing the 'id' and 'name' of any Identities
+     * @throws GeneralException if this fails
+     */
     public List<Object[]> recursivelyExplodeHierarchy(Identity parent) throws GeneralException {
         return recursivelyExplodeHierarchy(parent.getId(), "manager");
     }
 
+    /**
+     * Returns the entire tree below the 'parent' Identity by recursively querying for other
+     * objects that reference it via the given attribute. For example, this might return
+     * a manager's entire tree of subordinates.
+     *
+     * @param parent an Identity ID to search in the given attribute
+     * @param attribute the attribute containing an Identity ID reference (e.g., `manager`)
+     * @return A list of object arrays, containing the 'id' and 'name' of any Identities
+     * @throws GeneralException if this fails
+     */
     public List<Object[]> recursivelyExplodeHierarchy(String parent, String attribute) throws GeneralException {
         List<Object[]> outputBucket = new ArrayList<>();
         QueryOptions qo = new QueryOptions();
@@ -118,6 +151,17 @@ public class BaseIdentityUtilities extends AbstractBaseUtility {
         return outputBucket;
     }
 
+    /**
+     * Recursively expands the input Identity, returning a list of workgroup members. If the input
+     * Identity is not a workgroup, it is returned alone. If any members of a workgroup are themselves
+     * workgroups, they will be recursively expanded.
+     *
+     * This can be used, for example, to send a notification to an entire workgroup.
+     *
+     * @param possibleWorkgroup an {@link Identity} object, which is likely a workgroup
+     * @return The list of Identities in the given workgroup, and any child workgroups
+     * @throws GeneralException if this fails
+     */
     public List<Identity> recursivelyExplodeWorkgroup(Identity possibleWorkgroup) throws GeneralException {
         List<Identity> identities = new ArrayList<>();
         if (!possibleWorkgroup.isWorkgroup()) {
@@ -185,12 +229,12 @@ public class BaseIdentityUtilities extends AbstractBaseUtility {
      *
      *  (1) ProvisioningPlan objects
      *  (2) Running workflow variables
-     *  (3)
      *
      * @param target The Identity object to rename
      * @param newName The new name of the identity
      * @throws GeneralException if any renaming failures occur
      */
+    @Experimental
     public void rename(Identity target, String newName) throws GeneralException {
         // TODO: CertificationDefinition selfCertificationViolationOwner
         // TODO there is probably more to do around certifications (e.g. Certification.getCertifiers())

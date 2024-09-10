@@ -13,8 +13,12 @@ import java.sql.Connection;
 /**
  * Abstract class to easily implement a Service that will only run on the
  * alphabetically lowest Server name. This allows background execution
- * of a task more reliably than the scheduler, but still prevents clashing
- * if more than one server runs the task at once.
+ * of a frequent task more reliably than the scheduler, but still prevents
+ * two instances from clashing when more than one server runs the behavior
+ * at once.
+ *
+ * If the alphabetically lowest Server becomes deactivated, the next lowest
+ * will be selected on subsequent runs.
  *
  * Extensions should implement {@link #implementation(SailPointContext)}.
  */

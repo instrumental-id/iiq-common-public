@@ -19,6 +19,12 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A Jackson serializer implementation for any object that can be serialized
+ * to XML by IIQ's XML serializer. The output will be a JSON object with a
+ * 'type' (the fully qualified class name) and an 'xml' (the serialized XML
+ * of the input object).
+ */
 public class IIQObjectSerializer extends StdSerializer<Object> {
     protected IIQObjectSerializer() {
         this(null);

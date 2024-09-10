@@ -1,11 +1,14 @@
 package com.identityworksllc.iiq.common.cache;
 
-import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+
+import java.io.*;
 import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicStampedReference;
 import java.util.function.Supplier;
 
 /**
@@ -13,16 +16,16 @@ import java.util.function.Supplier;
  * to store a dated object of any type. The entry will be considered expired when the
  * current date is after the expiration date.
  *
- * Instances of this class are {@link Serializable} if the contained type T is serializable.
+ * Instances of this class are {@link Externalizable} if the contained type T is serializable.
  *
  * @param <T> The type of the object to store
  */
-public final class CacheEntry<T> implements Serializable, Supplier<Optional<T>> {
+public class CacheEntry<T> implements Serializable, Supplier<Optional<T>> {
 
 	/**
 	 * Serialization UID
 	 */
-	private static final long serialVersionUID = 2L;
+	private static final long serialVersionUID = 3L;
 
 	/**
 	 * Returns either the entry (if it is not null and not expired), or invokes the Supplier
@@ -40,6 +43,15 @@ public final class CacheEntry<T> implements Serializable, Supplier<Optional<T>> 
 			return entry;
 		}
 	}
+
+	/**
+	 * Copy constructor
+	 * @param other The other cache entry
+	 */
+	public CacheEntry(CacheEntry<? extends T> other) {
+		this(other.value, other.expiration);
+	}
+
 	/**
 	 * Expiration millisecond timestamp for this entry
 	 */
@@ -77,6 +89,16 @@ public final class CacheEntry<T> implements Serializable, Supplier<Optional<T>> 
 	public CacheEntry(T entryValue, long entryExpirationTimestampMillis) {
 		this.value = entryValue;
 		this.expiration = entryExpirationTimestampMillis;
+	}
+
+	/**
+	 * Returns an {@link AtomicStampedReference} object with the 'stamp' set to the
+	 * seconds (NOT milliseconds) timestamp of expiration.
+	 *
+	 * @return An AtomicStampedReference
+	 */
+	public AtomicStampedReference<T> asStampedReference() {
+		return new AtomicStampedReference<>(this.value, (int)(this.expiration / 1000L));
 	}
 
 	/**

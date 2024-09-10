@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * An adapter that translates a java.sql.ResultSet to Sailpoint Reporting's preferred Iterator<Object[]>.
+ * An adapter that translates a {@link ResultSet} to IIQ Reporting's preferred {@link Iterator}<Object[]>.
  * This class also exposes several utility methods that can be used to implement standard
  * ResultSet behavior outside of this iterator context.
  *

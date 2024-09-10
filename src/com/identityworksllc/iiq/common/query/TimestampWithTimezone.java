@@ -1,7 +1,5 @@
 package com.identityworksllc.iiq.common.query;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Calendar;

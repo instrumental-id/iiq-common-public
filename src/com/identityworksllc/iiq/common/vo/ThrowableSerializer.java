@@ -11,6 +11,8 @@ import java.io.StringWriter;
 /**
  * A custom Jackson serializer for transforming a Throwable into a standard
  * Map format, including type, message, and stack trace.
+ *
+ * This is primarily intended for REST API usage.
  */
 public class ThrowableSerializer extends StdSerializer<Throwable> {
     /**

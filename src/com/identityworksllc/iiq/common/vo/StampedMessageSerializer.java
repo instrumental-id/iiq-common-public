@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * Custom serializer for StampedMessage outputs, to avoid having to let Jackson
- * figure out how to serialize the Throwable object
+ * figure out how to serialize the Throwable object.
  */
 public class StampedMessageSerializer extends StdSerializer<StampedMessage> {
 

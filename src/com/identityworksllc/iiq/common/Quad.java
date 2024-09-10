@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
- * Extends Triple by adding one more item, a group of four items
+ * A group of four items
  *
  * @param <A> The first item type
  * @param <B> The second item type
@@ -14,7 +14,7 @@ import java.util.StringJoiner;
  */
 public class Quad<A, B, C, D> implements Serializable {
     /**
-     * Constructs a new quad tuple of the three items given
+     * Constructs a new quad tuple of the four items given
      *
      * @param first The first time
      * @param second The second item

@@ -6,6 +6,13 @@ import sailpoint.tools.GeneralException;
 /**
  * Starts a {@link Meter} with the given name, then invokes the callback, then
  * finally stops the meter before returning the output.
+ *
+ * Usage example:
+ *
+ * Metered.meter("Meter name", () -> {
+ *     // your code here
+ * })
+ *
  */
 public class Metered {
     /**

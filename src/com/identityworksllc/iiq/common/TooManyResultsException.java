@@ -3,7 +3,7 @@ package com.identityworksllc.iiq.common;
 import sailpoint.object.SailPointObject;
 
 /**
- *
+ * An exception indicating that too many results were returned
  */
 public class TooManyResultsException extends IllegalArgumentException {
 

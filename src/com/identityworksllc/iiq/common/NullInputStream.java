@@ -19,11 +19,6 @@ public class NullInputStream extends InputStream {
     }
 
     @Override
-    public boolean markSupported() {
-        return false;
-    }
-
-    @Override
     public int read() throws IOException {
         if (size-- > 0) {
             return 0;

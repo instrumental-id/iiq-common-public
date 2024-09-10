@@ -12,7 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@SuppressWarnings("unused")
+/**
+ * The abstract superclass for the named parameter statement types.
+ *
+ * @param <StatementType> The type of statement, {@link PreparedStatement} or {@link CallableStatement}
+ */
 public abstract class AbstractNamedParameterStatement<StatementType extends Statement> implements AutoCloseable {
 
     /**
@@ -85,6 +89,10 @@ public abstract class AbstractNamedParameterStatement<StatementType extends Stat
         }
     }
 
+    /**
+     * If true, invoking one of the setXXX methods on a non-existent parameter
+     * will be silently ignored. The default is to throw an exception.
+     */
     protected boolean allowMissingAttributes;
 
     /**
@@ -179,8 +187,11 @@ public abstract class AbstractNamedParameterStatement<StatementType extends Stat
     }
 
     /**
-     * Sets the flag to allow missing attributes without throwing an exception
-     * @param allowMissingAttributes True if we should not throw an exception when a parameter is unused
+     * Sets the flag to allow an attempt to set missing attributes without throwing
+     * an exception. With this flag set to false, any attempt to invoke setString, or any
+     * other setXYZ method, will result in an exception.
+     *
+     * @param allowMissingAttributes `true` if we should not throw an exception when a parameter is unused
      */
     public void setAllowMissingAttributes(boolean allowMissingAttributes) {
         this.allowMissingAttributes = allowMissingAttributes;

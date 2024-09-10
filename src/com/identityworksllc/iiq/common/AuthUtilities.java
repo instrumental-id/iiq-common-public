@@ -14,7 +14,8 @@ import java.util.Objects;
 
 /**
  * Utilities for authorization, e.g., whether a user can view a QuickLink. For the
- * Common Security style of authorization, use ThingAccessUtils instead.
+ * Common Security style of authorization, use {@link com.identityworksllc.iiq.common.access.AccessCheck}
+ * or {@link ThingAccessUtils} instead.
  */
 public class AuthUtilities extends AbstractBaseUtility {
 

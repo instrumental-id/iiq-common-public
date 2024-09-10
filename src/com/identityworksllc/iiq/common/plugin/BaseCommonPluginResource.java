@@ -23,6 +23,7 @@ import sailpoint.api.ObjectUtil;
 import sailpoint.api.SailPointContext;
 import sailpoint.api.logging.SyslogThreadLocal;
 import sailpoint.authorization.Authorizer;
+import sailpoint.authorization.CapabilityAuthorizer;
 import sailpoint.authorization.UnauthorizedAccessException;
 import sailpoint.object.*;
 import sailpoint.rest.BaseResource;
@@ -54,9 +55,29 @@ import java.time.format.TextStyle;
 import java.util.*;
 
 /**
- * This class is the common base class for all IIQCommons-compliant plugin REST
+ * This class is the common base class for all IIQCommon-compliant plugin REST
  * resources. It contains numerous enhancements over IIQ's original base plugin
  * resource class, notably {@link #handle(PluginAction)}.
+ *
+ * See the provided documentation `PLUGIN-RESOURCES.adoc` for much more detail.
+ *
+ * Your plugins REST resource classes must extend this class to make use of its
+ * functions. The following is an example of handle():
+ *
+ * ```
+ * {@literal @}GET
+ * {@literal @}Path("endpoint/path")
+ * public Response endpointMethod(@QueryParam("param") String parameter) {
+ *     return handle(() -> {
+ *     	   // Your lambda body can do anything you need. Here we just call
+ *     	   // some example method.
+ *         List<String> output = invokeBusinessLogicHere();
+ *
+ *         // Will be automatically transformed into a JSON response
+ *         return output;
+ *     });
+ * }
+ * ```
  */
 @SuppressWarnings("unused")
 public abstract class BaseCommonPluginResource extends BasePluginResource implements CommonExtendedPluginContext {
@@ -100,6 +121,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	private static Response transformDate(Date response) {
 		return Response.ok().entity(new ExpandedDate(response)).build();
 	}
+
 	/**
 	 * If true, logs will be captured in handle() and appended to any error messages
 	 */
@@ -430,15 +452,8 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	 * @return The resulting map
 	 */
 	protected Map<String, Object> getExceptionMapping(Throwable t) {
-		Map<String, Object> responseMap = new HashMap<>();
-		responseMap.put("exception", t.getClass().getName());
-		responseMap.put("message", t.getMessage());
-		responseMap.put("quickKey", SyslogThreadLocal.get());
+		Map<String, Object> responseMap = CommonPluginUtils.getExceptionMapping(t, false);
 		responseMap.put("logs", logMessages.get());
-		if (t.getCause() != null) {
-			responseMap.put("parentException", t.getCause().getClass().getName());
-			responseMap.put("parentMessage", t.getCause().getMessage());
-		}
 		return responseMap;
 	}
 	
@@ -538,23 +553,43 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	 * This method is responsible for executing the given action after checking the
 	 * Authorizers. The action should be specified as a Java lambda expression.
 	 *
+	 * ```
+	 * {@literal @}GET
+	 * {@literal @}Path("endpoint/path")
+	 * public Response endpointMethod(@QueryParam("param") String parameter) {
+	 *     return handle(() -> {
+	 *         List<String> output = invokeBusinessLogicHere();
+	 *
+	 *         // Will be automatically transformed into a JSON response
+	 *         return output;
+	 *     });
+	 * }
+	 * ```
+	 *
 	 * This method performs the following actions:
 	 *
 	 * 1) If log forwarding or capturing is enabled, switches it on for the current thread.
 	 * 2) Starts a meter for checking performance of your action code.
 	 * 3) Checks any Authorizers specified via the 'authorizer' parameter, class configuration, or an annotation.
-	 * 4) Executes the provided {@link PluginAction}.
-	 * 5) Transforms the return value into a {@link Response}, handling both object output and exceptional states.
+	 * 4) Executes the provided {@link PluginAction}, usually a lambda expression.
+	 * 5) Transforms the return value into a {@link Response}, handling both object output and thrown exceptions.
 	 * 6) Finalizes the Meters and log capturing.
 	 *
 	 * If any authorizer fails, a 403 Forbidden response will be returned.
 	 *
 	 * @param authorizer If not null, the given authorizer will run first. A {@link Status#FORBIDDEN} {@link Response} will be returned if the authorizer fails
 	 * @param action The action to execute, which should return the output of this API endpoint.
-	 *
-	 * @return The JSON response
+	 * @return The REST {@link Response}, populated according to the contract of this method
 	 */
 	protected final Response handle(Authorizer authorizer, PluginAction action) {
+		if (resourceInfo != null) {
+			Class<?> endpointClass = this.getClass();
+			Method endpointMethod = resourceInfo.getResourceMethod();
+
+			if (log.isTraceEnabled()) {
+				log.trace("Entering handle() for REST API endpoint: Class = " + endpointClass.getName() + ", method = " + endpointMethod.getName());
+			}
+		}
 		final String _meterName = "pluginRest:" + request.getRequestURI();
 		boolean shouldMeter = shouldMeter(request);
 		try {
@@ -581,20 +616,23 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 						}
 						List<Class<?>> allowedClasses = new ArrayList<>();
 						if (endpointClass.isAnnotationPresent(ResponsesAllowed.class)) {
-							Class[] data = endpointClass.getAnnotation(ResponsesAllowed.class).value();
+							Class<?>[] data = endpointClass.getAnnotation(ResponsesAllowed.class).value();
 							if (data != null) {
-								allowedClasses.addAll(Arrays.asList());
+								allowedClasses.addAll(Arrays.asList(data));
 							}
 						}
 						if (endpointMethod.isAnnotationPresent(ResponsesAllowed.class)) {
-							Class[] data = endpointMethod.getAnnotation(ResponsesAllowed.class).value();
+							Class<?>[] data = endpointMethod.getAnnotation(ResponsesAllowed.class).value();
 							if (data != null) {
-								allowedClasses.addAll(Arrays.asList());
+								allowedClasses.addAll(Arrays.asList(data));
 							}
 						}
 
 						if (!allowedClasses.isEmpty()) {
 							allowedReturnTypes = allowedClasses;
+							if (log.isTraceEnabled()) {
+								log.trace("Allowed return value types: " + allowedReturnTypes);
+							}
 						}
 					}
 					if (authorizer != null) {
@@ -613,7 +651,18 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 					}
 					Object actionResult = action.execute();
 
-					Response restResult = handleResult(actionResult, hasReturnValue, allowedReturnTypes);
+					Response restResult;
+
+					try {
+						if (log.isTraceEnabled()) {
+							log.trace("Entering user-defined handle() body");
+						}
+						restResult = handleResult(actionResult, hasReturnValue, allowedReturnTypes);
+					} finally {
+						if (log.isTraceEnabled()) {
+							log.trace("Exiting user-defined handle() body");
+						}
+					}
 
 					return customizeResponse(actionResult, restResult);
 				} catch(Exception e) {
@@ -642,10 +691,10 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 			}
 			Meter.publishMeters();
 			// Allow garbage collection
-			forwardLogs.set(null);
-			captureLogs.set(null);
-			logMessages.set(null);
-			constructedContext.set(null);
+            forwardLogs.remove();
+            captureLogs.remove();
+            logMessages.remove();
+            constructedContext.remove();
 		}
 	}
 
@@ -658,21 +707,6 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	 * business logic of your API endpoint. All method parameters will be available
 	 * to it, as well as any class level attributes and effectively-final variables
 	 * in the endpoint method.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * {@literal @}GET
-	 * {@literal @}Path("endpoint/path")
-	 * public Response endpointMethod(@QueryParam("param") String parameter) {
-	 *     return handle(() -> {
-	 *         List<String> output = invokeBusinessLogicHere();
-	 *
-	 *         // Will be automatically transformed into a JSON response
-	 *         return output;
-	 *     });
-	 * }
-	 * ```
 	 *
 	 * @param action The action to execute after passing authorization checks
 	 * @return A valid JAX-RS {@link Response} object depending on the output of the PluginAction
@@ -966,7 +1000,8 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	/**
 	 * Performs some validation against the input, throwing an IllegalArgumentException if
 	 * the validation logic returns false. The exception will contain the failure message by
-	 * default.
+	 * default. You will provide a {@link PluginValidationCheck} implementation, typically
+	 * a lambda within your REST API entry point.
 	 *
 	 * If the validation check itself throws an exception, the output is the same as if the
 	 * check did not pass, except that the exception will be logged.

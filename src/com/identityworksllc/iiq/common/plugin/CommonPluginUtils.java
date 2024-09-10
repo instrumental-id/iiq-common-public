@@ -4,6 +4,7 @@ import com.identityworksllc.iiq.common.service.ServiceUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
+import sailpoint.api.logging.SyslogThreadLocal;
 import sailpoint.object.Attributes;
 import sailpoint.object.Filter;
 import sailpoint.object.QueryOptions;
@@ -13,9 +14,12 @@ import sailpoint.server.ServicerUtil;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.*;
 
 /**
  * Some utilities to avoid boilerplate
@@ -66,8 +70,64 @@ public class CommonPluginUtils {
 	private static final Log log = LogFactory.getLog(CommonPluginUtils.class);
 
 	/**
+	 * Utility classes should not be constructed
+	 */
+	private CommonPluginUtils() {
+
+	}
+
+	/**
+	 * Attempts to find the Client IP, either via the request header X-FORWARDED-FOR (set
+	 * by load balancers and reverse proxies), or via the request itself.
+	 *
+	 * @param request The {@link HttpServletRequest} object
+	 * @return The client IP in an {@link Optional}, if it's available
+	 */
+	public static Optional<String> getClientIP(HttpServletRequest request) {
+		String remoteAddr = null;
+		if (request != null) {
+			remoteAddr = request.getHeader("X-FORWARDED-FOR");
+			if (Util.isNullOrEmpty(remoteAddr)) {
+				remoteAddr = request.getRemoteAddr();
+			}
+		}
+		return Optional.ofNullable(remoteAddr);
+	}
+
+	/**
+	 * Gets the exception mapping
+	 * @param t The exception to convert into a Map
+	 * @param includeStackTrace True if we should include the stack trace in the response
+     * @return The exception transformed into a mapping
+	 */
+	public static Map<String, Object> getExceptionMapping(Throwable t, boolean includeStackTrace) {
+		Objects.requireNonNull(t);
+
+		Map<String, Object> responseMap = new HashMap<>();
+		responseMap.put("exception", t.getClass().getName());
+		responseMap.put("message", t.getMessage());
+		responseMap.put("quickKey", SyslogThreadLocal.get());
+		if (t.getCause() != null) {
+			responseMap.put("parentException", t.getCause().getClass().getName());
+			responseMap.put("parentMessage", t.getCause().getMessage());
+		}
+		if (includeStackTrace) {
+			try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
+				t.printStackTrace(pw);
+
+				pw.flush();
+
+				responseMap.put("stackTrace", sw.toString());
+			} catch(IOException ignored) {
+				/* Swallow this */
+			}
+		}
+		return responseMap;
+	}
+
+	/**
 	 * Executes the task given by the functional {@link SingleServerExecute} if this
-	 * server is the alphabetically lowest server on which this Service is allowed
+	 * server is the alphabetically lowest active server on which this Service is allowed
 	 * to run. Server names are sorted by the database using an 'order by' on query.
 	 *
 	 * This is intended to be used as the bulk of the execute() method of a Service
@@ -104,7 +164,7 @@ public class CommonPluginUtils {
 			executor.singleServerExecute(context);
 		}
 	}
-
+	
 	/**
 	 * Gets a map / JSON object indicating a status response
 	 * @param message The message to associate with the response
@@ -113,9 +173,9 @@ public class CommonPluginUtils {
 	public static Map<String, String> toStatusResponse(String message) {
 		return toStatusResponse(message, null);
 	}
-	
+
 	/**
-	 * Gets a map / JSON object indicating a status response with an optional error 
+	 * Gets a map / JSON object indicating a status response with an optional error
 	 * @param message The message to associate with the response
 	 * @param error The error to associate with the response
 	 * @return The response object
@@ -130,12 +190,5 @@ public class CommonPluginUtils {
 			}
 		}
 		return result;
-	}
-
-	/**
-	 * Utility classes should not be constructed
-	 */
-	private CommonPluginUtils() {
-
 	}
 }
