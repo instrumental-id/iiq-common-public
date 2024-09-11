@@ -22,6 +22,9 @@ import java.util.function.Supplier;
 /**
  * Static methods for implementing access checks. This is used directly by {@link ThingAccessUtils},
  * but allows migration to this better interface.
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 public final class AccessCheck {
     /**

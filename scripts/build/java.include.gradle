@@ -48,13 +48,22 @@ tasks.withType(Jar).configureEach {
     def gitVersion = System.getenv("CI_COMMIT_SHORT_SHA") ?: "${grgit?.head()?.abbreviatedId}"
     def year = LocalDate.now().year;
 
+    exclude "overview.html"
+
+    metaInf {
+        from "${project.rootDir}/LICENSE"
+
+        from "${project.rootDir}/NOTICE"
+    }
+
     manifest {
         attributes(
                 'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
                 'Build-Revision' : gitVersion ?: getDistVersion(),
                 'Created-By'     : "Gradle ${gradle.gradleVersion}",
                 'Subset'         : "Public",
-                'Copyright'      : "$year Identity Works LLC https://www.identityworksllc.com/"
+                'Repository'     : "https://git.identityworksllc.com/pub/iiqcommon",
+                'Copyright'      : "$year Instrumental Identity (formerly Identity Works LLC) https://www.instrumentalidentity.com/"
         )
     }
 }
@@ -69,7 +78,7 @@ tasks.register('java11doc', JavaExec) {
 
     classpath sourceSets.main.compileClasspath
     mainClass = 'jdk.javadoc.internal.tool.Main'
-    args = ['-doctitle', "IDW IIQ Common (public)",
+    args = ['-doctitle', "Instrumental ID iiq-common-public",
             '-use',
             '-linksource',
             '-link', 'https://docs.oracle.com/en/java/javase/11/docs/api/',
@@ -78,6 +87,7 @@ tasks.register('java11doc', JavaExec) {
             '-doclet', 'org.jdrupes.mdoclet.MDoclet',
             '-docletpath', (configurations.named("markdownDoclet").get().files as List).join(":"),
             '-d', file("${project.buildDir}/docs/javadoc"),
+            '-overview', file("src/overview.html"),
             '-sourcepath', 'src/',
             '-subpackages', 'com.identityworksllc.iiq.common',
             '-Xdoclint:-html'

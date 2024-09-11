@@ -61,6 +61,9 @@ import java.util.*;
  * IMPORTANT IMPORTANT IMPORTANT!!! MAINTAINER NOTE:
  * Do not modify this class unless you know what you are doing, because this matcher sits behind FakeContext,
  * which itself is behind the offline IIQCommon tests. You may break the offline tests. Verify everything.
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 public class HybridObjectMatcher extends HybridReflectiveMatcher {
 

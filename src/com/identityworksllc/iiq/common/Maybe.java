@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common;
 
+import com.identityworksllc.iiq.common.annotation.Experimental;
+
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -19,6 +21,7 @@ import java.util.function.Predicate;
  *
  * @param <T> The type that this object might contain
  */
+@Experimental
 public final class Maybe<T> {
     /**
      * A consumer extension that handles the Maybe concept. If the Maybe has a

@@ -3,7 +3,11 @@
 
 == Introduction
 
-This repository contains a "minimal" subset of IDW's broader IIQCommon library. These utilities do not represent the full power of IIQCommon, but they should be sufficient to make IIQ development easier.
+IIQCommon is a utility library used in virtually all of our SailPoint IdentityIQ installations and plugins. This is the ever-expanding open source portion of this library, published under the Apache License 2.0. Feel free to create an account https://git.identityworksllc.com/pub/iiqcommon[on our Gitlab] to report issues or submit pull requests.
+
+This repository is also https://github.com/instrumental-id/iiq-common-public[mirrored to Github.com].
+
+https://instrumentalidentity.com/javadoc/iiq-common-public/index.html[Library Javadocs may be accessed at any time on Instrumental ID's site.]
 
 == Maven repository
 
@@ -52,11 +56,11 @@ The Maven coordinates for the library are:
 
 You can build this library with JDK 8, JDK 11, or JDK 17.
 
-The code style is consistent with JDK 8 so that the library will be compatible with existing IIQ installations.
+The code level is set to JDK 8 so that the library will be compatible with existing IIQ installations.
 
 === Supplying the IIQ dependencies
 
-IDW cannot distribute SailPoint's proprietary binaries, so you must supply them yourself.
+IDW cannot distribute SailPoint's proprietary IIQ binaries, so you must supply them yourself.
 
 Insert the following JAR files from your IIQ version in the `lib/sailpoint` folder. (These files can be found in any IIQ WAR file at `WEB-INF/lib`.)
 

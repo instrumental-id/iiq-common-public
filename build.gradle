@@ -63,7 +63,7 @@ if (JavaVersion.current().isJava8()) {
     apply plugin: "org.jdrupes.mdoclet"
 }
 
-def getDistVersion() {
+static def getDistVersion() {
     def branch = System.getenv('CI_COMMIT_BRANCH')
 
     def now = new Date()

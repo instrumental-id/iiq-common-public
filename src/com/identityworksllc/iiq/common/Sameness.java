@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
  * Utility methods for detecting whether two objects are the same, since IIQ is inconsistent about it.
  * The primary method in here is {@link Sameness#isSame(Object, Object, boolean)}. This class
  * is heavily used throughout the IIQCommon libraries as well as the IDW plugins.
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 public class Sameness {
     private static final Log log = LogFactory.getLog(Sameness.class);

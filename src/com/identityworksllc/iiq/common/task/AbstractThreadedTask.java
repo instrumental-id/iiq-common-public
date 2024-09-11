@@ -66,6 +66,9 @@ import java.util.function.Consumer;
  * This class makes a best effort to invoke all termination handlers.
  *
  * @param <T> The type of input object that will be passed to threadExecute.
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor implements PrivateContextObjectConsumer<T> {
 

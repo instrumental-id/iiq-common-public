@@ -70,6 +70,9 @@ import java.util.stream.Stream;
 /**
  * Static utility methods that are useful throughout any IIQ codebase, supplementing
  * SailPoint's {@link Util} in many places.
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 @SuppressWarnings("unused")
 public class Utilities {

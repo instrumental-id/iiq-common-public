@@ -11,6 +11,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The base class for each Utilities class that contains common functions to all
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 @SuppressWarnings("unused")
 public abstract class AbstractBaseUtility {

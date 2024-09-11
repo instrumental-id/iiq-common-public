@@ -1,6 +1,7 @@
 package com.identityworksllc.iiq.common.vo;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreType;
+import com.identityworksllc.iiq.common.annotation.Experimental;
 
 /**
  * Can be used via Jackson's {@link com.fasterxml.jackson.databind.ObjectMapper#addMixInAnnotations(Class, Class)}
@@ -17,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreType;
  *
  * https://www.baeldung.com/jackson-ignore-properties-on-serialization
  */
+@Experimental
 @JsonIgnoreType
 public class MixinIgnoreType {
 }

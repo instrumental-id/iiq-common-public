@@ -88,7 +88,10 @@ import java.util.function.Function;
  * by calling {@link #setTerminationRegistrar(Consumer)}. Your termination logic
  * MUST invoke any callbacks registered with your consumer.
  *
- * * @param <ItemType>
+ * @param <ItemType>
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 public class BasicObjectRetriever<ItemType> implements ObjectRetriever<ItemType> {
     /**

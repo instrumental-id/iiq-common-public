@@ -49,7 +49,7 @@ import static com.identityworksllc.iiq.common.Utilities.getProperty;
  *
  * For example, you could do something like:
  *
- * <code>
+ * ```
  * someMethod(Object item) {
  *     // Beanshell function that does something interesting with the item
  * }
@@ -58,8 +58,10 @@ import static com.identityworksllc.iiq.common.Utilities.getProperty;
  * someMethodFunction = Functions.c(this, "someMethod");
  *
  * list.forEach(someMethodFunction);
- * </code>
+ * ```
  *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 @SuppressWarnings({"rawtypes", "unused"})
 public class Functions {

@@ -14,6 +14,7 @@ import java.util.Map;
 /**
  * Type-safe fluent API for creating HTML tables from data inputs. Usage examples:
  *
+ * ```
  *  Table table = new Table();
  *
  *  (Populating a table with individual cell data)
@@ -40,6 +41,10 @@ import java.util.Map;
  *  table
  *      .row(headers).header()
  *      .rows(rowData);
+ * ```
+ *
+ * @author Devin Rosenbauer
+ * @author Instrumental Identity
  */
 @SuppressWarnings("unused")
 public class Table extends Element {
