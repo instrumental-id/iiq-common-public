@@ -87,7 +87,7 @@ tasks.register('java11doc', JavaExec) {
             '-doclet', 'org.jdrupes.mdoclet.MDoclet',
             '-docletpath', (configurations.named("markdownDoclet").get().files as List).join(":"),
             '-d', file("${project.buildDir}/docs/javadoc"),
-            '-overview', file("src/overview.html"),
+            '-overview', file("${project.rootDir}/src/overview.html"),
             '-sourcepath', 'src/',
             '-subpackages', 'com.identityworksllc.iiq.common',
             '-Xdoclint:-html'
