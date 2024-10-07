@@ -50,13 +50,19 @@ The Maven coordinates for the library are:
 * Artifact ID: `iiq-common-public`
 * Version: A non-semver date string in the format `yyyyMM.dd.HHmmss` (e.g., `202310.03.170641`)
 
+== Releases
+
+Certain releases will be forked into branches. These will receive backports of significant bug fixes, but are not expected to receive major new functionality. Furthermore, these releases are intended to be stable against a target JDK and a target IIQ version. 
+
+* `release/2024.10.07`: Stable with JDK 8 and IIQ 8.1 through 8.4.
+
 == Building the library
 
 === JDK version
 
 You can build this library with JDK 8, JDK 11, or JDK 17.
 
-The code level is set to JDK 8 so that the library will be compatible with existing IIQ installations.
+For 2024 releases, the code level is set to JDK 8 so that the library will be compatible with existing IIQ installations.
 
 === Supplying the IIQ dependencies
 
