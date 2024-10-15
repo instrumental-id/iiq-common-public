@@ -91,9 +91,8 @@ public class AccessHistory {
      * @return The access history context, or an empty optional if not available
      */
     public Optional<SailPointContext> getAccessHistoryContext() throws GeneralException {
-        String version = Version.getVersion();
-        boolean is84 = Util.isNotNullOrEmpty(version) && (version.compareTo("8.4") >= 0);
-        if (is84 && this.isAccessHistoryEnabled()) {
+        boolean is84 = Utilities.isIIQVersionAtLeast(CommonConstants.VERSION_8_4);
+        if (this.isAccessHistoryEnabled()) {
             try {
                 if (cachedAccessHistoryContextGetMethod.get() == null) {
                     Class<?> ahu = Class.forName("sailpoint.accesshistory.AccessHistoryUtil");
@@ -106,12 +105,13 @@ public class AccessHistory {
             } catch (NoSuchMethodException | SecurityException | IllegalAccessException e) {
                 log.debug("Caught an exception constructing the 8.4 access history feature", e);
             } catch(ClassNotFoundException e) {
+                log.warn("This environment appears to be 8.4, but AccessHistoryUtil was not found", e);
                 throw new GeneralException("This environment appears to be 8.4, but AccessHistoryUtil was not found", e);
             } catch (InvocationTargetException e) {
                 throw new GeneralException("Exception thrown while constructing the AH Environment", e);
             }
         } else {
-            log.debug("Access history is not available and/or enabled (version = " + version + ")");
+            log.debug("Access history is not available or is not enabled (version = " + Version.getVersion() + ")");
         }
 
         return Optional.empty();
@@ -122,9 +122,7 @@ public class AccessHistory {
      * @return The access history environment, or an empty optional if not available
      */
     public Optional<Environment> getAccessHistoryEnvironment() throws GeneralException {
-        String version = Version.getVersion();
-        boolean is84 = Util.isNotNullOrEmpty(version) && (version.compareTo("8.4") >= 0);
-        if (is84 && this.isAccessHistoryEnabled()) {
+        if (this.isAccessHistoryEnabled()) {
             try {
                 if (cachedAccessHistoryEnvGetMethod.get() == null) {
                     Method method = Environment.class.getMethod("getEnvironmentAccessHistory");
@@ -134,29 +132,31 @@ public class AccessHistory {
 
                 return Optional.of(ahEnvironment);
             } catch (NoSuchMethodException | SecurityException | IllegalAccessException e) {
-                log.debug("Caught an exception constructing the 8.4 access history feature", e);
+                this.accessHistoryEnabled.set(false);
+                log.warn("Caught an exception accessing the 8.4 access history feature", e);
             } catch (InvocationTargetException e) {
+                this.accessHistoryEnabled.set(false);
+                log.warn("Caught an exception accessing the 8.4 access history feature", e);
                 throw new GeneralException("Exception thrown while constructing the AH Environment", e);
             }
         } else {
-            log.debug("Access history is not available and/or enabled (version = " + version + ")");
+            log.debug("Access history is not available and/or enabled (version = " + Version.getVersion() + ")");
         }
 
         return Optional.empty();
     }
 
     /**
-     * Returns true if access history is enabled. The result will be cached
+     * Returns true if access history is available and enabled. The result will be cached
      * so that reflection is not used for every call of this method.
      *
-     * @return True, if this is 8.4 and access history is enabled
+     * @return True, if this is 8.4 or higher, and access history is enabled
      */
     public boolean isAccessHistoryEnabled() {
         if (accessHistoryEnabled.get() != null) {
             return accessHistoryEnabled.get();
         }
-        String version = Version.getVersion();
-        boolean is84 = Util.isNotNullOrEmpty(version) && (version.compareTo("8.4") >= 0);
+        boolean is84 = Utilities.isIIQVersionAtLeast(CommonConstants.VERSION_8_4);
         if (is84) {
             try {
                 boolean enabled = (boolean) Version.class.getMethod("isAccessHistoryEnabled").invoke(null);
