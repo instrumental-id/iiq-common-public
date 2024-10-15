@@ -13,14 +13,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.Velocity;
-import sailpoint.api.MessageAccumulator;
-import sailpoint.api.ObjectAlreadyLockedException;
-import sailpoint.api.ObjectUtil;
-import sailpoint.api.PersistenceManager;
-import sailpoint.api.SailPointContext;
-import sailpoint.api.SailPointFactory;
+import sailpoint.Version;
+import sailpoint.api.*;
 import sailpoint.object.*;
 import sailpoint.plugin.PluginsCache;
+import sailpoint.plugin.PluginsUtil;
 import sailpoint.rest.BaseResource;
 import sailpoint.server.AbstractSailPointContext;
 import sailpoint.server.Environment;
@@ -44,6 +41,7 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
+import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -129,6 +127,11 @@ public class Utilities {
 	 * Indicates whether velocity has been initialized in this Utilities class
 	 */
 	private static final AtomicBoolean VELOCITY_INITIALIZED = new AtomicBoolean();
+
+	/**
+	 * The static map used to cache version comparisons in {@link #compareVersions(String, String)}
+	 */
+	private static final Map<Pair<String, String>, Integer> VERSION_COMPARE_MAP = new HashMap<>();
 
 	/**
 	 * The internal logger
@@ -279,9 +282,124 @@ public class Utilities {
 	}
 
 	/**
+	 * Iterates through the {@link CustomGlobal}, removing any object with the prefix
+	 * plus older plugin versions. For example, if you have just added new versioned
+	 * object 'some.object.2', because the plugin version is 2, you will want to remove
+	 * 'some.object.1' and 'some.object.0' if they exist. This method does that.
+	 *
+	 * Note that the final dot in 'some.object.' is part of the prefix that you must
+	 * provide. This method will NOT assume that the prefix ought to end with a dot.
+	 *
+	 * @param prefix The prefix
+	 * @param currentVersion The current object version
+	 */
+	public static void cleanVersionedCache(String prefix, int currentVersion) {
+		// Clean up previous versions of the cache
+		for(int i = currentVersion - 1; i >= 0; i--) {
+			CustomGlobal.remove(prefix + i);
+		}
+	}
+
+	/**
+	 * Compares two semantic version numbers and returns an appropriate ordering.
+	 *
+	 * Returns a positive value if the first semantic version string in the form `x.y.z` is
+	 * higher than the second semantic version string, 0 if they are equal, and -1 if the
+	 * second version string is higher.
+	 *
+	 * Components of the versions are parsed as whole integers and compared one at a time -
+	 * 1.10 is read as "one point ten" and a higher version than 1.1, even though they'd
+	 * be the same number if parsed as floating point values.
+	 *
+	 * Values containing non-numeric characters will be considered equal to 0.
+	 *
+	 * If one string is shorter than the other, the missing segments will be treated as zeroes.
+	 * 2.5 and 2.5.0 are the same, while 2.5 is a lower version than 2.5.1.
+	 *
+	 * The results are cached in {@link #VERSION_COMPARE_MAP}.
+	 *
+	 * The following comparisons will hold:
+	 *
+	 *  - "" < 0
+	 *  - 1 = 1
+	 *  - 1.10 > 1.1
+	 *  - 2 > 1
+	 *  - 2.0 > 1.0
+	 *  - 2.1 > 2.0
+	 *  - 2.12 > 2.2
+	 *  - 2.5.0 = 2.5
+	 *  - 2.5.1 > 2.5
+	 *  - 2.5.b3 = 2.5
+	 *
+	 * Results are cached for efficiency.
+	 *
+	 * @param first The first version string to compare
+	 * @param second The second version string to compare
+	 * @return True if the first version string is greater than or equal to the second
+	 */
+	public static int compareVersions(String first, String second) {
+		// Trivial true if they're the same
+		if (Util.nullSafeEq(first, second)) {
+			return 0;
+		}
+
+		// Empty values always sort 'earlier' than non-empty values
+		if (Util.isNullOrEmpty(first) && Util.isNotNullOrEmpty(second)) {
+			return -1;
+		}
+
+		if (Util.isNullOrEmpty(second) && Util.isNotNullOrEmpty(first)) {
+			return 1;
+		}
+
+		Pair<String, String> pair = Pair.make(first, second);
+
+		if (VERSION_COMPARE_MAP.containsKey(pair)) {
+			return VERSION_COMPARE_MAP.get(pair);
+		}
+
+		String[] pieces1 = first.trim().split("\\.");
+		String[] pieces2 = second.trim().split("\\.");
+
+		int result = 0;
+
+		int biggestPieces = Math.max(pieces1.length, pieces2.length);
+		for(int i = 0; i < biggestPieces; i++) {
+			int p1 = 0;
+			int p2 = 0;
+
+			if (pieces1.length > i) {
+				try {
+					p1 = Integer.parseInt(pieces1[i]);
+				} catch(NumberFormatException e) {
+					logger.debug("Not a version number string: " + pieces1[i]);
+				}
+			}
+			if (pieces2.length > i) {
+				try {
+					p2 = Integer.parseInt(pieces2[i]);
+				} catch(NumberFormatException e) {
+					logger.debug("Not a version number string: " + pieces2[i]);
+				}
+			}
+
+			int compareResult = Integer.compare(p1, p2);
+
+			if (compareResult != 0) {
+				result = compareResult;
+				break;
+			}
+		}
+
+		VERSION_COMPARE_MAP.put(pair, result);
+
+		return result;
+	}
+
+	/**
 	 * Gets a global singleton value from CustomGlobal. If it doesn't exist, uses
-	 * the supplied factory (in a synchronized thread) to create it.
-	 * <p>
+	 * the supplied factory (in a synchronized block) to create it.
+	 *
 	 * NOTE: This should NOT be an instance of a class defined in a plugin. If the
 	 * plugin is redeployed and its classloader refreshes, it will cause the return
 	 * value from this method to NOT match the "new" class in the new classloader,
@@ -1209,25 +1327,6 @@ public class Utilities {
 	}
 
 	/**
-	 * Iterates through the {@link CustomGlobal}, removing any object with the prefix
-	 * plus older plugin versions. For example, if you have just added new versioned
-	 * object 'some.object.2', because the plugin version is 2, you will want to remove
-	 * 'some.object.1' and 'some.object.0' if they exist. This method does that.
-	 *
-	 * Note that the final dot in 'some.object.' is part of the prefix that you must
-	 * provide. This method will NOT assume that the prefix ought to end with a dot.
-	 *
-	 * @param prefix The prefix
-	 * @param currentVersion The current object version
-	 */
-	public static void cleanVersionedCache(String prefix, int currentVersion) {
-		// Clean up previous versions of the cache
-		for(int i = currentVersion - 1; i >= 0; i--) {
-			CustomGlobal.remove(prefix + i);
-		}
-	}
-
-	/**
 	 * Gets a {@link ConcurrentHashMap} from {@link CustomGlobal} that will be replaced with a new,
 	 * empty Map whenever the plugin version is incremented. This will prevent plugins from
 	 * accidentally accessing objects from an older version of the plugin classloader.
@@ -1688,6 +1787,18 @@ public class Utilities {
 			return (numValue == 1);
 		}
 		return false;
+	}
+
+	/**
+	 * Returns true if the IIQ version is at least the given version, using
+	 * {@link Utilities#compareVersions(String, String)} to compare the two.
+	 *
+	 * @param versionToCheck The version to check
+	 * @return True if the system version is at least the given version
+	 */
+	public static boolean isIIQVersionAtLeast(String versionToCheck) {
+		String systemVersion = Version.getVersion();
+		return Util.isNotNullOrEmpty(systemVersion) && compareVersions(systemVersion, versionToCheck) >= 0;
 	}
 
 	/**
