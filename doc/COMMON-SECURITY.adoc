@@ -1,28 +1,40 @@
-= ThingAccessUtils
+= ThingAccessUtils and AccessCheck
+:toc:
 
-The *ThingAccessUtils* class is responsible for making an authorization decision based on a configuration, a subject identity, and an optional target identity. It is available in the '-public' IIQCommon JAR.
+The *ThingAccessUtils* class is responsible for making an authorization decision based on a configuration, a subject identity, and an optional target identity. It is available in https://git.identityworksllc.com/pub/iiqcommon[iiq-common-public].
+
+[sidebar]
+As of August 2024, *ThingAccessChecks* forwards to *AccessCheck*, which features more robust inputs and outputs.
 
 == APIs
 
 You may invoke any of the `checkThingAccess` methods in *ThingAccessUtils*.
 
-NOTE: All of the API variants require a `BasePluginResource` for extracting the caller context and other information. If you are invoking this utility from some other context, you can use `ThingAccessUtils.createFakePluginContext` to create a mock context for passing to these methods.
+For a more robust API, use `AccessCheck.checkAccess`, passing an instance of `AccessCheckInput`. You will receive an `AccessCheckResponse` containing the outcome and various metadata.
+
+All API variants require either a `UserContext` for extracting the caller context and other information. From a plugin REST API, this can simply be your instance of `BasePluginResource`. If you pass only a `UserContext` that is not also a `PluginContext`, the _settingOffSwitch_ option must be prefixed with a plugin name, such as _MyPlugin:SettingName_.
 
 If you desire more full-featured output, you should construct an `AccessCheckInput` object, providing the parameters. When you invoke that API method, the `AccessCheckResponse` will contain more details about which checks passed and failed.
 
-== Configuration objects
+== Subject and target identities
 
-Options may be specified as either a `Map`, with these identifiers as the keys, or as a `CommonSecurityConfig` object.
+The _subject user_ or _requester_ is the Identity whose access to do a thing is being checked. It's usually the Identity logged in to the user interface or invoking an API. If Sam is viewing Bob's identity page, Sam is the _subject_ and Bob is the _target_. Controls that would evaluate against Bob will have _Target_ in the name, such as "validTargetFilter". Other controls would evaluate against Sam.
 
-Access control options, in order of evaluation, are:
+Some access checks (e.g., to see if a certain user can receive notifications at all) don't have the concept of a target. In those cases, the access check is run with the same Identity (Sam, in the example above) as _both subject and target_.
+
+== Configuration object
+
+Options may be specified as either a `Map`, with these identifiers as the keys, or as a more type-safe `CommonSecurityConfig` object.
+
+Common Security constraints, in order of evaluation, are:
 
 * `disabled`: If set to `true`, access is denied for all users.
 * `oneOf`: Contains a nested list of Common Security maps and allows access if any spec in the list allows access.
 * `allOf`: Contains a nested list of Common Security maps and allows access if all of the specs in the list allow access.
 * `not`: Contains a single nested Common Security map and inverts it. Allows access only if the nested spec does *not* allow access.
 * `settingOffSwitch`: If the given plugin setting is _true_, access is not allowed for any user.
-* `accessCheckScript`: If the given Beanshell script returns boolean _true_, access is allowed. Otherwise, access is denied. The script will be passed an _identity_ (the target identity being viewed) and _requester_ (the subject identity doing the viewing).
-* `accessCheckRule`: If the specified Beanshell Rule returns boolean _true_, access is allowed. Otherwise, access is denied. The Rule will be passed an _identity_ (the target identity being viewed) and _requester_ (the subject identity doing the viewing).
+* `accessCheckScript`: If the given Beanshell script returns boolean _true_, access is allowed. For any other non-null output, access is denied. The script will be passed an _identity_ (the target identity being viewed) and _requester_ (the subject identity doing the viewing).
+* `accessCheckRule`: If the specified Beanshell Rule returns boolean _true_, access is allowed. For any other non-null output, access is denied. The Rule will be passed an _identity_ (the target identity being viewed) and _requester_ (the subject identity doing the viewing).
 * `requiredRights`: Access is allowed if the subject user has _any_ of the listed SPRights.
 * `excludedRights`: Access is allowed if the subject user has _none_ of the listed SPRights.
 * `requiredCapabilities`: Access is allowed if the subject user has _any_ of the listed Capabilities.
@@ -30,6 +42,7 @@ Access control options, in order of evaluation, are:
 * `requiredWorkgroups`: Access is allowed if the subject user is in _any_ of the listed workgroups.
 * `excludedWorkgroups`: Access is allowed if the subject user is in _none_ of the listed workgroups.
 * `accessCheckSelector`: Access is allowed if the subject user matches the given IdentitySelector. This is where you would specify a Filter for access control, for example.
+* `mirrorRole`: Access is allowed if the given role's selector would apply to the subject user. This is a reliable way to allow access based on role memberships, since the appropriate metadata may not be saved to the Identity at the time of an access check.
 * `mirrorQuicklinkPopulation`: Access is allowed if the combination of subject user and target user would be allowed by the given QuickLink Population.
 * `validTargetExcludedRights`: Access is allowed if the target user _does not_ have any of the listed SPRights.
 * `validTargetExcludedCapabilities`: Access is allowed if the target user _does not_ have any of the listed Capabilities.
@@ -39,12 +52,12 @@ Access control options, in order of evaluation, are:
 * `validTargetSelector`: Access is allowed if the action _target_ matches the given selector.
 * `validTargetFilter`: Access is allowed if the action _target_ matches the given filter string.
 
+=== Metadata
 
-=== Subject and target identities
+Access restriction objects also have two metadata fields:
 
-The _subject user_ or _requester_ is the person who is logged into the UI, using a plugin feature. If Sam is viewing Bob's identity page, Sam is the _subject_ and Bob is the _target_. Controls that would apply to Bob will have "Target" in the name, such as "validTargetFilter". Other controls would apply to Sam.
-
-Some access checks (e.g., to see if a certain user can receive notifications) don't have the concept of a target. In those cases, the access check is run with the same Identity (Sam, in the example) as _both_ subject and target.
+* `description`: A verbal description of the restrictions, used for human consumption only at this time.
+* `noCache`: If present and set to _true_, access check results will not be cached.
 
 === Short-circuiting
 
@@ -52,7 +65,9 @@ If any particular access check results in a _deny_ response, restrictions farthe
 
 === Access check Beanshell is authoritative
 
-If an `accessCheckScript` or `accessCheckRule` is provided, a non-null output is considered authoritative and final. Further restrictions are not evaluated. A null result will continue to restrictions farther down the list.
+If an `accessCheckScript` or `accessCheckRule` is provided, a non-null output is considered authoritative and final. Further restrictions are not evaluated.
+
+A null result will continue to evaluate constraints farther down the list.
 
 === Error handling
 
@@ -68,9 +83,35 @@ By default, *ThingAccessUtils* results will be cached for 60 seconds. The cache 
 
 To manually clear the cache (e.g., from Beanshell), you may invoke `ThingAccessUtils.clearCachedResults()`.
 
-== Metadata
+== Custom access checks
 
-Access restriction objects also have two metadata fields:
+If you wish, you can implement your own entirely custom access check by creating a class that implements the following interface:
 
-* `description`: A verbal description of the restrictions, used for human consumption only at this time.
-* `noCache`: If present and set to _true_, access check results will not be cached.
+`org.apache.commons.lang3.function.FailableConsumer<Map<String, Object>, GeneralException>`
+
+An instance of your class will be constructed and its `accept` method invoked _before_ any other Common Security access checks _other than 'disabled'_.
+
+In your `accept` method, do your custom access check and invoke the correct methods on the supplied `AccessCheckResponse` object. Access will be allowed if you do nothing.
+
+Specify the name of your class in the SystemConfiguration property `IIQCommon.ThingAccessUtils.customCheckClass`. (If your class is part of a plugin, you must also specify the plugin name using `IIQCommon.ThingAccessUtils.customCheckPlugin`.)
+
+Your `accept` method must be thread-safe, because there is no guarantee that a new instance will be constructed for any particular access check.
+
+The supplied `Map` will contain at least the following keys:
+
+* `context`: A `SailPointContext` for the current thread. You should use this in preference to building your own.
+* `input`: The instance of `AccessCheckInput`
+* `response`: The instance of `AccessCheckResponse`.
+* `subject` and `requester`: The Identity whose access is being checked.
+* `target` and `identity`: The Identity target of the action being attempted (or the same as `subject` if not specified).
+* `name`: The String name of the thing being requested.
+* `config`: A Map rendition of the `CommonSecurityConfig` passed to the access check.
+* `state`: A Map containing any state passed to the access check.
+
+=== Denying access
+
+NOTE: If you do not deny access, the remainder of the Common Security constraints will be checked, as usual. Allowing (or failing to deny) access from your custom configuration does not bypass remaining checks.
+
+To deny access, after retrieving the `AccessCheckResponse` from the Map, you can invoke something like: `response.deny()` or `response.denyMessage("Custom denial message")`. Both of these will mark the access check denied.
+
+It is possible that your class may not be able to see the class of `AccessCheckResponse` that is provided to it. To permit your custom access checks to work across IIQ's many classloader contexts, the `AccessCheckResponse` class implements both `Consumer<Boolean>` and `BiConsumer<Boolean, String>`. These will always be available to your class. You can invoke `Consumer.accept(Boolean)` or `BiConsumer.accept(Boolean, String)` with a value of _false_ to deny access, with an optional message.

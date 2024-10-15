@@ -1,14 +1,18 @@
 package com.identityworksllc.iiq.common.access;
 
 import com.identityworksllc.iiq.common.*;
+import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.DynamicScopeMatchmaker;
 import sailpoint.api.Matchmaker;
+import sailpoint.api.Meter;
 import sailpoint.authorization.Authorizer;
 import sailpoint.authorization.UnauthorizedAccessException;
 import sailpoint.object.*;
+import sailpoint.plugin.PluginBaseHelper;
 import sailpoint.plugin.PluginContext;
+import sailpoint.plugin.PluginsUtil;
 import sailpoint.rest.plugin.BasePluginResource;
 import sailpoint.server.Environment;
 import sailpoint.tools.GeneralException;
@@ -22,6 +26,8 @@ import java.util.function.Supplier;
 /**
  * Static methods for implementing access checks. This is used directly by {@link ThingAccessUtils},
  * but allows migration to this better interface.
+ *
+ * @see ThingAccessUtils
  *
  * @author Devin Rosenbauer
  * @author Instrumental Identity
@@ -76,7 +82,8 @@ public final class AccessCheck {
      *
      * NOTE: It is very important that this work properly across plugin
      * classloader contexts, even if the plugin has its own version of
-     * ThingAccessUtils.
+     * ThingAccessUtils. The objects containing within this object are
+     * therefore all base JDK types, like {@link String} and {@link Map}.
      */
     public static final class SecurityCacheToken {
         /**
@@ -175,11 +182,11 @@ public final class AccessCheck {
     }
 
     /**
-     * Returns an 'allowed' response if the logged in user can access the item based on the
-     * common configuration parameters.
+     * Returns an 'allowed' response if the logged-in (subject) user can access the
+     * item based on the common configuration parameters and target defined.
      *
-     * Results for the same CommonSecurityConfig, source, and target user will be cached for up to one minute
-     * unless the CommonSecurityConfig object has noCache set to true.
+     * Results for the same {@link CommonSecurityConfig}, source, and target user will be
+     * cached for up to one minute unless the CommonSecurityConfig object has noCache set to true.
      *
      * @param input The input containing the configuration for the checkThingAccess utility
      * @return True if the user has access to the thing based on the configuration
@@ -194,6 +201,7 @@ public final class AccessCheck {
         }
 
         AccessCheckResponse result;
+        Meter.enterByName("AccessCheck.accessCheck");
         try {
             if (!input.getConfiguration().isNoCache()) {
                 SecurityCacheToken cacheToken = new SecurityCacheToken(input);
@@ -210,6 +218,8 @@ public final class AccessCheck {
             result = new AccessCheckResponse();
             result.denyMessage("Caught an exception evaluating criteria: " + e.getMessage());
             log.error("Caught an exception evaluating access criteria to " + input.getThingName(), e);
+        } finally {
+            Meter.exitByName("AccessCheck.accessCheck");
         }
         return result;
     }
@@ -224,6 +234,7 @@ public final class AccessCheck {
      */
     private static AccessCheckResponse accessCheckImpl(final AccessCheckInput input) throws GeneralException {
         AccessCheckResponse result = new AccessCheckResponse();
+
         UserContext pluginContext = input.getUserContext();
 
         final Identity currentUser = pluginContext.getLoggedInUser();
@@ -239,9 +250,14 @@ public final class AccessCheck {
             log.trace("START: Checking access for subject = " + currentUser.getName() + ", target = " + target.getName() + ", thing = " + thingName + ", config = " + config);
         }
 
-        if (config.isDisabled()) {
+        if (result.isAllowed() && config.isDisabled()) {
             result.denyMessage("Access denied to " + thingName + " because the configuration is marked disabled");
         }
+
+        if (result.isAllowed()) {
+            handleCustomAccessCheck(input, result);
+        }
+
         if (result.isAllowed() && Utilities.isNotEmpty(config.getOneOf())) {
             boolean anyMatch = false;
             for(CommonSecurityConfig sub : config.getOneOf()) {
@@ -284,9 +300,29 @@ public final class AccessCheck {
                 result.denyMessage("Access denied to " + thingName + " because at least one of the items in the 'not' list resolved to 'allow'");
             }
         }
-        if (result.isAllowed() && Util.isNotNullOrEmpty(config.getSettingOffSwitch()) && pluginContext instanceof PluginContext) {
-            boolean isDisabled = ((PluginContext) pluginContext).getSettingBool(config.getSettingOffSwitch());
-            if (isDisabled) {
+        if (result.isAllowed() && Util.isNotNullOrEmpty(config.getSettingOffSwitch())) {
+            String[] pieces = config.getSettingOffSwitch().split(":");
+            boolean settingEnabled = false;
+
+            if (pieces.length == 0) {
+                throw new IllegalArgumentException("Unable to resolve settingOffSwitch");
+            }
+            if (pieces.length == 1) {
+                String setting = config.getSettingOffSwitch().trim();
+                if (pluginContext instanceof PluginContext) {
+                    settingEnabled = ((PluginContext) pluginContext).getSettingBool(setting.trim());
+                } else {
+                    throw new IllegalStateException("A 'settingOffSwitch' must be used in a plugin context, or specify the plugin name before ':', such as 'MyPlugin:settingName'");
+                }
+            } else {
+                String plugin = pieces[0].trim();
+                String setting = pieces[1].trim();
+
+                result.addMessage("Checking plugin " + plugin + ", setting " + setting);
+
+                settingEnabled = PluginBaseHelper.getSettingBool(plugin, setting);
+            }
+            if (!settingEnabled) {
                 result.denyMessage("Access denied to " + thingName + " because the feature " + config.getSettingOffSwitch() + " is disabled in plugin settings");
             }
         }
@@ -336,8 +372,10 @@ public final class AccessCheck {
             } else {
                 scriptArguments.put("pluginContext", null);
             }
-            if (log.isTraceEnabled()) {
-                log.trace("Running access check rule " + config.getAccessCheckRule().getName() + " for subject = " + currentUserName + ", target = " + target.getName());
+            if (log.isTraceEnabled() || input.isDebug()) {
+                String message = "Running access check rule " + config.getAccessCheckRule().getName() + " for subject = " + currentUserName + ", target = " + target.getName();
+                result.addMessage(message);
+                log.trace(message);
             }
             Object output = pluginContext.getContext().runRule(config.getAccessCheckRule(), scriptArguments);
             // If the rule returns a non-null value, it will be considered the authoritative
@@ -643,6 +681,72 @@ public final class AccessCheck {
     }
 
     /**
+     * Handles a custom access check by constructing the class and invoking it.
+     *
+     * @param input The input to the access check
+     * @param result The output to be modified by the custom check
+     * @throws GeneralException if anything fails
+     */
+    private static void handleCustomAccessCheck(AccessCheckInput input, AccessCheckResponse result) throws GeneralException {
+        Metered.meter("AccessCheck.handleCustomAccessCheck", () -> {
+            Configuration systemConfig = Configuration.getSystemConfig();
+
+            // If a custom access check is defined, invoke it
+            String customImplPlugin = systemConfig.getString("IIQCommon.ThingAccessUtils.customCheckPlugin");
+            String customImpl = systemConfig.getString("IIQCommon.ThingAccessUtils.customCheckClass");
+            if (Util.isNotNullOrEmpty(customImpl)) {
+                UserContext pluginContext = input.getUserContext();
+
+                final Identity currentUser = pluginContext.getLoggedInUser();
+                final Identity target = (input.getTarget() != null) ? input.getTarget() : currentUser;
+                final String currentUserName = pluginContext.getLoggedInUserName();
+                final CommonSecurityConfig config = input.getConfiguration();
+                final String thingName = input.getThingName();
+
+                if (log.isTraceEnabled()) {
+                    log.trace("START: Custom access check for subject = " + currentUser.getName() + ", target = " + target.getName() + ", thing = " + thingName + ", custom class = " + customImpl);
+                }
+
+                Map<String, Object> scriptArguments = new HashMap<>();
+                scriptArguments.put("response", result);
+                scriptArguments.put("input", input);
+                scriptArguments.put("name", input.getThingName());
+                scriptArguments.put("config", config.toMap());
+                scriptArguments.put("subject", currentUser);
+                scriptArguments.put("target", target);
+                scriptArguments.put("requester", currentUser);
+                scriptArguments.put("identity", target);
+                scriptArguments.put("identityName", target.getName());
+                scriptArguments.put("manager", target.getManager());
+                scriptArguments.put("context", pluginContext.getContext());
+                scriptArguments.put("log", LogFactory.getLog(pluginContext.getClass()));
+                scriptArguments.put("state", input.getState());
+                if (pluginContext instanceof BasePluginResource) {
+                    scriptArguments.put("pluginContext", pluginContext);
+                } else {
+                    scriptArguments.put("pluginContext", null);
+                }
+
+                try {
+                    FailableConsumer<Map<String, Object>, GeneralException> accessCheck;
+                    if (Util.isNullOrEmpty(customImplPlugin)) {
+                        @SuppressWarnings("unchecked")
+                        FailableConsumer<Map<String, Object>, GeneralException> unchecked = (FailableConsumer<Map<String, Object>, GeneralException>) Class.forName(customImpl).getConstructor().newInstance();
+                        accessCheck = unchecked;
+                    } else {
+                        accessCheck = PluginsUtil.instantiate(customImplPlugin, customImpl, Plugin.ClassExportType.UNCHECKED);
+                    }
+                    accessCheck.accept(scriptArguments);
+                } catch(GeneralException e) {
+                    throw e;
+                } catch(Exception e) {
+                    throw new GeneralException(e);
+                }
+            }
+        });
+    }
+
+    /**
      * Returns true if the current user is a member of any of the given workgroups.
      * Note that this check is NOT recursive and does not check whether a workgroup
      * is a member of another workgroup.
@@ -667,10 +771,11 @@ public final class AccessCheck {
     }
 
     /**
-     * Returns a new {@link FluentAccessCheck}, permitting a nice flow-y API for this class.
+     * Returns a new {@link FluentAccessCheck}, permitting a nice flow-y API for access checks.
      *
      * For example:
      *
+     * ```
      *   AccessCheck
      *      .setup()
      *      .config(commonSecurityObject)
@@ -678,6 +783,7 @@ public final class AccessCheck {
      *      .subject(pluginResource) // contains the logged-in username, so counts as a subject
      *      .target(targetIdentity)
      *      .isAllowed()
+     * ```
      *
      * @return The fluent access check builder
      */

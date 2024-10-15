@@ -53,6 +53,10 @@ buildscript {
     }
 }
 
+plugins {
+    id "io.freefair.lombok" version "8.10"
+}
+
 apply plugin: 'checkstyle'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
@@ -112,10 +116,6 @@ repositories {
     maven {
         url "https://plugins.gradle.org/m2/"
     }
-
-    flatDir {
-        dirs "${libRoot}/sailpoint"
-    }
 }
 
 /**
@@ -136,12 +136,14 @@ configurations {
 def includeLib = fileTree(dir: "${libRoot}/included")
 includeLib.include "*.jar"
 
+def spLib = fileTree(dir: "${libRoot}/sailpoint")
+spLib.include ("identityiq.jar")
+spLib.include ("connector-bundle-identityiq.jar")
+
 dependencies {
     markdownDoclet "org.jdrupes.mdoclet:doclet:2.1.0"
 
-    compileOnly ":identityiq:"
-    compileOnly ":connector-bundle-identityiq:"
-
+    compileOnly spLib
     compileOnly includeLib
 
     toolLibraries 'info.picocli:picocli:4.+'
@@ -170,10 +172,10 @@ dependencies {
         exclude group: 'bouncycastle'
     }
 
+    testRuntimeOnly group: 'com.googlecode.juniversalchardet', name: 'juniversalchardet', version: '1.0.3'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
-    testImplementation ":identityiq:"
-    testImplementation ":connector-bundle-identityiq:"
+    testImplementation spLib
     testImplementation includeLib
 
     testRuntimeOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.20.1'

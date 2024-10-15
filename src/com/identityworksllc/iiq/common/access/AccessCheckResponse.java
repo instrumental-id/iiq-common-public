@@ -12,6 +12,7 @@ import com.identityworksllc.iiq.common.vo.LogLevel;
 import com.identityworksllc.iiq.common.vo.StampedMessage;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import sailpoint.api.MessageAccumulator;
 import sailpoint.tools.Message;
 import sailpoint.tools.Util;
 
@@ -22,12 +23,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
- * The output of {@link AccessCheck#accessCheck(AccessCheckInput)}.
+ * The output of {@link AccessCheck#accessCheck(AccessCheckInput)}, containing the
+ * results of the access check (allowed or not) and some metadata.
+ *
+ * This object can be safely serialized to JSON.
  */
 @JsonAutoDetect
-public class AccessCheckResponse implements Mappable {
+public class AccessCheckResponse implements Mappable, Consumer<Boolean>, BiConsumer<Boolean, String>, MessageAccumulator {
     /**
      * A logger used to record errors
      */
@@ -122,6 +128,40 @@ public class AccessCheckResponse implements Mappable {
         boolean result = Util.otob(input.get("allowed"));
 
         return new AccessCheckResponse(result, messages, timestamp);
+    }
+
+    /**
+     * A functional interface used to deny access to this thing, if your code
+     * happens to be called from a strange context.
+     *
+     * @param status True if access is allowed, false otherwise
+     */
+    @Override
+    public void accept(Boolean status) {
+        if (status != null) {
+            if (status) {
+                this.allowed.set(true);
+            } else {
+                this.allowed.set(false);
+            }
+        }
+    }
+
+    /**
+     * A functional interface used to deny access to this thing, with a message
+     * @param status True if access is allowed, false otherwise
+     * @param message A 'deny' message to be used in the deny case
+     */
+    @Override
+    public void accept(Boolean status, String message) {
+        if (status != null) {
+            if (status) {
+                this.allowed.set(true);
+                addMessage(message);
+            } else {
+                denyMessage(message);
+            }
+        }
     }
 
     /**
