@@ -24,7 +24,10 @@ import java.util.TimeZone;
  *
  * In particular, {@link com.identityworksllc.iiq.common.ThingAccessUtils} requires a
  * plugin context, which this can provide.
+ *
+ * @deprecated Use {@link com.identityworksllc.iiq.common.auth.DummyPluginResource}
  */
+@Deprecated
 public class MockPluginContext extends BasePluginResource {
     private static final Log log = LogFactory.getLog(MockPluginContext.class);
 
