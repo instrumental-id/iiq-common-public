@@ -30,13 +30,10 @@ public final class CommonConstants {
      * The Unix timestamp value in milliseconds of January 1 1950, midnight, UTC
      */
     public static final long EPOCH_1950 = -631152000000L;
-
-
     /**
-     * A standard timestamp format
+     * The common attribute name to use for filters
      */
-    public static final String STANDARD_TIMESTAMP = "yyyy-MM-dd HH:mm:ss Z";
-
+    public static final String FILTER_ATTR = "filter";
     /**
      * The CSV parser API as a function
      */
@@ -91,16 +88,33 @@ public final class CommonConstants {
      * A List intended to be passed to context.search to retrieve name only
      */
     public static final List<String> SEARCH_NAME = listOf("name");
-
+    /**
+     * A standard timestamp format
+     */
+    public static final String STANDARD_TIMESTAMP = "yyyy-MM-dd HH:mm:ss Z";
     /**
      * The common attribute used for threading across multiple requests and tasks
      */
     public static final String THREADS_ATTR = "threads";
 
     /**
-     * The common attribute name to use for filters
+     * Constant of the 8.2 version string
      */
-    public static final String FILTER_ATTR = "filter";
+    public static final String VERSION_8_2 = "8.2";
+
+    /**
+     * Constant of the 8.3 version string
+     */
+    public static final String VERSION_8_3 = "8.3";
+
+    /**
+     * Constant of the 8.4 version string
+     */
+    public static final String VERSION_8_4 = "8.4";
+
+    private CommonConstants() {
+        /* This class is not intended to be instantiated */
+    }
 
     /**
      * Private method to simulate List.of in pre-10 versions of Java
@@ -115,9 +129,5 @@ public final class CommonConstants {
             Collections.addAll(list, values);
         }
         return Collections.unmodifiableList(list);
-    }
-
-    private CommonConstants() {
-        /* This class is not intended to be instantiated */
     }
 }
