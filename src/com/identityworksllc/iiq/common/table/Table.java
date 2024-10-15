@@ -1,7 +1,11 @@
 package com.identityworksllc.iiq.common.table;
 
+import com.identityworksllc.iiq.common.Utilities;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import sailpoint.object.Application;
+import sailpoint.object.Identity;
+import sailpoint.object.Link;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
@@ -97,7 +101,7 @@ public class Table extends Element {
     /**
      * Creates a new Table and populates it with the given row data and options
      * @param rows The row data to add
-     * @param options The cell options
+     * @param options Any {@link CellOption} modifiers to apply to this cell
      * @throws GeneralException on failures applying the cell options
      */
     public Table(List<Object> rows, CellOption... options) throws GeneralException {
@@ -106,8 +110,73 @@ public class Table extends Element {
     }
 
     /**
+     * Adds a new cell to the current row containing the value of the given attribute
+     * of the given {@link Link}.
+     *
+     * @param application Application to extract the attribute from
+     * @param attribute The attribute name
+     * @param options Any {@link CellOption} modifiers to apply to this cell
+     * @return This table for fluent API chaining
+     * @throws GeneralException if extracting the attribute or adding the cell fails
+     */
+    public Table attributeCell(Application application, String attribute, CellOption... options) throws GeneralException {
+        Object value = application.getAttributeValue(attribute);
+
+        if (value instanceof String || value instanceof Collection) {
+            return this.cell(value, options);
+        } else {
+            return this.cell("", options);
+        }
+    }
+
+    /**
+     * Adds a new cell to the current row containing the value of the given attribute
+     * of the given {@link Link}. If the attribute is absent, or if it is not a String
+     * or Collection, it will be treated as an empty string.
+     *
+     * @param link Link to extract the attribute from
+     * @param attribute The attribute name
+     * @param options Any {@link CellOption} modifiers to apply to this cell
+     * @return This table for fluent API chaining
+     * @throws GeneralException if extracting the attribute or adding the cell fails
+     */
+    public Table attributeCell(Link link, String attribute, CellOption... options) throws GeneralException {
+        Object value = link.getAttribute(attribute);
+
+        if (value instanceof String || value instanceof Collection) {
+            return this.cell(value, options);
+        } else {
+            return this.cell("", options);
+        }
+    }
+
+    /**
+     * Adds a new cell to the current row containing the value of the given attribute
+     * of the given {@link Identity}. If the attribute is absent, or if it is not a String
+     * or Collection, it will be treated as an empty string.
+     *
+     * @param identity Identity to extract the attribute from
+     * @param attribute The attribute name
+     * @param options Any {@link CellOption} modifiers to apply to this cell
+     * @return This table for fluent API chaining
+     * @throws GeneralException if extracting the attribute or adding the cell fails
+     */
+    public Table attributeCell(Identity identity, String attribute, CellOption... options) throws GeneralException {
+        Object value = identity.getAttribute(attribute);
+
+        if (value instanceof String || value instanceof Collection) {
+            return this.cell(value, options);
+        } else {
+            return this.cell("", options);
+        }
+    }
+
+    /**
      * Adds a new cell to the current row with the given value content
      * @param value The value to add
+     * @param options Any {@link CellOption} modifiers to apply to this cell
+     * @return This Table object, for fluent API chaining
+     * @throws GeneralException if anything fails
      */
     public Table cell(Object value, CellOption... options) throws GeneralException {
         if (!builderState.singleInsertCells) {
@@ -146,6 +215,8 @@ public class Table extends Element {
      * the 'withCellClasses' classes, if any have been specified.
      *
      * @param cell The cell to add
+     * @return This Table object, for fluent chaining
+     * @throws GeneralException if adding the cell fails, usually because a {@link CellOption} failed
      */
     public Table cell(Cell cell) throws GeneralException {
         if (!builderState.singleInsertCells) {
