@@ -199,11 +199,11 @@ public class ExportIdentitiesPartition extends ExportPartition {
                                     Set<String> uniqueValues = new ListOrderedSet<>();
                                     uniqueValues.addAll(Util.otol(value));
                                     for (String val : uniqueValues) {
-                                        insertAttributeStatement.setString("attributeValue", Util.truncate(val, 4000));
+                                        insertAttributeStatement.setString("attributeValue", Util.truncate(val, 3996));
                                         insertAttributeStatement.addBatch();
                                     }
                                 } else {
-                                    insertAttributeStatement.setString("attributeValue", Util.truncate(Util.otoa(value), 4000));
+                                    insertAttributeStatement.setString("attributeValue", Util.truncate(Util.otoa(value), 3996));
                                     insertAttributeStatement.addBatch();
                                 }
                             }
