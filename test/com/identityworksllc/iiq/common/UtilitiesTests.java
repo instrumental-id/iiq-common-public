@@ -2,6 +2,7 @@ package com.identityworksllc.iiq.common;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import sailpoint.Version;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,6 +14,36 @@ import java.util.Map;
  * Tests for the {@link Utilities} class
  */
 public class UtilitiesTests {
+
+    @Test
+    public void testVersionComparisons() {
+        // -1 = first one is smaller
+        // 0  = same
+        // 1  = first one is bigger
+
+        Assertions.assertEquals(0, Utilities.compareVersions("", ""));
+        Assertions.assertEquals(-1, Utilities.compareVersions("", "1.0"));
+        Assertions.assertEquals(1, Utilities.compareVersions("1.0", ""));
+        Assertions.assertEquals(0, Utilities.compareVersions("1.1.0", "1.1"));
+        Assertions.assertEquals(0, Utilities.compareVersions("1.1.0", "1.1"));
+        Assertions.assertEquals(0, Utilities.compareVersions("1.0.0", "1.b3"));
+        Assertions.assertEquals(1, Utilities.compareVersions("1.1.0", "1.b3"));
+        Assertions.assertEquals(1, Utilities.compareVersions("1.10", "1.1"));
+
+        Assertions.assertEquals(1, Utilities.compareVersions("2.0", "1.0"));
+        Assertions.assertEquals(1, Utilities.compareVersions("2.0", "1"));
+        Assertions.assertEquals(1, Utilities.compareVersions("2.0", "1.15"));
+        Assertions.assertEquals(1, Utilities.compareVersions("2.5.1", "2.5"));
+
+        Assertions.assertTrue(Utilities.isIIQVersionAtLeast("6.2"));
+
+        // This also neatly enforces the minimum IIQ build version :)
+        Assertions.assertTrue(Utilities.isIIQVersionAtLeast("8.2"));
+
+        if (Version.getVersion().equals("8.4")) {
+            Assertions.assertTrue(Utilities.isIIQVersionAtLeast("8.4"));
+        }
+    }
 
     @Test
     public void testGlobalSingleton() {
