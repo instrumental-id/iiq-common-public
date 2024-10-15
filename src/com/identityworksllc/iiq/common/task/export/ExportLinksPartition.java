@@ -157,8 +157,40 @@ public class ExportLinksPartition extends ExportPartition {
                     }
 
                     Schema schema = schemaMap.get(applicationName);
+                    ObjectConfig linkConfig = Link.getObjectConfig();
 
                     Set<String> excludedColumns = excludedByApplication.get(applicationName);
+
+                    for (ObjectAttribute attribute : linkConfig.getObjectAttributes()) {
+                        if (attribute.isSystem() || attribute.isStandard()) {
+                            continue;
+                        }
+
+                        String attrName = attribute.getName();
+
+                        if (excludedColumns != null) {
+                            boolean excluded = excludedColumns.contains(attrName);
+                            if (excluded) {
+                                continue;
+                            }
+                        }
+
+                        Object value = attributes.get(attrName);
+                        if (!Utilities.isNothing(value)) {
+                            insertAttribute.setString("id", linkId);
+                            insertAttribute.setString("attributeName", attrName);
+
+                            if (attribute.isMulti()) {
+                                for (String val : Util.otol(value)) {
+                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(val, 3996));
+                                    insertAttribute.addBatch();
+                                }
+                            } else {
+                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(Util.otoa(value), 3996));
+                                insertAttribute.addBatch();
+                            }
+                        }
+                    }
 
                     for (AttributeDefinition attribute : schema.getAttributes()) {
                         String attrName = attribute.getName();
@@ -177,11 +209,11 @@ public class ExportLinksPartition extends ExportPartition {
 
                             if (attribute.isMulti()) {
                                 for (String val : Util.otol(value)) {
-                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(val, 4000));
+                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(val, 3996));
                                     insertAttribute.addBatch();
                                 }
                             } else {
-                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(Util.otoa(value), 4000));
+                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(Util.otoa(value), 3996));
                                 insertAttribute.addBatch();
                             }
                         }

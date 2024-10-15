@@ -189,6 +189,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
         efp.setName("Finalize export");
         efp.setPhase(4);
         efp.setDependentPhase(2);
+        efp.setConnectionInfo(connectionInfo);
         efp.setConfigurationName(configurationName);
         efp.setConfigHash(configHash);
         partitions.add(efp);
