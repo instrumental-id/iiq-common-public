@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.NonNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.tools.Message;
@@ -31,6 +32,53 @@ import java.util.function.Supplier;
 @JsonSerialize(using = StampedMessageSerializer.class)
 @JsonClassDescription("A message associated with a timestamp, akin to a log message from any logger tool")
 public class StampedMessage implements Serializable {
+
+    /**
+     * A Builder for a StampedMessage, allowing a fluent API if needed
+     */
+    public static final class Builder {
+        private Throwable exception;
+        private LogLevel level;
+        private String message;
+        private String thread;
+        private long timestamp;
+
+        private Builder() {
+        }
+
+        /**
+         * Builds a new {@link StampedMessage}
+         * @return A newly constructed {@link StampedMessage}
+         */
+        public StampedMessage build() {
+            return new StampedMessage(this);
+        }
+
+        public Builder withException(Throwable val) {
+            exception = val;
+            return this;
+        }
+
+        public Builder withLevel(LogLevel val) {
+            level = val;
+            return this;
+        }
+
+        public Builder withMessage(String val) {
+            message = val;
+            return this;
+        }
+
+        public Builder withThread(String val) {
+            thread = val;
+            return this;
+        }
+
+        public Builder withTimestamp(long val) {
+            timestamp = val;
+            return this;
+        }
+    }
 
     /**
      * The log logging logger
@@ -72,7 +120,7 @@ public class StampedMessage implements Serializable {
      * @param level The log level
      * @param message The message
      */
-    public StampedMessage(LogLevel level, String message) {
+    public StampedMessage(@NonNull LogLevel level, String message) {
         this(level, message, null);
     }
 
@@ -84,7 +132,7 @@ public class StampedMessage implements Serializable {
      * @param message The string message
      * @param exception The exception (or null)
      */
-    public StampedMessage(LogLevel level, String message, Throwable exception) {
+    public StampedMessage(@NonNull LogLevel level, String message, Throwable exception) {
         this.timestamp = System.currentTimeMillis();
         this.thread = Thread.currentThread().getName();
         this.level = Objects.requireNonNull(level);
@@ -96,7 +144,7 @@ public class StampedMessage implements Serializable {
      * Creates a log from a SailPoint Message object
      * @param message A Sailpoint message
      */
-    public StampedMessage(Message message) {
+    public StampedMessage(@NonNull Message message) {
         this(message, null);
     }
 
@@ -105,7 +153,7 @@ public class StampedMessage implements Serializable {
      * @param message The message object
      * @param throwable The error object
      */
-    public StampedMessage(Message message, Throwable throwable) {
+    public StampedMessage(@NonNull Message message, Throwable throwable) {
         this(message.isError() ? LogLevel.ERROR : (message.isWarning() ? LogLevel.WARN : LogLevel.INFO), message.getMessage(), throwable);
     }
 
@@ -113,7 +161,7 @@ public class StampedMessage implements Serializable {
      * Creates a basic INFO level log with the given string message
      * @param message The string message
      */
-    public StampedMessage(String message) {
+    public StampedMessage(@NonNull String message) {
         this(LogLevel.INFO, message, null);
     }
 
@@ -130,8 +178,43 @@ public class StampedMessage implements Serializable {
      * Creates a log of ERROR level with the given Throwable, using its getMessage() as the message
      * @param throwable The throwable to log
      */
-    public StampedMessage(Throwable throwable) {
+    public StampedMessage(@NonNull Throwable throwable) {
         this(LogLevel.ERROR, throwable.getMessage(), throwable);
+    }
+
+    /**
+     * Used by the builder to construct a new {@link StampedMessage}
+     * @param builder The Builder object populated by this
+     */
+    private StampedMessage(Builder builder) {
+        exception = builder.exception;
+        level = builder.level;
+        message = builder.message;
+        thread = builder.thread;
+        timestamp = builder.timestamp;
+    }
+
+    /**
+     * Constructs a new, empty {@link Builder}
+     * @return The builder
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Constructs a builder from an existing {@link StampedMessage}
+     * @param copy The item to copy
+     * @return The builder object
+     */
+    public static Builder builder(StampedMessage copy) {
+        Builder builder = new Builder();
+        builder.exception = copy.getException();
+        builder.level = copy.getLevel();
+        builder.message = copy.getMessage();
+        builder.thread = copy.getThread();
+        builder.timestamp = copy.getTimestamp();
+        return builder;
     }
 
     /**
@@ -156,6 +239,14 @@ public class StampedMessage implements Serializable {
      */
     public String getMessage() {
         return message;
+    }
+
+    /**
+     * Returns the thread associated with this
+     * @return The thread associated with this message
+     */
+    public String getThread() {
+        return thread;
     }
 
     /**
