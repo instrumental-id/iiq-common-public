@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.task;
 
+import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.annotation.Experimental;
 import sailpoint.api.SailPointContext;
 import sailpoint.api.TaskManager;
@@ -23,7 +24,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Experimental
 public class ConditionalTask extends AbstractTaskExecutor {
+    /**
+     * The task manager, used to synchronously run the other task
+     */
     private TaskManager taskManager;
+
+    /**
+     * A flag indicating that the task has been terminated
+     */
     private final AtomicBoolean terminated;
 
     /**
@@ -57,8 +65,8 @@ public class ConditionalTask extends AbstractTaskExecutor {
         Map<String, Object> inputs = new HashMap<>();
 
         Object ruleOutput = context.runRule(conditionalRule, inputs);
-        if (ruleOutput instanceof Boolean) {
-            boolean shouldRun = (Boolean) ruleOutput;
+        if (ruleOutput instanceof Boolean || ruleOutput instanceof String) {
+            boolean shouldRun = Utilities.isFlagSet(ruleOutput);
             if (shouldRun) {
                 if (wait) {
                     TaskResult result = taskManager.runSync(taskDef, new HashMap<>());
@@ -70,11 +78,11 @@ public class ConditionalTask extends AbstractTaskExecutor {
                         monitor.commitMasterResult();
                     }
                 } else {
-                    TaskSchedule schedule = taskManager.run(taskDef, new HashMap<>());
-                    if (schedule != null) {
+                    TaskResult result = taskManager.runWithResult(taskDef, new HashMap<>());
+                    if (result != null) {
                         TaskResult parent = monitor.lockMasterResult();
                         try {
-                            parent.addMessage(Message.info("Started task " + schedule.getName()));
+                            parent.addMessage(Message.info("Launched child task " + result.getName()));
                         } finally {
                             monitor.commitMasterResult();
                         }
