@@ -217,7 +217,9 @@ public class ExportIdentitiesPartition extends ExportPartition {
                         if (!excludeRoles.contains(ra.getRoleName())) {
                             Bundle role = cachedRoles.get(ra.getRoleName());
 
-                            if (!excludeRoleTypes.contains(role.getType())) {
+                            if (role == null) {
+                                logger.warn("Identity " + id + " appears to have non-real RoleAssignment to " + ra.getRoleName());
+                            } else if (!excludeRoleTypes.contains(role.getType())) {
                                 insertRolesStatement.setString("id", id);
                                 insertRolesStatement.setString("roleName", role.getName());
                                 insertRolesStatement.setString("roleType", role.getType());
@@ -232,7 +234,9 @@ public class ExportIdentitiesPartition extends ExportPartition {
                         if (!excludeRoles.contains(rd.getRoleName())) {
                             Bundle role = cachedRoles.get(rd.getRoleName());
 
-                            if (!excludeRoleTypes.contains(role.getType())) {
+                            if (role == null) {
+                                logger.warn("Identity " + id + " appears to have non-real RoleDetection of " + rd.getRoleName());
+                            } else if (!excludeRoleTypes.contains(role.getType())) {
                                 insertRolesStatement.setString("id", id);
                                 insertRolesStatement.setString("roleName", role.getName());
                                 insertRolesStatement.setString("roleType", role.getType());
