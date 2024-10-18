@@ -48,7 +48,6 @@ public class ExportLinksPartition extends ExportPartition {
     private static final String INSERT_LINK_ATTR =
             "insert into de_link_attr ( id, attribute_name, attribute_value ) values ( :id, :attributeName, :attributeValue )";
 
-    public static final int LINKS_BATCH_SIZE = 25;
     public static final String METER_FETCH = "ExportLinkPartition.fetch";
     public static final String METER_LINK = "ExportLinkPartition.link";
     public static final String METER_STORE = "ExportLinkPartition.store";
@@ -64,6 +63,12 @@ public class ExportLinksPartition extends ExportPartition {
      */
     @Override
     protected void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
+        Integer linkBatchSize = configuration.getInteger("linkBatchSize");
+        if (linkBatchSize == null || linkBatchSize < 1) {
+            logger.warn("Defaulting batch size to 50");
+            linkBatchSize = 50;
+        }
+
         // Mapped from Application name to a set of column names
         Map<String, Set<String>> excludedByApplication = getExcludedColumnsByApplication(context);
 
@@ -101,6 +106,10 @@ public class ExportLinksPartition extends ExportPartition {
         AtomicInteger totalCount = new AtomicInteger();
 
         Map<String, Schema> schemaMap = new HashMap<>();
+
+        List<String> linksInBatch = new ArrayList<>();
+
+        ObjectConfig linkConfig = Link.getObjectConfig();
 
         try (NamedParameterStatement deleteAttrs = new NamedParameterStatement(connection, DELETE_LINK_ATTRS); NamedParameterStatement deleteLink = new NamedParameterStatement(connection, DELETE_LINK); NamedParameterStatement insertLink = new NamedParameterStatement(connection, INSERT_LINK); NamedParameterStatement insertAttribute = new NamedParameterStatement(connection, INSERT_LINK_ATTR)) {
             while (links.hasNext()) {
@@ -151,13 +160,14 @@ public class ExportLinksPartition extends ExportPartition {
 
                     insertLink.addBatch();
 
+                    linksInBatch.add(applicationName + ": " + nativeIdentity);
+
                     if (!schemaMap.containsKey(applicationName)) {
                         Application application = context.getObjectByName(Application.class, applicationName);
                         schemaMap.put(applicationName, application.getAccountSchema());
                     }
 
                     Schema schema = schemaMap.get(applicationName);
-                    ObjectConfig linkConfig = Link.getObjectConfig();
 
                     Set<String> excludedColumns = excludedByApplication.get(applicationName);
 
@@ -219,7 +229,7 @@ public class ExportLinksPartition extends ExportPartition {
                         }
                     }
 
-                    if (batchCount++ > LINKS_BATCH_SIZE) {
+                    if (batchCount++ > linkBatchSize) {
                         Meter.enterByName(METER_STORE);
                         try {
                             deleteLink.executeBatch();
@@ -228,7 +238,11 @@ public class ExportLinksPartition extends ExportPartition {
                             insertAttribute.executeBatch();
 
                             connection.commit();
+                        } catch(SQLException e) {
+                            logger.error("Caught an error committing a batch containing these accounts: " + linksInBatch, e);
+                            throw e;
                         } finally {
+                            linksInBatch.clear();
                             Meter.exitByName(METER_STORE);
                         }
                         batchCount = 0;
@@ -246,12 +260,17 @@ public class ExportLinksPartition extends ExportPartition {
                 }
             }
 
-            deleteLink.executeBatch();
-            deleteAttrs.executeBatch();
-            insertLink.executeBatch();
-            insertAttribute.executeBatch();
+            try {
+                deleteLink.executeBatch();
+                deleteAttrs.executeBatch();
+                insertLink.executeBatch();
+                insertAttribute.executeBatch();
 
-            connection.commit();
+                connection.commit();
+            } catch(SQLException e) {
+                logger.error("Caught an error committing a batch containing these accounts: " + linksInBatch, e);
+                throw e;
+            }
         } catch(SQLException e) {
             throw new GeneralException(e);
         }
