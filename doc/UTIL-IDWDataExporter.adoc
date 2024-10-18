@@ -29,12 +29,13 @@ You may specify a set of identities and a set of links to export by listing IIQ 
 
 Identity partitions are specified in `identityFilters`. Each filter will launch one partition, which will export the identities matched by that filter. Identity partitions will export identity attributes, role assignments, and role detections.
 
-Link partitions are specified with _two_ filter lists: `linkFilters` and `linkFilters2`. These will be combined like an M-by-N matrix, so that you end up with the following sorts of Link export partitions:
+Link partitions are specified with _two_ filter lists: `linkFilters` and `linkFilters2`. These will be combined like an M-by-N matrix, so that if your `linkFilters2` contains three elements, you end up with the following sorts of Link export partitions:
 
 * linkFilters[0] AND linkFilters2[0]
 * linkFilters[0] AND linkFilters2[1]
 * linkFilters[0] AND linkFilters2[2]
 * linkFilters[1] AND linkFilters2[0]
+* linkFilters[1] AND linkFilters2[1]
 
 And so forth. If you don't specify a `linkFilters2`, it will behave as though it contains a single no-op filter.
 
@@ -71,7 +72,11 @@ The task also includes a Configuration object, which is specified by name in the
 
 |excludeLinkColumns
 |Map
-|See below
+|A map of Link columns, sorted by Application, to exclude from export. See <<Excluding Link columns>>.
+
+|linkBatchSize
+|integer
+|If set, alters the JDBC batch size for committing link and link attribute export data. The default if not set is 50. Lowering this value can help with debugging.
 |===
 
 === Excluding Link columns
@@ -110,4 +115,4 @@ The combined set of all fields from all relevant lists will be excluded from exp
 </entry>
 ----
 
-If your application is called `AD-Milwaukee`, the export will exclude all five listed fields: ssn, password, globalSecretField, userAccountControl, and extensionAttribute10. All other fields will be included.
+If your AD application is called `AD-Milwaukee`, the export will exclude all five listed fields: ssn, password, globalSecretField, userAccountControl, and extensionAttribute10. All other fields will be included.
