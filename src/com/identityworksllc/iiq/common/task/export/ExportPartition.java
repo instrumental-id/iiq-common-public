@@ -165,8 +165,9 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
 
                 logger.info("Finished export partition " + runKey);
 
-                try (PreparedStatement deleteRun = connection.prepareStatement("DELETE FROM de_runs WHERE run_key = ? and task_name = ?"); PreparedStatement insertRun = connection.prepareStatement("INSERT INTO de_runs (last_start_time, run_key, task_name, config_hash) VALUES (?, ?, ?, ?)");) {
+                try (PreparedStatement deleteRun = connection.prepareStatement("DELETE FROM de_runs WHERE run_key = ? and task_name = ?"); PreparedStatement insertRun = connection.prepareStatement("INSERT INTO de_runs (last_start_time, run_key, task_name, config_hash) VALUES (?, ?, ?, ?)")) {
                     deleteRun.setString(1, runKey);
+                    deleteRun.setString(2, taskName);
 
                     insertRun.setLong(1, exportTimestamp);
                     insertRun.setString(2, runKey);
