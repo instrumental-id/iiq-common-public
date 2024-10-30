@@ -27,6 +27,7 @@ import sailpoint.server.Environment;
 import sailpoint.server.SPKeyStore;
 import sailpoint.server.SailPointConsole;
 import sailpoint.tools.*;
+import sailpoint.tools.Console;
 import sailpoint.tools.xml.ConfigurationException;
 import sailpoint.tools.xml.XMLObjectFactory;
 import sailpoint.web.BaseBean;
@@ -35,12 +36,10 @@ import sailpoint.web.util.WebUtil;
 
 import javax.faces.context.FacesContext;
 import javax.servlet.http.HttpSession;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
@@ -2893,6 +2892,30 @@ public class Utilities {
 
 		XMLObjectFactory xmlObjectFactory = XMLObjectFactory.getInstance();
 		return xmlObjectFactory.toXml(input);
+	}
+
+	/**
+	 * Truncates a string to the given number of bytes in the given Charset. For example,
+	 * string "Test" (with fancy quote characters) is 10 bytes in UTF-8 and 14 in UTF-16.
+	 *
+	 * Oracle stores VARCHAR2 data with a maximum of 4000 bytes, even if the column is of
+	 * type CHAR, so truncating to some number of bytes is important.
+	 *
+	 * If the string is truncated, it will have an additional three bytes trimmed off and
+	 * will have '...' appended to the end.
+	 *
+	 * @param input The input string to truncate
+	 * @param maxLength The maximum length, in bytes
+	 * @param charset The charset in which to interpret the string
+	 * @return The String, encoded to the given charset, with no more than given number of bytes
+     */
+	public static String truncateStringToBytes(String input, int maxLength, Charset charset) {
+		byte[] bytes = input.getBytes(charset);
+		if (bytes.length <= maxLength) {
+			return input;
+		}
+
+		return new String(bytes , 0, maxLength - 3, charset) + "...";
 	}
 
 	/**

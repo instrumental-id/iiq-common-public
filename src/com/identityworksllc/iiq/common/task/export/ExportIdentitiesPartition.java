@@ -12,6 +12,7 @@ import sailpoint.object.*;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -199,11 +200,11 @@ public class ExportIdentitiesPartition extends ExportPartition {
                                     Set<String> uniqueValues = new ListOrderedSet<>();
                                     uniqueValues.addAll(Util.otol(value));
                                     for (String val : uniqueValues) {
-                                        insertAttributeStatement.setString("attributeValue", Util.truncate(val, 3996));
+                                        insertAttributeStatement.setString("attributeValue", Utilities.truncateStringToBytes(val, 4000, StandardCharsets.UTF_8));
                                         insertAttributeStatement.addBatch();
                                     }
                                 } else {
-                                    insertAttributeStatement.setString("attributeValue", Util.truncate(Util.otoa(value), 3996));
+                                    insertAttributeStatement.setString("attributeValue", Utilities.truncateStringToBytes(Util.otoa(value), 4000, StandardCharsets.UTF_8));
                                     insertAttributeStatement.addBatch();
                                 }
                             }

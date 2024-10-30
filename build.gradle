@@ -131,6 +131,8 @@ configurations {
     markdownDoclet
     toolLibraries
     implementation.extendsFrom toolLibraries
+
+    testRuntimeOnly.extendsFrom compileOnly
 }
 
 def includeLib = fileTree(dir: "${libRoot}/included")
@@ -170,6 +172,7 @@ dependencies {
         exclude group: 'bouncycastle'
     }
 
+    testImplementation group: 'com.googlecode.juniversalchardet', name: 'juniversalchardet', version: '1.0.3'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testImplementation ":identityiq:"

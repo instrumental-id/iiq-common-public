@@ -61,5 +61,7 @@ create index de_link_attr_idx on de_link_attr(id, attribute_name);
 
 create table de_runs (
     last_start_time BIGINT,
+    run_key varchar(4000),
+    task_name varchar(500),
     config_hash varchar(32)
 );
