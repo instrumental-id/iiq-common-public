@@ -4,6 +4,7 @@ import com.identityworksllc.iiq.common.Functions;
 import com.identityworksllc.iiq.common.query.NamedParameterStatement;
 import com.identityworksllc.iiq.common.threads.SailPointWorker;
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.Configuration;
 import sailpoint.object.TaskResult;
@@ -16,16 +17,77 @@ import sailpoint.tools.Util;
 
 import java.io.Serializable;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
+import java.util.StringJoiner;
 
 /**
  * An abstract superclass for all export partitions. It will open a connection to the target
  * database and then invoke export() on the subclass.
  */
 public abstract class ExportPartition extends SailPointWorker implements Serializable {
+
+    private int batchSize = 50;
+    /**
+     * The config hash that will be recorded with de_runs when the partition is finished
+     */
+    private String configHash;
+    /**
+     * The configuration loaded in {@link #execute(SailPointContext, Log)}
+     */
+    protected transient Configuration configuration;
+    /**
+     * The name of the configuration object, set by the task
+     */
+    private String configurationName;
+    /**
+     * The connection info
+     */
+    private ExportConnectionInfo connectionInfo;
+    /**
+     * The cutoff date, milliseconds. We should not export records older than this date.
+     */
+    protected long cutoffDate;
+    /**
+     * The export timestamp in epoch milliseconds. We should not export records newer than this date.
+     */
+    protected long exportTimestamp;
+    /**
+     * The filter string
+     */
+    protected String filterString;
+    /**
+     * The second filter string if any
+     */
+    protected String filterString2;
+    /**
+     * The logger
+     */
+    private final Log logger;
+    /**
+     * The name of the partition
+     */
+    private String name;
+    /**
+     * The run key, which will be stored in the 'de_runs' table
+     */
+    private String runKey;
+
+    /**
+     * The name of the task, used to store the last run date
+     */
+    private String taskName;
+
+    /**
+     * Constructs a new ExportPartition
+     */
+    protected ExportPartition() {
+        this.logger = LogFactory.getLog(ExportPartition.class);
+    }
 
     /**
      * Adds the common date fields (which must have the given names) to the given prepared statement.
@@ -66,49 +128,15 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
     }
 
     /**
-     * The configuration loaded in {@link #execute(SailPointContext, Log)}
-     */
-    protected transient Configuration configuration;
-    /**
-     * The name of the configuration object, set by the task
-     */
-    private String configurationName;
-    /**
-     * The connection info
-     */
-    private ExportConnectionInfo connectionInfo;
-    /**
-     * The cutoff date, milliseconds. We should not export records older than this date.
-     */
-    protected long cutoffDate;
-    /**
-     * The export timestamp, milliseconds. We should not export records newer than this date.
-     */
-    protected long exportTimestamp;
-    /**
-     * The filter string
-     */
-    protected String filterString;
-
-    /**
-     * The second filter string if any
-     */
-    protected String filterString2;
-
-    /**
-     * The name of the partition
-     */
-    private String name;
-
-    /**
      * The worker entrypoint
+     *
      * @param context The private context to use for this thread worker
-     * @param logger The log attached to this Worker
+     * @param _logger The log attached to this Worker
      * @return Always null, nothing required here
      * @throws Exception if anything goes wrong
      */
     @Override
-    public final Object execute(SailPointContext context, Log logger) throws Exception {
+    public final Object execute(SailPointContext context, Log _logger) throws Exception {
         if (Util.isNullOrEmpty(configurationName)) {
             throw new GeneralException("Unable to execute export worker: configurationName not set");
         }
@@ -126,16 +154,36 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
             }
         }
 
+        logger.info("Starting export partition with key " + runKey);
+
         try (Connection connection = openConnection(context, connectionInfo)) {
             boolean previousAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try {
                 export(context, connection, logger);
                 connection.commit();
+
+                logger.info("Finished export partition " + runKey);
+
+                try (PreparedStatement deleteRun = connection.prepareStatement("DELETE FROM de_runs WHERE run_key = ? and task_name = ?"); PreparedStatement insertRun = connection.prepareStatement("INSERT INTO de_runs (last_start_time, run_key, task_name, config_hash) VALUES (?, ?, ?, ?)");) {
+                    deleteRun.setString(1, runKey);
+
+                    insertRun.setLong(1, exportTimestamp);
+                    insertRun.setString(2, runKey);
+                    insertRun.setString(3, taskName);
+                    insertRun.setString(4, configHash);
+
+                    deleteRun.executeUpdate();
+                    insertRun.executeUpdate();
+                }
+
+                connection.commit();
             } finally {
                 connection.setAutoCommit(previousAutoCommit);
             }
+
         } catch(Exception e) {
+            logger.error("Caught an error in partition of type " + this.getClass().getSimpleName() + " with key " + runKey, e);
             TaskResult partitionResult = monitor.lockPartitionResult();
             try {
                 partitionResult.addException(e);
@@ -156,6 +204,10 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
      * @throws GeneralException if any failures occur
      */
     protected abstract void export(SailPointContext context, Connection connection, Log logger) throws GeneralException;
+
+    public int getBatchSize() {
+        return batchSize;
+    }
 
     public Configuration getConfiguration() {
         return configuration;
@@ -185,6 +237,14 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
         return name;
     }
 
+    public String getRunKey() {
+        return runKey;
+    }
+
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
+
     public void setConfigurationName(String configurationName) {
         this.configurationName = configurationName;
     }
@@ -211,5 +271,25 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void setRunKey(String runKey) {
+        this.runKey = runKey;
+    }
+
+    public void setTaskName(String taskName) {
+        this.taskName = taskName;
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", ExportPartition.class.getSimpleName() + "[", "]")
+                .add("cutoffDate=" + Instant.ofEpochMilli(cutoffDate))
+                .add("exportTimestamp=" + Instant.ofEpochMilli(exportTimestamp))
+                .add("filterString2='" + filterString2 + "'")
+                .add("filterString='" + filterString + "'")
+                .add("name='" + name + "'")
+                .add("runKey='" + runKey + "'")
+                .toString();
     }
 }

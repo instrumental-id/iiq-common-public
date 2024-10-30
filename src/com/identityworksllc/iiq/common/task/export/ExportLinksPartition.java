@@ -5,6 +5,7 @@ import com.identityworksllc.iiq.common.TaskUtil;
 import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.query.NamedParameterStatement;
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import sailpoint.api.IncrementalObjectIterator;
 import sailpoint.api.IncrementalProjectionIterator;
 import sailpoint.api.Meter;
@@ -13,6 +14,8 @@ import sailpoint.object.*;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -48,26 +51,33 @@ public class ExportLinksPartition extends ExportPartition {
     private static final String INSERT_LINK_ATTR =
             "insert into de_link_attr ( id, attribute_name, attribute_value ) values ( :id, :attributeName, :attributeValue )";
 
-    public static final String METER_FETCH = "ExportLinkPartition.fetch";
-    public static final String METER_LINK = "ExportLinkPartition.link";
-    public static final String METER_STORE = "ExportLinkPartition.store";
+    private static final String METER_FETCH = "ExportLinkPartition.fetch";
+    private static final String METER_LINK = "ExportLinkPartition.link";
+    private static final String METER_STORE = "ExportLinkPartition.store";
 
-    public static final String REGEX_PREFIX = "regex:";
+    private static final String REGEX_PREFIX = "regex:";
+
+    private final Log logger;
+
+    public ExportLinksPartition() {
+        this.logger = LogFactory.getLog(ExportLinksPartition.class);
+    }
 
     /**
      * Exports the identified Link objects to the export table
      * @param context The context
      * @param connection The connection to the target database
-     * @param logger The logger
+     * @param _logger The logger attached to the {@link com.identityworksllc.iiq.common.threads.SailPointWorker}
      * @throws GeneralException if there are any failures
      */
     @Override
-    protected void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
+    protected void export(SailPointContext context, Connection connection, Log _logger) throws GeneralException {
         Integer linkBatchSize = configuration.getInteger("linkBatchSize");
         if (linkBatchSize == null || linkBatchSize < 1) {
-            logger.warn("Defaulting batch size to 50");
-            linkBatchSize = 50;
+            linkBatchSize = getBatchSize();
         }
+
+        logger.info("Partition batch size is " + getBatchSize());
 
         // Mapped from Application name to a set of column names
         Map<String, Set<String>> excludedByApplication = getExcludedColumnsByApplication(context);
@@ -102,7 +112,6 @@ public class ExportLinksPartition extends ExportPartition {
 
         IncrementalProjectionIterator links = new IncrementalProjectionIterator(context, Link.class, qo, projectionFields);
 
-        int batchCount = 0;
         AtomicInteger totalCount = new AtomicInteger();
 
         Map<String, Schema> schemaMap = new HashMap<>();
@@ -112,6 +121,8 @@ public class ExportLinksPartition extends ExportPartition {
         ObjectConfig linkConfig = Link.getObjectConfig();
 
         try (NamedParameterStatement deleteAttrs = new NamedParameterStatement(connection, DELETE_LINK_ATTRS); NamedParameterStatement deleteLink = new NamedParameterStatement(connection, DELETE_LINK); NamedParameterStatement insertLink = new NamedParameterStatement(connection, INSERT_LINK); NamedParameterStatement insertAttribute = new NamedParameterStatement(connection, INSERT_LINK_ATTR)) {
+            int batchCount = 0;
+
             while (links.hasNext()) {
                 if (isTerminated()) {
                     logger.info("Thread has been terminated; exiting cleanly");
@@ -132,6 +143,11 @@ public class ExportLinksPartition extends ExportPartition {
                     Date created = (Date) link[5];
                     Date modified = (Date) link[6];
                     Date lastRefresh = (Date) link[7];
+
+                    // Skip Links created after the job began; they'll be captured on the next run
+                    if (created != null && created.after(exportDate)) {
+                        continue;
+                    }
 
                     @SuppressWarnings("unchecked")
                     Attributes<String, Object> attributes = (Attributes<String, Object>) link[8];
@@ -219,11 +235,11 @@ public class ExportLinksPartition extends ExportPartition {
 
                             if (attribute.isMulti()) {
                                 for (String val : Util.otol(value)) {
-                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(val, 3996));
+                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Utilities.truncateStringToBytes(val, 4000, StandardCharsets.UTF_8));
                                     insertAttribute.addBatch();
                                 }
                             } else {
-                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(Util.otoa(value), 3996));
+                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Utilities.truncateStringToBytes(Util.otoa(value), 4000, StandardCharsets.UTF_8));
                                 insertAttribute.addBatch();
                             }
                         }
@@ -305,7 +321,6 @@ public class ExportLinksPartition extends ExportPartition {
         if (configuration.containsAttribute("excludeLinkColumns")) {
             Object config = configuration.get("excludeLinkColumns");
             if (config instanceof Map) {
-
                 Map<String, Object> mapConfig = (Map<String, Object>) config;
 
                 List<Application> allApplications = context.getObjects(Application.class);

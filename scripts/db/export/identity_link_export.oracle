@@ -62,5 +62,7 @@ create index de_link_attr_idx on de_link_attr(id, attribute_name);
 
 create table de_runs (
     last_start_time NUMBER,
+    run_key VARCHAR2(4000 char),
+    task_name VARCHAR2(500 char),
     config_hash VARCHAR2(32 char)
 );

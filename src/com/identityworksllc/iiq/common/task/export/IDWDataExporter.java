@@ -2,12 +2,10 @@ package com.identityworksllc.iiq.common.task.export;
 
 import com.identityworksllc.iiq.common.request.SailPointWorkerExecutor;
 import com.identityworksllc.iiq.common.threads.SailPointWorker;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
-import sailpoint.object.Attributes;
-import sailpoint.object.Request;
-import sailpoint.object.RequestDefinition;
-import sailpoint.object.TaskResult;
-import sailpoint.object.TaskSchedule;
+import sailpoint.object.*;
 import sailpoint.task.AbstractTaskExecutor;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Message;
@@ -17,10 +15,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -31,10 +27,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * no longer in IIQ, then a finalization step that sets the last run date.
  */
 public class IDWDataExporter extends AbstractTaskExecutor {
+    private final Log logger;
     private final AtomicBoolean stopped;
 
     public IDWDataExporter() {
         this.stopped = new AtomicBoolean();
+        this.logger = LogFactory.getLog(IDWDataExporter.class);
     }
     /**
      * @see sailpoint.object.TaskExecutor#execute(SailPointContext, TaskSchedule, TaskResult, Attributes)
@@ -58,7 +56,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
         for(ExportPartition partition : clusters) {
             List<SailPointWorker> workerCluster = new ArrayList<>();
             workerCluster.add(partition);
-            // Serializes the SailPointWorker object so that it can be saved
+            // Serializes the SailPointWorker object so that it can be persisted
             Request partitionRequest = SailPointWorker.toRequest(requestDefinition, workerCluster);
             partitionRequest.setName(partition.getName());
             partitionRequests.add(partitionRequest);
@@ -87,6 +85,8 @@ public class IDWDataExporter extends AbstractTaskExecutor {
         if (Util.isNullOrEmpty(configurationName)) {
             throw new GeneralException("A configurationName setting is required for the data export job");
         }
+
+        int linkBatchSize = Util.otoi(attributes.get("linkBatchSize"));
 
         List<String> identityFilters = attributes.getStringList("identityFilters");
         List<String> linkFilters = attributes.getStringList("linkFilters");
@@ -119,20 +119,31 @@ public class IDWDataExporter extends AbstractTaskExecutor {
         ExportConnectionInfo connectionInfo = new ExportConnectionInfo(url, username, password);
         connectionInfo.setDriver(driver);
 
-        long cutoffDate = 0L;
         String configHash = String.valueOf(Objects.hash(doLinkCleanup, linkFilters, linkFilters2, identityFilters, configurationName, connectionInfo));
 
+        Map<String, Long> cutoffDates = new HashMap<>();
+
+        String taskName = taskResult.getDefinition().getName();
+
         try (Connection connection = ExportPartition.openConnection(context, connectionInfo)) {
-            try (PreparedStatement statement = connection.prepareStatement("select last_start_time, config_hash from de_runs order by last_start_time desc")) {
+            try (PreparedStatement statement = connection.prepareStatement("select last_start_time, run_key, config_hash from de_runs where task_name = ? order by last_start_time desc")) {
+                statement.setString(1, taskName);
+
                 try (ResultSet results = statement.executeQuery()) {
-                    if (results.next()) {
-                        String configHashString = results.getString(2);
-                        taskResult.addMessage(Message.info("New config hash = " + configHash + ", old config hash = " + configHashString));
+                    while (results.next()) {
+                        String key = results.getString("run_key");
+                        String configHashString = results.getString("config_hash");
+                        long lastStartTime = results.getLong("last_start_time");
+
                         if (Util.nullSafeEq(configHashString, configHash)) {
-                            cutoffDate = results.getLong(1);
+                            cutoffDates.put(key, lastStartTime);
                         } else {
-                            taskResult.addMessage(Message.warn("Configuration has changed; forcing a full export"));
+                            logger.warn("For export partition " + key + ": new config hash = " + configHash + ", old config hash = " + configHashString);
+                            taskResult.addMessage(Message.warn("Configuration has changed after last run of partition " + key + "; forcing a full export"));
+                            cutoffDates.put(key, 0L);
                         }
+
+                        logger.info("For export partition " + key + ": threshold timestamp = " + Instant.ofEpochMilli(cutoffDates.get(key)));
                     }
                 }
             }
@@ -140,10 +151,18 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             throw new GeneralException(e);
         }
 
-        taskResult.addMessage(Message.info("Cutoff timestamp is: " + new Date(cutoffDate)));
+        taskResult.setAttribute("cutoffDates", cutoffDates);
 
         int count = 1;
         for(String filter : Util.safeIterable(identityFilters)) {
+            String lookup = "identity:" + filter;
+
+            Long cutoffDate = cutoffDates.get(lookup);
+            if (cutoffDate == null) {
+                logger.warn("No existing threshold date for " + lookup + ", using " + Instant.ofEpochMilli(0));
+                cutoffDate = 0L;
+            }
+
             ExportIdentitiesPartition eip = new ExportIdentitiesPartition();
             eip.setName("Identity export partition " + count++);
             eip.setPhase(1);
@@ -152,25 +171,41 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             eip.setFilterString(filter);
             eip.setConnectionInfo(connectionInfo);
             eip.setConfigurationName(configurationName);
+            eip.setTaskName(taskName);
+            eip.setRunKey(lookup);
 
             partitions.add(eip);
         }
 
         count = 1;
         for(String filter : Util.safeIterable(linkFilters)) {
+            Filter compiled1 = Filter.compile(filter);
             for(String filter2 : Util.safeIterable(linkFilters2)) {
-                ExportLinksPartition eip = new ExportLinksPartition();
-                eip.setName("Link export partition " + count++);
-                eip.setPhase(2);
-                eip.setDependentPhase(1);
-                eip.setExportTimestamp(now);
-                eip.setCutoffDate(cutoffDate);
-                eip.setFilterString(filter);
-                eip.setFilterString2(filter2);
-                eip.setConnectionInfo(connectionInfo);
-                eip.setConfigurationName(configurationName);
+                String lookup = "link:" + Filter.and(compiled1, Filter.compile(filter2)).getExpression(false);
+                Long cutoffDate = cutoffDates.get(lookup);
+                if (cutoffDate == null) {
+                    logger.warn("No existing threshold date for " + lookup + ", using " + Instant.ofEpochMilli(0));
+                    cutoffDate = 0L;
+                }
 
-                partitions.add(eip);
+                ExportLinksPartition elp = new ExportLinksPartition();
+                elp.setName("Link export partition " + count++);
+                elp.setPhase(2);
+                elp.setDependentPhase(1);
+                elp.setExportTimestamp(now);
+                elp.setCutoffDate(cutoffDate);
+                elp.setFilterString(filter);
+                elp.setFilterString2(filter2);
+                elp.setConnectionInfo(connectionInfo);
+                elp.setConfigurationName(configurationName);
+                elp.setTaskName(taskName);
+                elp.setRunKey(filter);
+
+                if (linkBatchSize > 0) {
+                    elp.setBatchSize(linkBatchSize);
+                }
+
+                partitions.add(elp);
             }
         }
 
@@ -180,19 +215,10 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             clp.setDependentPhase(2);
             clp.setName("Clean up deleted Links");
             clp.setConnectionInfo(connectionInfo);
+            clp.setRunKey("cleanup");
+            clp.setTaskName(taskName);
             partitions.add(clp);
         }
-
-        ExportFinishPartition efp = new ExportFinishPartition();
-        efp.setExportTimestamp(now);
-        efp.setCutoffDate(cutoffDate);
-        efp.setName("Finalize export");
-        efp.setPhase(4);
-        efp.setDependentPhase(2);
-        efp.setConnectionInfo(connectionInfo);
-        efp.setConfigurationName(configurationName);
-        efp.setConfigHash(configHash);
-        partitions.add(efp);
 
         return partitions;
     }

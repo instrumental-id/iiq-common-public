@@ -13,7 +13,7 @@ You must set up the target database by setting the appropriate parameters in the
 * username
 * password
 
-The password must be encrypted.
+The password must be encrypted using IIQ standard encryption.
 
 === Included DDL scripts
 
@@ -29,7 +29,7 @@ You may specify a set of identities and a set of links to export by listing IIQ 
 
 Identity partitions are specified in `identityFilters`. Each filter will launch one partition, which will export the identities matched by that filter. Identity partitions will export identity attributes, role assignments, and role detections.
 
-Link partitions are specified with _two_ filter lists: `linkFilters` and `linkFilters2`. These will be combined like an M-by-N matrix, so that if your `linkFilters2` contains three elements, you end up with the following sorts of Link export partitions:
+Link partitions are sub-divided with _two_ filter lists: the required `linkFilters` and the optional `linkFilters2`. These will be combined like an M-by-N matrix. If your `linkFilters2` contains three elements, you end up with the following Link export partitions:
 
 * linkFilters[0] AND linkFilters2[0]
 * linkFilters[0] AND linkFilters2[1]
@@ -37,7 +37,9 @@ Link partitions are specified with _two_ filter lists: `linkFilters` and `linkFi
 * linkFilters[1] AND linkFilters2[0]
 * linkFilters[1] AND linkFilters2[1]
 
-And so forth. If you don't specify a `linkFilters2`, it will behave as though it contains a single no-op filter.
+And so forth.
+
+Each partition will keep a single connection to the target database open, so ensure that your network can support such a long-lived connection.
 
 === Delete and add
 
@@ -53,7 +55,7 @@ If you don't specify, the default name _IDW Worker Executor_ will be used.
 
 == Configuration
 
-The task also includes a Configuration object, which is specified by name in the TaskDefinition, under key `configurationName`.
+The task also requires a separate `Configuration` object, which is specified by name in the TaskDefinition, under key `configurationName`. This configuration includes global settings, which will be useful if you would like to export various items to different places, using different TaskDefinitions.
 
 |===
 |Entry |Type |Purpose
@@ -81,7 +83,7 @@ The task also includes a Configuration object, which is specified by name in the
 
 === Excluding Link columns
 
-Link columns can be excluded at three levels: globally, per connector (e.g., Active Directory or JDBC), or per application. Application names can be static strings or regular expressions. If regular expressions are used, applications can match more than one list of fields.
+Using the Configuration (_not_ the TaskDefinition), Link columns can be excluded at three levels: globally, per connector type (e.g., all JDBC applications), or per Application. Application names can be static strings or regular expressions. If regular expressions are used, applications can match more than one list of fields.
 
 These are all specified as lists under the `excludeLinkColumns` entry.
 
@@ -116,3 +118,11 @@ The combined set of all fields from all relevant lists will be excluded from exp
 ----
 
 If your AD application is called `AD-Milwaukee`, the export will exclude all five listed fields: ssn, password, globalSecretField, userAccountControl, and extensionAttribute10. All other fields will be included.
+
+== Incremental exports
+
+The task runs in an incremental mode by default. The incremental cutoff date is calculated _per partition_, rather than for the entire task. This allows you to resume the task if some partitions fail or add new partitions without having to repopulate the entire table.
+
+The first execution will always be a full export. Subsequent executions will use data in the custom table `DE_RUNS` to determine which items need to be exported. The `DE_RUNS` table contains the most recent completion date for each partition. Only items created or modified after the last run date for that partition will be exported.
+
+Rows in `DE_RUNS` are not added or updated until the partition successfully finishes. If a partition fails, its entire run must be repeated on the next export, so the previous last run timestamp will be retained.
