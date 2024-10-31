@@ -2910,6 +2910,9 @@ public class Utilities {
 	 * @return The String, encoded to the given charset, with no more than given number of bytes
      */
 	public static String truncateStringToBytes(String input, int maxLength, Charset charset) {
+		if (input == null || input.isEmpty()) {
+			return input;
+		}
 		byte[] bytes = input.getBytes(charset);
 		if (bytes.length <= maxLength) {
 			return input;

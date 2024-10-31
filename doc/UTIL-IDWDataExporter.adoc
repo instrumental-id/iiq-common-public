@@ -1,6 +1,8 @@
 = IDW IIQ Common Data Exporter
 
-IIQCommon ships with a replacement for SailPoint's data export utilities, called `IDW Data Export`. The task writes Identity, Link, and Role information to a set of flattened tables starting with `de_` in a specified database.
+IIQCommon ships with a replacement for SailPoint's various data export utilities, called `IDW Data Export`. The task writes Identity, Link, and Role information to a set of flattened tables starting with `de_` in a specified database.
+
+Unlike the legacy "Data Export" task, this task robustly handles virtually every combination of Identity and Link attributes. Unlike the newer "Data Export", it does not require handling export events via an external message queue.
 
 The task implementation is `com.identityworksllc.iiq.common.task.export.IDWDataExporter`. Its partition worker implementations are in the same task.
 
