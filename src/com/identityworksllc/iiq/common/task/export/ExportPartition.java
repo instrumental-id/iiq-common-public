@@ -157,6 +157,10 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
         logger.info("Starting export partition with key " + runKey);
 
         try (Connection connection = openConnection(context, connectionInfo)) {
+            if (JdbcUtil.isMySQL(connection)) {
+                connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            }
+
             boolean previousAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try {
