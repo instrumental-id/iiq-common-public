@@ -8,3 +8,4 @@ lib/sailpoint/
 .eclipse
 .project
 plugin-installer.properties
+doc/*.pdf
