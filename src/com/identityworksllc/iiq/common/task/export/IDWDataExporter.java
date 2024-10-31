@@ -200,7 +200,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
                 elp.setConnectionInfo(connectionInfo);
                 elp.setConfigurationName(configurationName);
                 elp.setTaskName(taskName);
-                elp.setRunKey(filter);
+                elp.setRunKey(lookup);
                 elp.setConfigHash(configHash);
 
                 if (linkBatchSize > 0) {
