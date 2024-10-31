@@ -173,6 +173,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             eip.setConfigurationName(configurationName);
             eip.setTaskName(taskName);
             eip.setRunKey(lookup);
+            eip.setConfigHash(configHash);
 
             partitions.add(eip);
         }
@@ -200,6 +201,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
                 elp.setConfigurationName(configurationName);
                 elp.setTaskName(taskName);
                 elp.setRunKey(filter);
+                elp.setConfigHash(configHash);
 
                 if (linkBatchSize > 0) {
                     elp.setBatchSize(linkBatchSize);
@@ -217,6 +219,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             clp.setConnectionInfo(connectionInfo);
             clp.setRunKey("cleanup");
             clp.setTaskName(taskName);
+            clp.setConfigHash(configHash);
             partitions.add(clp);
         }
 
