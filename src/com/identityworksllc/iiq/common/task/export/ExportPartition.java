@@ -246,6 +246,10 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
         this.batchSize = batchSize;
     }
 
+    public void setConfigHash(String configHash) {
+        this.configHash = configHash;
+    }
+
     public void setConfigurationName(String configurationName) {
         this.configurationName = configurationName;
     }
