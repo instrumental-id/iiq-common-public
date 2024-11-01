@@ -124,7 +124,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
 
         boolean doLinkCleanup = attributes.getBoolean("linkCleanup", true);
 
-        long networkTimeout = attributes.getLong("networkTimeout");
+        long networkTimeout = Util.otolo(attributes.getString("networkTimeout"));
 
         String driver = attributes.getString("driver");
         String url = attributes.getString("url");
