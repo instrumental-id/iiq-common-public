@@ -1,0 +1,9 @@
+create table de_report_data (
+    report_name VARCHAR2(255),
+    row_index NUMBER,
+    attribute VARCHAR2(255),
+    value VARCHAR2(4000),
+    insert_date TIMESTAMP
+);
+
+create index de_report_index on de_report_data (report_name, insert_date, attribute );

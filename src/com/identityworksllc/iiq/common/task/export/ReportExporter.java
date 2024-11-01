@@ -1,6 +1,8 @@
 package com.identityworksllc.iiq.common.task.export;
 
+import com.identityworksllc.iiq.common.TaskUtil;
 import com.identityworksllc.iiq.common.Utilities;
+import com.identityworksllc.iiq.common.annotation.Experimental;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
@@ -28,27 +30,17 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Runs a series of IIQ report tasks, then exports the contents of their CSV output
+ * to a database table.
+ *
+ * TODO: make an ad hoc copy of the report to force CSV output and suppress emails
+ */
+@Experimental
 public class ReportExporter extends AbstractTaskExecutor {
-    /**
-     * Opens the connection to the target database using the provided connection info
-     * @param context The sailpoint context, used to decrypt the password
-     * @param connectionInfo The provided connection info, extracted from the export task def
-     * @return The open connection
-     * @throws GeneralException if any failures occur
-     */
-    public static Connection openConnection(SailPointContext context, ExportConnectionInfo connectionInfo) throws GeneralException {
-        String decryptedPassword = context.decrypt(connectionInfo.getEncryptedPassword());
-        return JdbcUtil.getConnection(connectionInfo.getDriver(), null, connectionInfo.getUrl(), connectionInfo.getUsername(), decryptedPassword, connectionInfo.getOptions());
-    }
-
-
     private final Log log;
     private final AtomicBoolean terminated;
 
@@ -72,23 +64,61 @@ public class ReportExporter extends AbstractTaskExecutor {
 
         Timestamp taskTimestamp = new Timestamp(System.currentTimeMillis());
 
-        for(String reportName : reportTaskDefNames) {
-            TaskDefinition report = context.getObjectByName(TaskDefinition.class, reportName);
-            if (report == null) {
-                taskResult.addMessage(Message.warn("Unable to find report called: {0}", reportName));
-                context.saveObject(taskResult);
-                context.commitTransaction();
-                continue;
+        for(String reportIdOrName : reportTaskDefNames) {
+            if (terminated.get()) {
+                break;
             }
+
+            TaskDefinition report = context.getObjectByName(TaskDefinition.class, reportIdOrName);
+            if (report == null) {
+                TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                    tr.addMessage(Message.error("Unable to find report: {0}", reportIdOrName));
+                });
+                break;
+            }
+
+            String reportName = report.getName();
 
             monitor.forceProgress("Executing: " + reportName);
 
-            TaskManager taskManager = new TaskManager(context);
-            TaskResult reportOutput = taskManager.runSync(report, new HashMap<>());
+            TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                tr.addMessage(Utilities.timestamp() + " " + reportName + ": Executing report task");
+            });
 
-            boolean reportExported = false;
+            TaskManager taskManager = new TaskManager(context);
+            TaskSchedule reportTask = taskManager.run(report, new HashMap<>());
+
+            TaskResult reportOutput = null;
+
+            boolean finished = false;
+            while (reportOutput == null && !terminated.get()) {
+                try {
+                    reportOutput = taskManager.awaitTask(reportTask, 60);
+                } catch(GeneralException e) {
+                    if (e.toString().contains("Timeout waiting")) {
+                        log.debug("Still waiting for task " + reportTask.getName());
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+
+            if (terminated.get()) {
+                break;
+            }
+
+            TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                tr.addMessage(Utilities.timestamp() + " " + reportName + ": Finished running report");
+            });
 
             if (reportOutput != null) {
+                if (reportOutput.isError()) {
+                    TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                        tr.addMessage(Message.warn(Utilities.timestamp() + " " + reportName + ": Error running report {0}", tr.getErrors()));
+                    });
+                    continue;
+                }
+
                 JasperResult jasperResult = reportOutput.getReport();
 
                 if (jasperResult != null) {
@@ -96,21 +126,77 @@ public class ReportExporter extends AbstractTaskExecutor {
                     if (fileList != null) {
                         Optional<PersistedFile> csvFileMaybe = Utilities.safeStream(fileList).filter(PersistedFile::isCsv).findFirst();
                         if (csvFileMaybe.isPresent()) {
+                            monitor.forceProgress("Exporting: " + reportName);
                             PersistedFile csvFile = csvFileMaybe.get();
-                            writeCsvContents(context, connectionInfo, taskTimestamp, report, csvFile);
+                            TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                                tr.addMessage(Utilities.timestamp() + " " + reportName + ": exporting CSV file " + csvFile.getName());
+                            });
+                            String uuid = UUID.randomUUID().toString();
+                            writeCsvContents(context, connectionInfo, taskTimestamp, uuid, report, csvFile);
                         } else {
                             log.warn("Report output did not contain a CSV file");
+                            TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                                tr.addMessage(Message.warn(Utilities.timestamp() + " " + reportName + ": report output did not contain a CSV file. Is it configured to produce one?"));
+                            });
                         }
                     } else {
                         log.warn("Report output did not contain a list of files; do you need to check CSV on the list?");
+                        TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                            tr.addMessage(Message.warn(Utilities.timestamp() + " " + reportName + ": report output did not contain any files. Is it configured to produce one?"));
+                        });
                     }
                 } else {
                     log.warn("TaskResult did not contain a report object");
+                    TaskUtil.withLockedMasterResult(monitor, (tr) -> {
+                        tr.addMessage(Message.warn(Utilities.timestamp() + " " + reportName + ": report task result does not appear to contain a Jasper report result"));
+                    });
                 }
             } else {
                 log.warn("TaskResult did not contain a report object for task: " + reportName);
             }
         }
+    }
+
+    /**
+     * Stores the row to the databaes
+     * @param rowInsert The insert prepared statement
+     * @param report The report being invoked
+     * @param rowIndex The ordinal row index
+     * @param row The actual row data from the report
+     * @param taskTimestamp The task timestamp
+     * @throws SQLException if inserting the row fails
+     */
+    private void exportRow(PreparedStatement rowInsert, TaskDefinition report, int rowIndex, Map<String, String> row, Timestamp taskTimestamp, String uuid) throws SQLException {
+        rowInsert.setString(1, report.getName());
+        rowInsert.setString(2, uuid);
+        rowInsert.setInt(3, rowIndex);
+        rowInsert.setTimestamp(6, taskTimestamp);
+
+        for(String key : row.keySet()) {
+            String val = row.get(key);
+            rowInsert.setString(4, key);
+            rowInsert.setString(5, val);
+
+            rowInsert.addBatch();
+        }
+    }
+
+    /**
+     * Opens the connection to the target database using the provided connection info
+     * @param context The sailpoint context, used to decrypt the password
+     * @param connectionInfo The provided connection info, extracted from the export task def
+     * @return The open connection
+     * @throws GeneralException if any failures occur
+     */
+    public Connection openConnection(SailPointContext context, ExportConnectionInfo connectionInfo) throws GeneralException {
+        String decryptedPassword = context.decrypt(connectionInfo.getEncryptedPassword());
+        return JdbcUtil.getConnection(connectionInfo.getDriver(), null, connectionInfo.getUrl(), connectionInfo.getUsername(), decryptedPassword, connectionInfo.getOptions());
+    }
+
+    @Override
+    public boolean terminate() {
+        this.terminated.set(true);
+        return true;
     }
 
     /**
@@ -124,8 +210,8 @@ public class ReportExporter extends AbstractTaskExecutor {
      * @throws IOException if any file read failures occur
      * @throws GeneralException if any IIQ failures occur
      */
-    private void writeCsvContents(SailPointContext context, ExportConnectionInfo connectionInfo, Timestamp taskTimestamp, TaskDefinition report, PersistedFile csvFile) throws SQLException, IOException, GeneralException {
-        try (Connection connection = openConnection(context, connectionInfo); PreparedStatement rowInsert = connection.prepareStatement("insert into de_report_data ( report_name, row_index, attribute, value, insert_date ) values (?, ?, ?, ?, ?)")) {
+    private void writeCsvContents(SailPointContext context, ExportConnectionInfo connectionInfo, Timestamp taskTimestamp, String uuid, TaskDefinition report, PersistedFile csvFile) throws SQLException, IOException, GeneralException {
+        try (Connection connection = openConnection(context, connectionInfo); PreparedStatement rowInsert = connection.prepareStatement("insert into de_report_data ( report_name, run_uuid, row_index, attribute, value, insert_date ) values (?, ?, ?, ?, ?)")) {
             int batchCount = 0;
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(new PersistedFileInputStream(context, csvFile)))) {
                 RFC4180LineIterator lineIterator = new RFC4180LineIterator(reader);
@@ -140,7 +226,7 @@ public class ReportExporter extends AbstractTaskExecutor {
                         String line;
                         int rowIndex = 0;
 
-                        while ((line = lineIterator.readLine()) != null) {
+                        while ((line = lineIterator.readLine()) != null && !terminated.get()) {
                             Map<String, String> row = new HashMap<>();
                             List<String> csvElements = parser.parseLine(line);
                             for (int i = 0; i < csvElements.size() && i < headerElements.size(); i++) {
@@ -152,13 +238,13 @@ public class ReportExporter extends AbstractTaskExecutor {
                             }
 
                             if (!row.isEmpty()) {
-                                exportRow(rowInsert, report, rowIndex, row, taskTimestamp);
+                                exportRow(rowInsert, report, rowIndex, row, taskTimestamp, uuid);
                                 batchCount++;
                             }
 
                             rowIndex++;
 
-                            if (batchCount > 12) {
+                            if (batchCount > 50) {
                                 rowInsert.executeBatch();
                                 batchCount = 0;
                             }
@@ -172,25 +258,5 @@ public class ReportExporter extends AbstractTaskExecutor {
                 }
             }
         }
-    }
-
-    private void exportRow(PreparedStatement rowInsert, TaskDefinition report, int rowIndex, Map<String, String> row, Timestamp taskTimestamp) throws SQLException {
-        rowInsert.setString(1, report.getName());
-        rowInsert.setInt(2, rowIndex);
-        rowInsert.setTimestamp(5, taskTimestamp);
-
-        for(String key : row.keySet()) {
-            String val = row.get(key);
-            rowInsert.setString(3, key);
-            rowInsert.setString(4, val);
-
-            rowInsert.addBatch();
-        }
-    }
-
-    @Override
-    public boolean terminate() {
-        this.terminated.set(true);
-        return true;
     }
 }
