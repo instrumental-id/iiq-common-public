@@ -3,6 +3,8 @@ package com.identityworksllc.iiq.common.task.export;
 import com.identityworksllc.iiq.common.Functions;
 import com.identityworksllc.iiq.common.query.NamedParameterStatement;
 import com.identityworksllc.iiq.common.threads.SailPointWorker;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
@@ -24,11 +26,15 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * An abstract superclass for all export partitions. It will open a connection to the target
  * database and then invoke export() on the subclass.
  */
+@Setter
+@Getter
 public abstract class ExportPartition extends SailPointWorker implements Serializable {
 
     private int batchSize = 50;
@@ -156,9 +162,14 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
 
         logger.info("Starting export partition with key " + runKey);
 
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+
         try (Connection connection = openConnection(context, connectionInfo)) {
             if (JdbcUtil.isMySQL(connection)) {
                 connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            }
+            if (connectionInfo.getNetworkTimeout() > 0) {
+                connection.setNetworkTimeout(executorService, connection.getNetworkTimeout());
             }
 
             boolean previousAutoCommit = connection.getAutoCommit();
@@ -185,6 +196,7 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
                 connection.commit();
             } finally {
                 connection.setAutoCommit(previousAutoCommit);
+                executorService.shutdownNow();
             }
 
         } catch(Exception e) {
@@ -210,84 +222,8 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
      */
     protected abstract void export(SailPointContext context, Connection connection, Log logger) throws GeneralException;
 
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    public Configuration getConfiguration() {
-        return configuration;
-    }
-
-    public String getConfigurationName() {
-        return configurationName;
-    }
-
-    public long getCutoffDate() {
-        return cutoffDate;
-    }
-
-    public long getExportTimestamp() {
-        return exportTimestamp;
-    }
-
-    public String getFilterString() {
-        return filterString;
-    }
-
-    public String getFilterString2() {
-        return filterString2;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getRunKey() {
-        return runKey;
-    }
-
-    public void setBatchSize(int batchSize) {
-        this.batchSize = batchSize;
-    }
-
-    public void setConfigHash(String configHash) {
-        this.configHash = configHash;
-    }
-
-    public void setConfigurationName(String configurationName) {
-        this.configurationName = configurationName;
-    }
-
     public void setConnectionInfo(ExportConnectionInfo connectionInfo) {
         this.connectionInfo = Objects.requireNonNull(connectionInfo, "connectionInfo");
-    }
-
-    public void setCutoffDate(long cutoffDate) {
-        this.cutoffDate = cutoffDate;
-    }
-
-    public void setExportTimestamp(long exportTimestamp) {
-        this.exportTimestamp = exportTimestamp;
-    }
-
-    public void setFilterString(String filterString) {
-        this.filterString = filterString;
-    }
-
-    public void setFilterString2(String filterString2) {
-        this.filterString2 = filterString2;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setRunKey(String runKey) {
-        this.runKey = runKey;
-    }
-
-    public void setTaskName(String taskName) {
-        this.taskName = taskName;
     }
 
     @Override

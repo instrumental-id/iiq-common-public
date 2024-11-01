@@ -1,5 +1,8 @@
 package com.identityworksllc.iiq.common.task.export;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.Properties;
@@ -8,17 +11,21 @@ import java.util.Properties;
  * A record / vo class used to pass connection info to the export partition. Your driver
  * should already have been registered here.
  */
+@Getter
+@Setter
 public final class ExportConnectionInfo implements Serializable {
     /**
      * The driver class (currently not used)
      */
     private String driver;
-
     /**
      * The encrypted password - will fail if not encrypted
      */
     private String encryptedPassword;
-
+    /**
+     * JDBC network timeout
+     */
+    private long networkTimeout;
     /**
      * Any additional driver options, unique per driver
      */
@@ -87,48 +94,9 @@ public final class ExportConnectionInfo implements Serializable {
         return Objects.equals(driver, that.driver) && Objects.equals(encryptedPassword, that.encryptedPassword) && Objects.equals(options, that.options) && Objects.equals(url, that.url) && Objects.equals(username, that.username);
     }
 
-    public String getDriver() {
-        return driver;
-    }
-
-    public String getEncryptedPassword() {
-        return encryptedPassword;
-    }
-
-    public Properties getOptions() {
-        return options;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(driver, encryptedPassword, options, url, username);
     }
 
-    public void setDriver(String driver) {
-        this.driver = driver;
-    }
-
-    public void setEncryptedPassword(String encryptedPassword) {
-        this.encryptedPassword = encryptedPassword;
-    }
-
-    public void setOptions(Properties options) {
-        this.options = options;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
 }
