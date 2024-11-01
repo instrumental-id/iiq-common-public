@@ -9,3 +9,5 @@ lib/sailpoint/
 .project
 plugin-installer.properties
 doc/*.pdf
+sailpoint*.dtd
+sailpoint-catalog.xml
