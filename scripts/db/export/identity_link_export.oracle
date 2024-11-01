@@ -66,8 +66,3 @@ create table de_runs (
     task_name VARCHAR2(500 char),
     config_hash VARCHAR2(32 char)
 );
-
-create table de_version (
-    version_date DATE,
-    version_number NUMBER
-);
