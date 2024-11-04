@@ -54,6 +54,12 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
      * The connection info
      */
     private ExportConnectionInfo connectionInfo;
+
+    /**
+     * True if we ought to do a delete
+     */
+    private boolean deleteEnabled;
+
     /**
      * The cutoff date, milliseconds. We should not export records older than this date.
      */

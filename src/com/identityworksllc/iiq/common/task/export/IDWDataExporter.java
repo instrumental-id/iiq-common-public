@@ -151,7 +151,21 @@ public class IDWDataExporter extends AbstractTaskExecutor {
 
         String taskName = taskResult.getDefinition().getName();
 
+        boolean deleteEnabled = true;
+
         try (Connection connection = ExportPartition.openConnection(context, connectionInfo)) {
+            try (PreparedStatement existingRows = connection.prepareStatement("select count(*) as c from de_identity")) {
+                try (ResultSet resultSet = existingRows.executeQuery()) {
+                    if (resultSet.next()) {
+                        int count = resultSet.getInt(1);
+                        if (count == 0) {
+                            logger.warn("DE_IDENTITY is empty; for first run, deletes will be suppressed to avoid index hangs");
+                            deleteEnabled = false;
+                            doLinkCleanup = false;
+                        }
+                    }
+                }
+            }
             try (PreparedStatement statement = connection.prepareStatement("select last_start_time, run_key, config_hash from de_runs where task_name = ? order by last_start_time desc")) {
                 statement.setString(1, taskName);
 
@@ -200,6 +214,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             eip.setTaskName(taskName);
             eip.setRunKey(lookup);
             eip.setConfigHash(configHash);
+            eip.setDeleteEnabled(deleteEnabled);
 
             partitions.add(eip);
         }
@@ -234,6 +249,7 @@ public class IDWDataExporter extends AbstractTaskExecutor {
                 elp.setTaskName(taskName);
                 elp.setRunKey(lookup);
                 elp.setConfigHash(configHash);
+                elp.setDeleteEnabled(deleteEnabled);
 
                 if (linkBatchSize > 0) {
                     elp.setBatchSize(linkBatchSize);

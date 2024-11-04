@@ -45,7 +45,13 @@ Each partition will keep a single connection to the target database open, so ens
 
 === Delete and add
 
-For each identity or link, a single transaction will be used to delete all existing rows for that entity and then insert a fresh copy of the data, in that order. This should prevent any external queries from seeing partially formed data. It will also prevent unique indexes from being violated.
+For each identity or link, a single transaction will be used to delete all existing rows in each table for that entity and then insert a fresh copy of the data, in that order. This should prevent any external queries from seeing partially formed data. It will also prevent unique indexes from being violated.
+
+=== Truncation
+
+Attribute values longer than 4000 bytes (not characters) will be truncated, with a '...' appended to the end. This limit will be configurable in the future.
+
+(Why bytes? Blame Oracle! While Oracle allows you to specify your VARCHAR2 column as "4000 CHAR", the fixed size limit is still 4000 bytes. This means that if your attribute value has any multi-byte characters, such as a fancy quote, you won't actually be able to insert the string.)
 
 == Request definition
 
@@ -128,3 +134,11 @@ The task runs in an incremental mode by default. The incremental cutoff date is 
 The first execution will always be a full export. Subsequent executions will use data in the custom table `DE_RUNS` to determine which items need to be exported. The `DE_RUNS` table contains the most recent completion date for each partition. Only items created or modified after the last run date for that partition will be exported.
 
 Rows in `DE_RUNS` are not added or updated until the partition successfully finishes. If a partition fails, its entire run must be repeated on the next export, so the previous last run timestamp will be retained.
+
+== Troubleshooting
+
+=== The job hangs during the first or second runs (Oracle)
+
+On an Oracle database, you will likely need to analyze the "DE_" tables (gather stats) partway through the first run or before the second run of the job. Since the table begins empty, the Oracle optimizer doesn't know the distribution of values in the table indexes.
+
+You may also want to rebuild the "_ATTR" tables' indexes after the first run.

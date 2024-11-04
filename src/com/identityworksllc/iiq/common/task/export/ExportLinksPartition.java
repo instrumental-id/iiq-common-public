@@ -156,11 +156,13 @@ public class ExportLinksPartition extends ExportPartition {
                         logger.trace("Exporting Link " + linkId + ": " + applicationName + " " + nativeIdentity);
                     }
 
-                    deleteLink.setString("id", linkId);
-                    deleteLink.addBatch();
+                    if (isDeleteEnabled()) {
+                        deleteLink.setString("id", linkId);
+                        deleteLink.addBatch();
 
-                    deleteAttrs.setString("id", linkId);
-                    deleteAttrs.addBatch();
+                        deleteAttrs.setString("id", linkId);
+                        deleteAttrs.addBatch();
+                    }
 
                     insertLink.setString("id", linkId);
                     if (identityId != null) {
@@ -248,8 +250,10 @@ public class ExportLinksPartition extends ExportPartition {
                     if (batchCount++ > linkBatchSize) {
                         Meter.enterByName(METER_STORE);
                         try {
-                            deleteLink.executeBatch();
-                            deleteAttrs.executeBatch();
+                            if (isDeleteEnabled()) {
+                                deleteLink.executeBatch();
+                                deleteAttrs.executeBatch();
+                            }
                             insertLink.executeBatch();
                             insertAttribute.executeBatch();
 

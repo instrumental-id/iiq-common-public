@@ -156,14 +156,16 @@ public class ExportIdentitiesPartition extends ExportPartition {
                     logger.trace("Exporting Identity " + id + ": " +  displayName);
                 }
 
-                deleteIdentity.setString("id", id);
-                deleteIdentity.addBatch();
+                if (isDeleteEnabled()) {
+                    deleteIdentity.setString("id", id);
+                    deleteIdentity.addBatch();
 
-                deleteAttrs.setString("id", id);
-                deleteAttrs.addBatch();
+                    deleteAttrs.setString("id", id);
+                    deleteAttrs.addBatch();
 
-                deleteRolesStatement.setString("id", id);
-                deleteRolesStatement.addBatch();
+                    deleteRolesStatement.setString("id", id);
+                    deleteRolesStatement.addBatch();
+                }
 
                 insertIdentityStatement.setString("id", id);
                 insertIdentityStatement.setString("name", name);
@@ -249,9 +251,11 @@ public class ExportIdentitiesPartition extends ExportPartition {
                 }
 
                 if (batchCount++ > IDENTITY_BATCH_SIZE) {
-                    deleteAttrs.executeBatch();
-                    deleteRolesStatement.executeBatch();
-                    deleteIdentity.executeBatch();
+                    if (isDeleteEnabled()) {
+                        deleteAttrs.executeBatch();
+                        deleteRolesStatement.executeBatch();
+                        deleteIdentity.executeBatch();
+                    }
                     insertIdentityStatement.executeBatch();
                     insertAttributeStatement.executeBatch();
                     insertRolesStatement.executeBatch();
