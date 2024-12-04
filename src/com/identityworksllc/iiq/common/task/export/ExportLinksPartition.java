@@ -287,6 +287,12 @@ public class ExportLinksPartition extends ExportPartition {
                 insertAttribute.executeBatch();
 
                 connection.commit();
+
+                int currentCount = totalCount.get();
+                TaskUtil.withLockedPartitionResult(monitor, (partitionResult) -> {
+                    monitor.updateProgress(partitionResult, "Processed " + currentCount + " of " + count + " links", -1);
+                    partitionResult.setInt("exportedLinks", currentCount);
+                });
             } catch(SQLException e) {
                 logger.error("Caught an error committing a batch containing these accounts: " + linksInBatch, e);
                 throw e;

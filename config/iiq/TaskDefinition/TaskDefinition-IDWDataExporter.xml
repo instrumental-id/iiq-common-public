@@ -27,17 +27,20 @@
             <Argument name="configurationName" required="true" type="string">
                 <Prompt>Configuration object name</Prompt>
             </Argument>
-            <Argument name="identityFilters" required="true" type="string" multiValued="true">
+            <Argument name="identityFilters" required="true" type="string" multi="true">
                 <Prompt>Identity partition filters</Prompt>
             </Argument>
-            <Argument name="linkFilters" required="true" type="string" multiValued="true">
+            <Argument name="linkFilters" required="true" type="string" multi="true">
                 <Prompt>Link partition filters</Prompt>
             </Argument>
-            <Argument name="linkFilters2" required="false" type="string" multiValued="true">
+            <Argument name="linkFilters2" required="false" type="string" multi="true">
                 <Prompt>Link partition filters (second set)</Prompt>
             </Argument>
             <Argument name="linkCleanup" type="boolean">
                 <Prompt>Detect and clean up deleted links</Prompt>
+            </Argument>
+            <Argument name="gatherStatsTable" type="string" multi="true">
+                <Prompt>Gather stats on this list of tables (Oracle only)</Prompt>
             </Argument>
         </Inputs>
         <Returns>

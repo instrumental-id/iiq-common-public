@@ -282,6 +282,13 @@ public class ExportIdentitiesPartition extends ExportPartition {
 
             connection.commit();
 
+            int currentCount = totalCount.get();
+            TaskUtil.withLockedPartitionResult(monitor, (partitionResult) -> {
+                monitor.updateProgress(partitionResult, "Processed " + currentCount + " of " + count + " identities", -1);
+                partitionResult.setInt("exportedIdentities", currentCount);
+            });
+
+
         } catch(SQLException e) {
             throw new GeneralException(e);
         }

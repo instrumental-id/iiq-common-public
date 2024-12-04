@@ -36,6 +36,7 @@ import javax.servlet.http.HttpSession;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -3062,6 +3063,35 @@ public class Utilities {
 		SimpleDateFormat formatter = new SimpleDateFormat(CommonConstants.STANDARD_TIMESTAMP);
 		formatter.setTimeZone(TimeZone.getDefault());
 		return formatter.format(new Date());
+	}
+
+	/**
+	 * Transforms the input map into a URL-safe query string
+	 *
+	 * @param parameters The input parameters
+	 * @return The resulting query string
+	 */
+	public static String toQueryString(Map<String, String> parameters) {
+		if (parameters == null || parameters.isEmpty()) {
+			return "";
+		}
+
+		Function<String, String> encoder = (input) -> {
+			if (input != null) {
+				try {
+					return URLEncoder.encode(input, "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					logger.warn("Unable to encode string", e);
+				}
+			}
+
+			return "";
+		};
+
+		return parameters.entrySet().stream()
+				.map(p -> encoder.apply(p.getKey()) + "=" + encoder.apply(p.getValue()))
+				.reduce((p1, p2) -> p1 + "&" + p2)
+				.orElse("");
 	}
 
 	/**

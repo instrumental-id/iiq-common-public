@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.task.export;
 
+import com.identityworksllc.iiq.common.Utilities;
 import com.identityworksllc.iiq.common.request.SailPointWorkerExecutor;
 import com.identityworksllc.iiq.common.threads.SailPointWorker;
 import org.apache.commons.logging.Log;
@@ -8,6 +9,7 @@ import sailpoint.api.SailPointContext;
 import sailpoint.object.*;
 import sailpoint.task.AbstractTaskExecutor;
 import sailpoint.tools.GeneralException;
+import sailpoint.tools.JdbcUtil;
 import sailpoint.tools.Message;
 import sailpoint.tools.Util;
 
@@ -124,6 +126,8 @@ public class IDWDataExporter extends AbstractTaskExecutor {
 
         boolean doLinkCleanup = attributes.getBoolean("linkCleanup", true);
 
+        List<String> gatherStatsTables = attributes.getStringList("gatherStatsTables");
+
         long networkTimeout = Util.otolo(attributes.getString("networkTimeout"));
 
         String driver = attributes.getString("driver");
@@ -152,8 +156,11 @@ public class IDWDataExporter extends AbstractTaskExecutor {
         String taskName = taskResult.getDefinition().getName();
 
         boolean deleteEnabled = true;
+        boolean isOracle = false;
 
         try (Connection connection = ExportPartition.openConnection(context, connectionInfo)) {
+            isOracle = JdbcUtil.isOracle(connection);
+
             try (PreparedStatement existingRows = connection.prepareStatement("select count(*) as c from de_identity")) {
                 try (ResultSet resultSet = existingRows.executeQuery()) {
                     if (resultSet.next()) {
@@ -219,6 +226,10 @@ public class IDWDataExporter extends AbstractTaskExecutor {
             partitions.add(eip);
         }
 
+        int totalLinkPartitions = Utilities.safeSize(linkFilters) * Utilities.safeSize(linkFilters2);
+        int halfway = totalLinkPartitions / 2;
+        int linkPartitionPhase = 2;
+
         count = 1;
         for(String filter : Util.safeIterable(linkFilters)) {
             Filter compiled1 = Filter.compile(filter);
@@ -238,8 +249,8 @@ public class IDWDataExporter extends AbstractTaskExecutor {
 
                 ExportLinksPartition elp = new ExportLinksPartition();
                 elp.setName("Link export partition " + count++);
-                elp.setPhase(2);
-                elp.setDependentPhase(1);
+                elp.setPhase(linkPartitionPhase);
+                elp.setDependentPhase(linkPartitionPhase - 1);
                 elp.setExportTimestamp(now);
                 elp.setCutoffDate(cutoffDate);
                 elp.setFilterString(filter);
@@ -256,19 +267,41 @@ public class IDWDataExporter extends AbstractTaskExecutor {
                 }
 
                 partitions.add(elp);
+
+                if (count == halfway && isOracle && !Util.isEmpty(gatherStatsTables)) {
+                    taskResult.addMessage("Adding a 'gather table stats' partition after link partition " + halfway);
+                    OracleGatherStatsPartition statsPartition = new OracleGatherStatsPartition(gatherStatsTables);
+                    // Phase 3
+                    statsPartition.setPhase(linkPartitionPhase + 1);
+                    statsPartition.setDependentPhase(linkPartitionPhase);
+                    statsPartition.setName("Gather table stats: PARTIAL");
+                    partitions.add(statsPartition);
+
+                    // Now phase 4, after the stats partition
+                    linkPartitionPhase += 2;
+                }
             }
         }
 
         if (doLinkCleanup) {
             CleanupLinksPartition clp = new CleanupLinksPartition();
-            clp.setPhase(3);
-            clp.setDependentPhase(2);
+            // Either 3 or 5, depending on stats
+            clp.setPhase(linkPartitionPhase + 1);
+            clp.setDependentPhase(linkPartitionPhase);
             clp.setName("Clean up deleted Links");
             clp.setConnectionInfo(connectionInfo);
             clp.setRunKey("cleanup");
             clp.setTaskName(taskName);
             clp.setConfigHash(configHash);
             partitions.add(clp);
+        }
+
+        if (isOracle && !Util.isEmpty(gatherStatsTables)) {
+            OracleGatherStatsPartition statsPartition = new OracleGatherStatsPartition(gatherStatsTables);
+            statsPartition.setPhase(linkPartitionPhase + 1);
+            statsPartition.setDependentPhase(linkPartitionPhase);
+            statsPartition.setName("Gather table stats: FINAL");
+            partitions.add(statsPartition);
         }
 
         return partitions;

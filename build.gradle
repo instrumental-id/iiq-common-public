@@ -53,10 +53,6 @@ buildscript {
     }
 }
 
-plugins {
-    id "io.freefair.lombok" version "8.10"
-}
-
 apply plugin: 'checkstyle'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
@@ -173,6 +169,7 @@ dependencies {
         exclude group: 'org.bouncycastle'
         exclude group: 'bouncycastle'
     }
+    implementation group: 'org.apache.httpcomponents', name: 'httpcore', version: '4.4'
 
     testImplementation group: 'com.googlecode.juniversalchardet', name: 'juniversalchardet', version: '1.0.3'
 
@@ -182,6 +179,12 @@ dependencies {
 
     testRuntimeOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.20.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.36'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
 }
 
 test {
