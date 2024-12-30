@@ -15,10 +15,7 @@ import sailpoint.object.ProvisioningPlan.AttributeRequest;
 import sailpoint.request.AggregateRequestExecutor;
 import sailpoint.server.Environment;
 import sailpoint.service.ServiceHandler;
-import sailpoint.tools.CloseableIterator;
-import sailpoint.tools.GeneralException;
-import sailpoint.tools.Message;
-import sailpoint.tools.Util;
+import sailpoint.tools.*;
 import sailpoint.tools.xml.XMLReferenceResolver;
 
 import java.util.*;
@@ -28,6 +25,63 @@ import java.util.*;
  */
 @SuppressWarnings("unused")
 public class AccountUtilities extends AbstractBaseUtility {
+
+	/**
+	 * The input options to {@link #aggregateAccounts(MultipleAggregateOptions)}.
+	 */
+	public static class MultipleAggregateOptions {
+		/**
+		 * The account filter, compiled (may be null)
+		 */
+		private Filter accountFilter;
+
+		/**
+		 * The account filter string, pre-compilation
+		 */
+		private String accountFilterString;
+
+		/**
+		 * The accounts list to aggregate
+		 */
+		private List<Pair<String, String>> accountsList;
+
+		/**
+		 * The identity from whom to pull accounts
+		 */
+		private String identity;
+
+		public Filter getAccountFilter() {
+			return accountFilter;
+		}
+
+		public String getAccountFilterString() {
+			return accountFilterString;
+		}
+
+		public List<Pair<String, String>> getAccountsList() {
+			return accountsList;
+		}
+
+		public String getIdentity() {
+			return identity;
+		}
+
+		public void setAccountFilter(Filter accountFilter) {
+			this.accountFilter = accountFilter;
+		}
+
+		public void setAccountFilterString(String accountFilterString) {
+			this.accountFilterString = accountFilterString;
+		}
+
+		public void setAccountsList(List<Pair<String, String>> accountsList) {
+			this.accountsList = accountsList;
+		}
+
+		public void setIdentity(String identity) {
+			this.identity = identity;
+		}
+	}
 
 	/**
 	 * The options class for {@link #aggregateAccount(AggregateOptions)}, allowing expansion
@@ -282,6 +336,30 @@ public class AccountUtilities extends AbstractBaseUtility {
 	 * The list of tokens that likely indicate a password type variable
 	 */
 	private static final List<String> likelyPasswordTokens = Arrays.asList("password", "unicodepwd", "secret", "private");
+	/**
+	 * The internal provisioning utilities object
+	 */
+	private final ProvisioningUtilities provisioningUtilities;
+	/**
+	 * Constructor
+	 *
+	 * @param c The current SailPointContext
+	 */
+	public AccountUtilities(SailPointContext c) {
+		this(c, new ProvisioningUtilities(c));
+	}
+
+	/**
+	 * Constructor allowing you to pass a new ProvisioningUtilities
+	 *
+	 * @param c The context
+	 * @param provisioningUtilities A pre-existing provisioning utilities
+ 	 */
+	public AccountUtilities(SailPointContext c, ProvisioningUtilities provisioningUtilities) {
+		super(c);
+
+		this.provisioningUtilities = Objects.requireNonNull(provisioningUtilities);
+	}
 
 	/**
 	 * Fixes the Identity of the given Resource Object
@@ -306,31 +384,6 @@ public class AccountUtilities extends AbstractBaseUtility {
 				}
 			}
 		}
-	}
-	/**
-	 * The internal provisioning utilities object
-	 */
-	private final ProvisioningUtilities provisioningUtilities;
-
-	/**
-	 * Constructor
-	 *
-	 * @param c The current SailPointContext
-	 */
-	public AccountUtilities(SailPointContext c) {
-		this(c, new ProvisioningUtilities(c));
-	}
-
-	/**
-	 * Constructor allowing you to pass a new ProvisioningUtilities
-	 *
-	 * @param c The context
-	 * @param provisioningUtilities A pre-existing provisioning utilities
- 	 */
-	public AccountUtilities(SailPointContext c, ProvisioningUtilities provisioningUtilities) {
-		super(c);
-
-		this.provisioningUtilities = Objects.requireNonNull(provisioningUtilities);
 	}
 
 	/**
@@ -707,6 +760,73 @@ public class AccountUtilities extends AbstractBaseUtility {
         options.aggregateOptions = arguments;
 
         return aggregateAccount(options);
+	}
+
+	/**
+	 * Aggregates all accounts for the given identity, returning the same output as {@link #aggregateAccounts(MultipleAggregateOptions)}.
+	 * @param identity The identity ID or name
+	 * @return The outcomes of the aggregations
+	 * @throws GeneralException if anything fails
+	 */
+	public Map<Pair<String, String>, AggregationOutcome> aggregateAccounts(String identity) throws GeneralException {
+		MultipleAggregateOptions options = new MultipleAggregateOptions();
+		options.identity = identity;
+		return aggregateAccounts(options);
+	}
+
+	/**
+	 * Aggregates a list of individual accounts according to the options provided.
+	 *
+	 * In the output Map, the key is a {@link Pair} with the first element being the application
+	 * name and the second element being the native identity. The Map value is the {@link AggregationOutcome}
+	 * corresponding to that aggregation.
+	 *
+	 * @param options The options, specifying which Identity and accounts to aggregate
+	 * @return The outcomes of the aggregations
+	 * @throws GeneralException if any failures occur
+	 */
+	public Map<Pair<String, String>, AggregationOutcome> aggregateAccounts(MultipleAggregateOptions options) throws GeneralException {
+		if (Util.isNullOrEmpty(options.identity)) {
+			throw new IllegalArgumentException("The input options must contain an Identity name or ID");
+		}
+
+		Identity target = context.getObject(Identity.class, options.identity);
+		if (target == null) {
+			throw new IllegalArgumentException("The identity " + options.identity + " does not exist");
+		}
+
+		if (Util.isNotNullOrEmpty(options.accountFilterString) && options.accountFilter == null) {
+			options.accountFilter = Filter.compile(options.accountFilterString);
+		}
+
+		List<Pair<String, String>> toProcess = Util.isEmpty(options.getAccountsList()) ? new ArrayList<>() : options.getAccountsList();
+
+		if (Util.isEmpty(toProcess)) {
+			List<Link> accounts = target.getLinks();
+
+			for (Link link : Util.safeIterable(accounts)) {
+				boolean included = true;
+				if (options.accountFilter != null) {
+					HybridObjectMatcher matcher = new HybridObjectMatcher(context, options.accountFilter);
+					included = matcher.matches(link);
+				}
+
+				if (included) {
+					toProcess.add(Pair.make(link.getApplicationName(), link.getNativeIdentity()));
+				}
+			}
+		}
+
+		Map<Pair<String, String>, AggregationOutcome> linkOutcomes = new HashMap<>();
+
+		for(Pair<String, String> pair : toProcess) {
+			AggregationOutcome outcome = aggregateAccount(pair.getFirst(), pair.getSecond(), false);
+			if (outcome != null) {
+				linkOutcomes.put(pair, outcome);
+			}
+		}
+
+		return linkOutcomes;
 	}
 
 	/**

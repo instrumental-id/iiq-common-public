@@ -2808,6 +2808,26 @@ public class Utilities {
 	}
 
 	/**
+	 * Translates the input object to XML, if possible, swallowing any exceptions.
+	 * If the input cannot be translated, returns an empty string.
+	 *
+	 * @param anything The object to translate
+	 * @return The output
+	 */
+	public static String safeToXml(Object anything) {
+		XMLObjectFactory factory = XMLObjectFactory.getInstance();
+		try {
+			return factory.toXml(anything);
+		} catch(Exception e) {
+			// toXml() actually throws a runtime exception if there is no serializer for
+			// the class in question, so we need to catch Exception
+			logger.debug("Caught an exception translating an object to XML", e);
+		}
+
+		return "";
+	}
+
+	/**
 	 * Returns a trimmed version of the input string, returning an empty
 	 * string if it is null.
 	 * @param input The input string to trim
