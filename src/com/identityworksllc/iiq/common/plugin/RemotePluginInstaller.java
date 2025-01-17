@@ -38,7 +38,10 @@ import java.util.regex.Pattern;
  */
 public class RemotePluginInstaller {
 
-	private static class Plugin {
+	/**
+	 * A class representing the metadata of an installed plugin
+	 */
+	public static class Plugin {
 		private boolean enabled;
 		private String id;
 		private String name;
@@ -65,9 +68,23 @@ public class RemotePluginInstaller {
 		}
 	}
 
-	enum OutputLevel {
+	/**
+	 * The output level at which to print a message
+	 */
+	public enum OutputLevel {
+		/**
+		 * Debug level
+		 */
 		Debug,
+
+		/**
+		 * Info level
+		 */
 		Info,
+
+		/**
+		 * Error level
+		 */
 		Error
 	}
 
@@ -203,6 +220,14 @@ public class RemotePluginInstaller {
 		System.exit(exitCode);
 	}
 
+	/**
+	 * Outputs the message in question at the given output level. The output
+	 * level determines the prefix used.
+	 *
+	 * @param level The output level
+	 * @param output The output to print
+	 * @param variables Any variables to substitute into the output
+	 */
 	public static void output(OutputLevel level, String output, Object... variables) {
 		if (variables != null && variables.length > 0) {
 			output = MessageFormat.format(output, variables);
@@ -268,12 +293,24 @@ public class RemotePluginInstaller {
 	private final char[] password;
 	private final String username;
 
-	public RemotePluginInstaller(URI iiq, String username, char[] password) throws URISyntaxException {
+	/**
+	 * Constructs a new RemotePluginInstaller with the given connection info
+	 * @param iiq The URI of the IIQ server
+	 * @param username The username with which to connect
+	 * @param password The password belonging to that uer
+	 */
+	public RemotePluginInstaller(URI iiq, String username, char[] password) {
 		this.iiq = iiq;
 		this.username = username;
 		this.password = password;
 	}
 
+	/**
+	 * Gets the Plugin metadata for the plugin of the given name
+	 * @param name The name of the plugin
+	 * @return The resulting plugin metadata, if it exists, or an empty Optional
+	 * @throws IOException if reading from the server fails
+	 */
 	public Optional<Plugin> getPlugin(String name) throws IOException {
 		URI pluginUrl = this.iiq.resolve("rest/plugins");
 
@@ -413,6 +450,12 @@ public class RemotePluginInstaller {
 		return vo.isPresent();
 	}
 
+	/**
+	 * Uninstall the plugin with the given name
+	 * @param pluginName The name of the plugin
+	 * @throws IOException If the de-installation operation fails
+	 */
+	// TODO
 	public void uninstallPlugin(String pluginName) throws IOException {
 
 	}

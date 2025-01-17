@@ -85,6 +85,14 @@ public class AggregationDateRetentionService extends Service {
 
     private static final Log log = LogFactory.getLog(AggregationDateRetentionService.class);
 
+    /**
+     * Main entry point for the service. This method is called by the Service. It
+     * will determine if this host is the one that should run the service, and if
+     * so, will call the implementation method.
+     *
+     * @param context SailPoint context
+     * @throws GeneralException if any failures occur
+     */
     @Override
     public void execute(SailPointContext context) throws GeneralException {
         ServiceDefinition self = getDefinition();

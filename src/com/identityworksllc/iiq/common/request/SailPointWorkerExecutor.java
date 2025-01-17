@@ -65,6 +65,9 @@ public final class SailPointWorkerExecutor extends AbstractRequestExecutor {
      */
     private final AtomicBoolean terminated;
 
+    /**
+     * Constructs a new executor
+     */
     public SailPointWorkerExecutor() {
         this.terminated = new AtomicBoolean();
         this.log = LogFactory.getLog(this.getClass());

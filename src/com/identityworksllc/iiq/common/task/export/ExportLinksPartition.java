@@ -59,6 +59,9 @@ public class ExportLinksPartition extends ExportPartition {
 
     private final Log logger;
 
+    /**
+     * Constructs a new partition for exporting link objects
+     */
     public ExportLinksPartition() {
         this.logger = LogFactory.getLog(ExportLinksPartition.class);
     }

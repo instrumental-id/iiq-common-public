@@ -43,6 +43,10 @@ public abstract class AbstractThreadedObjectIteratorTask<ItemType> extends Abstr
 
         private final CloseableIterator<ResourceObject> closeableIterator;
 
+        /**
+         * Constructs a new CloseableIteratorWrapper, wrapping the given CloseableIterator
+         * @param closeableIterator The iterator to wrap, usually from a Connector
+         */
         public CloseableIteratorWrapper(CloseableIterator<ResourceObject> closeableIterator) {
             this.closeableIterator = closeableIterator;
         }
