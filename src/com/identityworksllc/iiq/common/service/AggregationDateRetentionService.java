@@ -12,6 +12,7 @@ import sailpoint.object.PersistenceOptions;
 import sailpoint.object.QueryOptions;
 import sailpoint.object.Server;
 import sailpoint.object.ServiceDefinition;
+import sailpoint.persistence.HibernatePersistenceManager;
 import sailpoint.server.Service;
 import sailpoint.server.ServicerUtil;
 import sailpoint.tools.GeneralException;
@@ -21,6 +22,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A service to retain the last aggregation timestamps and other cache data
@@ -85,6 +87,9 @@ public class AggregationDateRetentionService extends Service {
 
     private static final Log log = LogFactory.getLog(AggregationDateRetentionService.class);
 
+    private final AtomicLong lastEviction = new AtomicLong(0);
+    private final AtomicLong startup = new AtomicLong(0);
+
     /**
      * Main entry point for the service. This method is called by the Service. It
      * will determine if this host is the one that should run the service, and if
@@ -119,6 +124,23 @@ public class AggregationDateRetentionService extends Service {
         }
         String hostname = Util.getHostName();
         if (target == null || target.getName().equals(hostname)) {
+            if (startup.compareAndSet(0, System.currentTimeMillis())) {
+                log.info("Service " + self.getName() + " first run on host " + hostname + " at " + startup.get());
+            }
+
+            boolean withinTenMinutesOfStartup = System.currentTimeMillis() - startup.get() < 600000;
+            boolean lastClearedOverThreeMinutesAgo = lastEviction.get() == 0 || System.currentTimeMillis() - lastEviction.get() > (60 * 3 * 1000);
+
+            // Within ten minutes of startup, evict on every run (every minute). This handles the
+            // post-deploy case when a new Application object is very likely to be inserted.
+            // Otherwise, evict every three minutes.
+            // There is still a weird overlap period where incremental aggregations may fail.
+            // This is not avoidable using this method.
+            if (withinTenMinutesOfStartup || lastClearedOverThreeMinutesAgo) {
+                HibernatePersistenceManager.getHibernatePersistenceManager(context).clearHighLevelCache();
+                lastEviction.set(System.currentTimeMillis());
+            }
+
             Utilities.withPrivateContext((privateContext) -> {
                 PersistenceOptions po = new PersistenceOptions();
                 po.setExplicitSaveMode(true);
