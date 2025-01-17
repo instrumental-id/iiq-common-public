@@ -30,6 +30,12 @@ public final class Maybe<T> {
      * @param <T> The type contained within the Maybe, maybe.
      */
     public static final class MaybeConsumer<T> implements Consumer<Maybe<T>> {
+        /**
+         * Creates a new {@link MaybeConsumer} from the given {@link Consumer}
+         * @param wrappedConsumer The consumer to wrap
+         * @return The wrapped consumer object
+         * @param <T> The type of the original object being consumed
+         */
         public static <T> MaybeConsumer<T> from(Consumer<T> wrappedConsumer) {
             return new MaybeConsumer<>(wrappedConsumer);
         }
