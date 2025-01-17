@@ -58,10 +58,18 @@ public final class PairedException extends Throwable {
                 .toString();
     }
 
+    /**
+     * Gets the second cause in this paired exception
+     * @return The second cause
+     */
     public Throwable getSecondCause() {
         return t2;
     }
 
+    /**
+     * Gets the second cause's stack trace in this paired exception
+     * @return The second cause's stack trace
+     */
     public StackTraceElement[] getSecondStackTrace() {
         Objects.requireNonNull(t2);
         return t2.getStackTrace();
