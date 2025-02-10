@@ -1,0 +1,19 @@
+= Dual-Delegating Connector
+
+The Dual-Delegating Connector is a simple connector that delegates to two other connectors, one for write and one for read. The read connector is used for the `iterate` and (optionally) `getObject` operations (basically, aggregation), while the write connector is used for all others.
+
+The primary use case for this connector is the common situation where you can provision to a system, but prefer to import accounts via flat file, either one time or every time. This can be particularly useful for cloud services, where exporting the entire userbase is not feasible in a reasonable timeframe.
+
+The connector classname for the Dual-Delegating Connector is `com.identityworksllc.iiq.common.connector.DualDelegatingConnector`. In general, you will configure your "write" application and then replace its connector class with this one.
+
+== Configuration
+
+You must specify at least two parameters for the Dual-Delegating connector, the original connector class name for write and an Application name (NOT connector class) for read.
+
+* `delegate_write_ConnectorClass`: The class name for writing, usually the one you replaced with `DualDelegatingConnector` above.
+
+* `delegate_read_Application`: The Application (not class) name for reading, usually a Delimited File or JDBC type.
+
+Additionally, you may control whether `getObject` operations are performed using the read or write connector. IIQ connectors often invoke `getObject` immediately after a provisioning operation (examples include Web Services, JDBC, and Active Directory).
+
+* `delegate_read_GetObjectConnector`: Either 'read' or 'write' (defaults to 'read').
