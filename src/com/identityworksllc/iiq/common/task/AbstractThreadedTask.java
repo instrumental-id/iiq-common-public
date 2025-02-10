@@ -215,6 +215,14 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
     }
 
     /**
+     * Invoked after completion of all threads, even if they fail
+     * @param context The SailPoint context
+     */
+    protected void afterCompletion(SailPointContext context) {
+        /* No-op by default */
+    }
+
+    /**
      * Invoked by the default worker thread before each batch is begun. If this
      * method throws an exception, the batch worker ought to prevent the batch
      * from being executed.
@@ -224,6 +232,33 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
      */
     public void beforeBatch(SailPointContext context) throws GeneralException {
         /* No-op by default */
+    }
+
+    /**
+     * Retrieves an iterator over batches of items, with the size suggested by the second
+     * parameter. If left unmodified, returns either a {@link BatchingIterator} when the
+     * batch size is greater than 1, or a {@link TransformingIterator} that constructs a
+     * singleton list for each item when batch size is 1.
+     *
+     * If possible, the returned Iterator should simply wrap the input, rather than
+     * consuming it. This allows for "live" iterators that read from a data source
+     * directly rather than pre-reading. However, beware Hibernate iterators here
+     * because a 'commit' can kill those mid-iterate.
+     *
+     * @param items The input iterator of items
+     * @param batchSize The batch size
+     * @return The iterator over a list of items
+     */
+    protected Iterator<List<T>> createBatchIterator(Iterator<? extends T> items, int batchSize) {
+        Iterator<List<T>> batchingIterator;
+        if (batchSize > 1) {
+            // Batching iterator will combine items into lists of up to batchSize
+            batchingIterator = new BatchingIterator<>(items, batchSize);
+        } else {
+            // This iterator will just transform each item into a list containing only that item
+            batchingIterator = new TransformingIterator<T, List<T>>(items, Collections::singletonList);
+        }
+        return batchingIterator;
     }
 
     /**
@@ -260,7 +295,11 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
             monitor.updateProgress("Processing target objects");
             monitor.commitMasterResult();
 
-            submitAndWait(ctx, taskResult, items);
+            try {
+                submitAndWait(ctx, taskResult, items);
+            } finally {
+                afterCompletion(ctx);
+            }
 
             if (!terminated.get()) {
                 monitor.updateProgress("Invoking termination handlers");
@@ -269,33 +308,6 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
                 runTerminationHandlers();
             }
         }
-    }
-
-    /**
-     * Retrieves an iterator over batches of items, with the size suggested by the second
-     * parameter. If left unmodified, returns either a {@link BatchingIterator} when the
-     * batch size is greater than 1, or a {@link TransformingIterator} that constructs a
-     * singleton list for each item when batch size is 1.
-     *
-     * If possible, the returned Iterator should simply wrap the input, rather than
-     * consuming it. This allows for "live" iterators that read from a data source
-     * directly rather than pre-reading. However, beware Hibernate iterators here
-     * because a 'commit' can kill those mid-iterate.
-     *
-     * @param items The input iterator of items
-     * @param batchSize The batch size
-     * @return The iterator over a list of items
-     */
-    protected Iterator<List<T>> createBatchIterator(Iterator<? extends T> items, int batchSize) {
-        Iterator<List<T>> batchingIterator;
-        if (batchSize > 1) {
-            // Batching iterator will combine items into lists of up to batchSize
-            batchingIterator = new BatchingIterator<>(items, batchSize);
-        } else {
-            // This iterator will just transform each item into a list containing only that item
-            batchingIterator = new TransformingIterator<T, List<T>>(items, Collections::singletonList);
-        }
-        return batchingIterator;
     }
 
     /**
