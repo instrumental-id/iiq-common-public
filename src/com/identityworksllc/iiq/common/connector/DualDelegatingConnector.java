@@ -168,9 +168,11 @@ public class DualDelegatingConnector  extends AbstractConnector implements Conne
         }
 
         try {
-            this.writeConnector = getRealConnector(getObligatoryStringAttribute("delegate_write_ConnectorClass"));
+            @SuppressWarnings("unchecked")
+            List<String> connectorClasspath = getStringListAttribute("connector-classpath");
+            this.writeConnector = ConnectorClassLoaderWorkaround.getConnector(getObligatoryStringAttribute("delegate_write_ConnectorClass"), connectorClasspath);
             this.writeConnector.setConnectorServices(getConnectorServices());
-        } catch (ConnectorException e) {
+        } catch (ConnectorException | GeneralException e) {
             throw new IllegalArgumentException(e);
         }
 
