@@ -171,6 +171,8 @@ public class DualDelegatingConnector  extends AbstractConnector implements Conne
             @SuppressWarnings("unchecked")
             List<String> connectorClasspath = getStringListAttribute("connector-classpath");
             this.writeConnector = ConnectorClassLoaderWorkaround.getConnector(getObligatoryStringAttribute("delegate_write_ConnectorClass"), connectorClasspath);
+            this.writeConnector.setApplication(this.getApplication());
+            this.writeConnector.setTargetApplication(this.getTargetApplication());
             this.writeConnector.setConnectorServices(getConnectorServices());
         } catch (ConnectorException | GeneralException e) {
             throw new IllegalArgumentException(e);
