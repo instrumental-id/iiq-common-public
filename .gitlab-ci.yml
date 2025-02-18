@@ -23,7 +23,7 @@ variables:
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
   - export GIT_SSH_COMMAND=/usr/bin/ssh
-  - git checkout "$CI_COMMIT_REF_NAME"
+  # - git checkout "$CI_COMMIT_REF_NAME"
   - export JAVA_HOME=$JAVA_11
   - set_java_version
   - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
