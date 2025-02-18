@@ -19,7 +19,7 @@ import java.util.*;
  *
  * Optionally, getObject() can be forwarded to the 'write' connector.
  */
-public class DualDelegatingConnector  extends AbstractConnector implements ConnectorStateChangeListener {
+public class DualDelegatingConnector extends AbstractConnector implements ConnectorStateChangeListener {
 
     /**
      * The log
@@ -171,6 +171,10 @@ public class DualDelegatingConnector  extends AbstractConnector implements Conne
             @SuppressWarnings("unchecked")
             List<String> connectorClasspath = getStringListAttribute("connector-classpath");
             this.writeConnector = ConnectorClassLoaderWorkaround.getConnector(getObligatoryStringAttribute("delegate_write_ConnectorClass"), connectorClasspath);
+            if (this.writeConnector instanceof CollectorServices) {
+                CollectorServices collectorServices = (CollectorServices) writeConnector;
+                collectorServices.setAttributes(getAttributes());
+            }
             this.writeConnector.setApplication(this.getApplication());
             this.writeConnector.setTargetApplication(this.getTargetApplication());
             this.writeConnector.setConnectorServices(getConnectorServices());
