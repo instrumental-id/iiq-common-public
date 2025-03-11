@@ -75,7 +75,7 @@ public class BatchingIterator<ObjectType> implements AutoCloseable, CloseableIte
     public boolean hasNext() {
         List<ObjectType> tempList = new ArrayList<>();
         int amount = 0;
-        while (input.hasNext() && amount++ < batchSize) {
+        while ( amount++ < batchSize && input.hasNext() ) {
             tempList.add(input.next());
         }
         cachedList = tempList;
