@@ -1,0 +1,9 @@
+# Create a MYSQL table with id, name, value fields, where value is a timestamp
+# and indexed on name.
+create table iiqc_named_timestamps (
+  id varchar(64 char) not null,
+  name varchar(255) not null,
+  value timestamp not null,
+  primary key (id),
+  unique (name)
+);

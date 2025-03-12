@@ -1,0 +1,8 @@
+create table iiqc_named_timestamp (
+    id varchar2(64 char) not null,
+    name varchar2(255 char) not null,
+    value timestamp not null,
+    constraint iiqc_named_timestamp_pk primary key (id)
+);
+
+create index iiqc_ntimestamp_name_idx on iiqc_named_timestamp (name);
