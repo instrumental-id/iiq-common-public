@@ -122,6 +122,11 @@ public class DatabaseUtil {
         return connection.getMetaData().getDatabaseProductName().contains("PostgreSQL");
     }
 
+    /**
+     * Determines if the given name is a valid DB object name
+     * @param name The name to check
+     * @return true if the name is a valid object name, false otherwise
+     */
     public static boolean isValidObjectName(String name) {
         return name.length() < 30 && name.matches("[a-zA-Z_][a-zA-Z0-9_]*");
     }
