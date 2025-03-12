@@ -59,26 +59,26 @@ public class RunSQLScript implements Callable<Integer> {
      * interactively entered if not present.
      */
     @CommandLine.Option(names = {"-p", "--password"}, arity = "0..1", interactive = true)
-    private String password;
+    public String password;
 
     /**
      * If present, specifies that the commands ought to be run against the plugin
      * schema, not the identityiq schema.
      */
     @CommandLine.Option(names = {"--plugin-schema"}, description = "If specified, run the script against the plugin schema instead of the IIQ schema")
-    private boolean pluginSchema;
+    public boolean pluginSchema;
 
     /**
      * The command line arguments, parsed as File locations
      */
     @CommandLine.Parameters(paramLabel = "FILE", arity = "1..", description = "One or more SQL scripts to execute", type = File.class)
-    private List<File> sqlScripts = new ArrayList<>();
+    public List<File> sqlScripts = new ArrayList<>();
 
     /**
      * The username provided at the command line
      */
     @CommandLine.Option(names = {"-u", "--user"}, required = true, description = "The username with which to log in to IIQ", defaultValue = "spadmin", showDefaultValue = CommandLine.Help.Visibility.ALWAYS)
-    private String username;
+    public String username;
 
     /**
      * The main action, invoked by picocli after populating the parameters.

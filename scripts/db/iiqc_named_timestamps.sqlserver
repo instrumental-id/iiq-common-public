@@ -1,0 +1,10 @@
+# Create a MSSQL table with string id, name, value fields, where value is a timestamp
+# and indexed on name. ID is a unique key
+create table iiqc_named_timestamps (
+    id varchar(64) not null,
+    name varchar(255) not null,
+    value datetime not null,
+    constraint iiqc_named_timestamps_pk primary key (id)
+);
+
+create index iiqc_ntimestamps_name_idx on iiqc_named_timestamps (name);

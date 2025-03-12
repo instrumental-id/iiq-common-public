@@ -3,6 +3,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 checkstyle {
     showViolations = false
     toolVersion = '9.3'
+    sourceSets = [sourceSets.main]
 }
 
 tasks.withType(Checkstyle).configureEach {

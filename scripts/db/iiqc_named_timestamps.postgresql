@@ -1,0 +1,9 @@
+# Create a Postgresql table with string id, name, value fields, where value is a timestamp
+# and indexed on name. ID is a unique key
+create table iiqc_named_timestamps (
+  id varchar(64) primary key,
+  name varchar(255) not null,
+  value timestamp not null
+);
+
+create index iiqc_named_timestamps_name_idx on iiqc_named_timestamps(name);
