@@ -97,7 +97,7 @@ public class BeanshellUtilities {
 					sailpoint.object.SailPointObject objValue = (sailpoint.object.SailPointObject)value;
 					logger.warn(name + "(" + value.getClass().getSimpleName() + ") = " + objValue.toXml());
 				} else {
-					logger.warn(name + "(" + value.getClass().getSimpleName() + ") = " + value );
+					logger.warn(name + "(" + value.getClass().getSimpleName() + ") = " + value);
 				}
 			}
 		}

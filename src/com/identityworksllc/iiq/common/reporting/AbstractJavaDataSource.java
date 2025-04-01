@@ -53,8 +53,7 @@ public abstract class AbstractJavaDataSource implements JavaDataSource {
 		Object value = null;
 		try {
 			value = getFieldValue(name);
-		}
-		catch (GeneralException e) {
+		} catch (GeneralException e) {
 			throw new JRException(e);
 		}
 		return value;

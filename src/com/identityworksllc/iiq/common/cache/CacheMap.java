@@ -454,7 +454,7 @@ public class CacheMap<K, V> implements Map<K, V>, Serializable, Function<K, Opti
 	public HashMap<K, V> snapshot() {
 		invalidateRecords();
 		HashMap<K, V> replacement = new HashMap<>();
-		for( K key : keySet() ) {
+		for(K key : keySet()) {
 			replacement.put(key, get(key));
 		}
 		return replacement;
