@@ -18,14 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ExportLinksPartition extends ExportPartition {
@@ -221,6 +214,25 @@ public class ExportLinksPartition extends ExportPartition {
                                 insertAttribute.addBatch();
                             }
                         }
+                    }
+
+                    boolean excludeDisabled = (excludedColumns != null && excludedColumns.contains("IIQDisabled"));
+                    boolean excludeLocked = (excludedColumns != null && excludedColumns.contains("IIQLocked"));
+
+                    if (!excludeDisabled) {
+                        boolean disabled = Util.otob(attributes.get("IIQDisabled"));
+                        insertAttribute.setString("id", linkId);
+                        insertAttribute.setString("attributeName", "IIQDisabled");
+                        insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, String.valueOf(disabled));
+                        insertAttribute.addBatch();
+                    }
+
+                    if (!excludeLocked) {
+                        boolean locked = Util.otob(attributes.get("IIQLocked"));
+                        insertAttribute.setString("id", linkId);
+                        insertAttribute.setString("attributeName", "IIQLocked");
+                        insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, String.valueOf(locked));
+                        insertAttribute.addBatch();
                     }
 
                     for (AttributeDefinition attribute : schema.getAttributes()) {
