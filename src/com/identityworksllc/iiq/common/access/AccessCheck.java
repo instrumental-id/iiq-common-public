@@ -16,6 +16,7 @@ import sailpoint.plugin.PluginsUtil;
 import sailpoint.rest.plugin.BasePluginResource;
 import sailpoint.server.Environment;
 import sailpoint.tools.GeneralException;
+import sailpoint.tools.Message;
 import sailpoint.tools.Util;
 import sailpoint.web.UserContext;
 
@@ -312,6 +313,7 @@ public final class AccessCheck {
                 if (pluginContext instanceof PluginContext) {
                     settingEnabled = ((PluginContext) pluginContext).getSettingBool(setting.trim());
                 } else {
+                    result.addMessage(Message.error("A 'settingOffSwitch' was not used in a plugin context, without specifying the plugin name"));
                     throw new IllegalStateException("A 'settingOffSwitch' must be used in a plugin context, or specify the plugin name before ':', such as 'MyPlugin:settingName'");
                 }
             } else {
@@ -322,7 +324,9 @@ public final class AccessCheck {
 
                 settingEnabled = PluginBaseHelper.getSettingBool(plugin, setting);
             }
-            if (!settingEnabled) {
+            // If the setting is ON / TRUE, then the access is DENIED. This is flipping ON an OFF-SWITCH.
+            // Yeah, I know...
+            if (settingEnabled) {
                 result.denyMessage("Access denied to " + thingName + " because the feature " + config.getSettingOffSwitch() + " is disabled in plugin settings");
             }
         }
