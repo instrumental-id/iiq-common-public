@@ -150,14 +150,23 @@ public class ExportLinksPartition extends ExportPartition {
 
                     if (logger.isTraceEnabled()) {
                         logger.trace("Exporting Link " + linkId + ": " + applicationName + " " + nativeIdentity);
+                        logger.trace("Link attributes map: " + attributes);
                     }
 
                     if (isDeleteEnabled()) {
                         deleteLink.setString("id", linkId);
                         deleteLink.addBatch();
 
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Deleting Link " + linkId + ": " + applicationName + " " + nativeIdentity);
+                        }
+
                         deleteAttrs.setString("id", linkId);
                         deleteAttrs.addBatch();
+
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Deleting Link Attributes for " + linkId + ": " + applicationName + " " + nativeIdentity);
+                        }
                     }
 
                     insertLink.setString("id", linkId);
@@ -177,6 +186,10 @@ public class ExportLinksPartition extends ExportPartition {
                     linksInBatch.add(applicationName + ": " + nativeIdentity);
 
                     if (!schemaMap.containsKey(applicationName)) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Fetching schema for " + applicationName);
+                        }
+
                         Application application = context.getObjectByName(Application.class, applicationName);
                         schemaMap.put(applicationName, application.getAccountSchema());
                     }
@@ -186,7 +199,14 @@ public class ExportLinksPartition extends ExportPartition {
                     Set<String> excludedColumns = excludedByApplication.get(applicationName);
 
                     for (ObjectAttribute attribute : linkConfig.getObjectAttributes()) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Examining Link extension attribute " + attribute.getName() + ": " + linkId);
+                        }
+
                         if (attribute.isSystem() || attribute.isStandard()) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Skipping system or standard attribute " + attribute.getName() + ": " + linkId);
+                            }
                             continue;
                         }
 
@@ -195,6 +215,9 @@ public class ExportLinksPartition extends ExportPartition {
                         if (excludedColumns != null) {
                             boolean excluded = excludedColumns.contains(attrName);
                             if (excluded) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Skipping excluded attribute " + attrName + ": " + linkId);
+                                }
                                 continue;
                             }
                         }
@@ -206,11 +229,19 @@ public class ExportLinksPartition extends ExportPartition {
 
                             if (attribute.isMulti()) {
                                 for (String val : Util.otol(value)) {
-                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(val, 3996));
+                                    String truncatedValue = Utilities.truncateStringToBytes(val, 4000, StandardCharsets.UTF_8);
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace("Inserting attribute value " + attrName + ": " + truncatedValue);
+                                    }
+                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, truncatedValue);
                                     insertAttribute.addBatch();
                                 }
                             } else {
-                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Util.truncate(Util.otoa(value), 3996));
+                                String truncatedValue = Utilities.truncateStringToBytes(Util.otoa(value), 4000, StandardCharsets.UTF_8);
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Inserting attribute value " + attrName + ": " + truncatedValue);
+                                }
+                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, truncatedValue);
                                 insertAttribute.addBatch();
                             }
                         }
@@ -221,26 +252,47 @@ public class ExportLinksPartition extends ExportPartition {
 
                     if (!excludeDisabled) {
                         boolean disabled = Util.otob(attributes.get("IIQDisabled"));
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Inserting IIQDisabled attribute: " + disabled);
+                        }
                         insertAttribute.setString("id", linkId);
                         insertAttribute.setString("attributeName", "IIQDisabled");
                         insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, String.valueOf(disabled));
                         insertAttribute.addBatch();
+                    } else {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Skipping IIQDisabled attribute: " + linkId);
+                        }
                     }
 
                     if (!excludeLocked) {
                         boolean locked = Util.otob(attributes.get("IIQLocked"));
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Inserting IIQLocked attribute: " + locked);
+                        }
                         insertAttribute.setString("id", linkId);
                         insertAttribute.setString("attributeName", "IIQLocked");
                         insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, String.valueOf(locked));
                         insertAttribute.addBatch();
+                    } else {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Skipping IIQLocked attribute: " + linkId);
+                        }
                     }
 
                     for (AttributeDefinition attribute : schema.getAttributes()) {
                         String attrName = attribute.getName();
 
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Examining schema attribute " + attrName + ": " + linkId);
+                        }
+
                         if (excludedColumns != null) {
                             boolean excluded = excludedColumns.contains(attrName);
                             if (excluded) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Skipping excluded attribute " + attrName + ": " + linkId);
+                                }
                                 continue;
                             }
                         }
@@ -252,11 +304,19 @@ public class ExportLinksPartition extends ExportPartition {
 
                             if (attribute.isMulti()) {
                                 for (String val : Util.otol(value)) {
-                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Utilities.truncateStringToBytes(val, 4000, StandardCharsets.UTF_8));
+                                    String truncatedValue = Utilities.truncateStringToBytes(val, 4000, StandardCharsets.UTF_8);
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace("Inserting attribute value " + attrName + ": " + truncatedValue);
+                                    }
+                                    insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, truncatedValue);
                                     insertAttribute.addBatch();
                                 }
                             } else {
-                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, Utilities.truncateStringToBytes(Util.otoa(value), 4000, StandardCharsets.UTF_8));
+                                String truncatedValue = Utilities.truncateStringToBytes(Util.otoa(value), 4000, StandardCharsets.UTF_8);
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Inserting attribute value " + attrName + ": " + truncatedValue);
+                                }
+                                insertAttribute.setString(ATTRIBUTE_VALUE_FIELD, truncatedValue);
                                 insertAttribute.addBatch();
                             }
                         }
@@ -266,9 +326,17 @@ public class ExportLinksPartition extends ExportPartition {
                         Meter.enterByName(METER_STORE);
                         try {
                             if (isDeleteEnabled()) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Executing batch of Link and Link Attribute deletes");
+                                }
                                 deleteLink.executeBatch();
                                 deleteAttrs.executeBatch();
                             }
+
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Executing batch of Link and Link Attribute inserts");
+                            }
+
                             insertLink.executeBatch();
                             insertAttribute.executeBatch();
 
