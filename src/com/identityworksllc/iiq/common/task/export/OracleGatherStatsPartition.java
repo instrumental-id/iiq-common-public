@@ -35,7 +35,7 @@ public class OracleGatherStatsPartition extends ExportPartition {
      * @throws GeneralException if anything fails with gathering stats
      */
     @Override
-    protected void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
+    public void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
         String command = "{ call dbms_stats.gather_table_stats('%s', '%s', cascade=>TRUE) }";
 
         try {

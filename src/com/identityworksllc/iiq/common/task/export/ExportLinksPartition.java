@@ -67,7 +67,7 @@ public class ExportLinksPartition extends ExportPartition {
      * @throws GeneralException if there are any failures
      */
     @Override
-    protected void export(SailPointContext context, Connection connection, Log _logger) throws GeneralException {
+    public void export(SailPointContext context, Connection connection, Log _logger) throws GeneralException {
         Integer linkBatchSize = configuration.getInteger("linkBatchSize");
         if (linkBatchSize == null || linkBatchSize < 1) {
             linkBatchSize = getBatchSize();

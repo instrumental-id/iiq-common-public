@@ -19,7 +19,7 @@ public class CleanupLinksPartition extends ExportPartition {
     protected static final String SQL_GET_MAPPED_LINKS = "select id from de_link";
 
     @Override
-    protected void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
+    public void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
         Set<String> exportIds = new HashSet<>();
         try (PreparedStatement statement = connection.prepareStatement(SQL_GET_MAPPED_LINKS)) {
             try (ResultSet results = statement.executeQuery()) {

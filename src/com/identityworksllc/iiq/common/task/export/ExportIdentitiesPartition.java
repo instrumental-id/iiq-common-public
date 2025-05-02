@@ -52,7 +52,7 @@ public class ExportIdentitiesPartition extends ExportPartition {
      * @param logger The logger
      * @throws GeneralException if anything fails during execution
      */
-    protected void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
+    public void export(SailPointContext context, Connection connection, Log logger) throws GeneralException {
         Set<String> excludeRoles = new HashSet<>();
         if (configuration.containsAttribute("excludeRoles")) {
             List<String> cols = configuration.getStringList("excludeRoles");

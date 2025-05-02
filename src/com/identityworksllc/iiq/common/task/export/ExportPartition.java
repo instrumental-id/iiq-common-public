@@ -1,6 +1,5 @@
 package com.identityworksllc.iiq.common.task.export;
 
-import com.identityworksllc.iiq.common.Functions;
 import com.identityworksllc.iiq.common.query.NamedParameterStatement;
 import com.identityworksllc.iiq.common.threads.SailPointWorker;
 import lombok.Getter;
@@ -9,12 +8,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.Configuration;
+import sailpoint.object.TaskDefinition;
 import sailpoint.object.TaskResult;
 import sailpoint.request.RequestPermanentException;
 import sailpoint.task.TaskMonitor;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.JdbcUtil;
-import sailpoint.tools.Message;
 import sailpoint.tools.Util;
 
 import java.io.Serializable;
@@ -226,10 +225,61 @@ public abstract class ExportPartition extends SailPointWorker implements Seriali
      * @param logger The logger
      * @throws GeneralException if any failures occur
      */
-    protected abstract void export(SailPointContext context, Connection connection, Log logger) throws GeneralException;
+    public abstract void export(SailPointContext context, Connection connection, Log logger) throws GeneralException;
 
+    /**
+     * Sets the filter string
+     * @param connectionInfo The connection info
+     */
     public void setConnectionInfo(ExportConnectionInfo connectionInfo) {
         this.connectionInfo = Objects.requireNonNull(connectionInfo, "connectionInfo");
+    }
+
+    /**
+     * Tests the export of a single object. The subclass will determine which object
+     * type it is. This can be invoked via a Run Rule task, the Debug page, or the Rule
+     * Runner plugin.
+     *
+     * Each test will use a unique "run key" so that it doesn't interfere with the incremental
+     * export mechanism used by the main task.
+     *
+     * @param context The IIQ context
+     * @param logger The logger
+     * @param taskDefinitionName The name of the existing TaskDefinition
+     * @param id The ID of the object to export
+     * @throws Exception if any failures occur
+     */
+    public void testExportSingleObject(SailPointContext context, Log logger, String taskDefinitionName, String id) throws Exception {
+        TaskDefinition taskDefinition = context.getObjectByName(TaskDefinition.class, taskDefinitionName);
+        if (taskDefinition == null) {
+            throw new IllegalArgumentException("Task definition " + taskDefinitionName + " does not exist");
+        }
+
+        TaskResult taskResult = new TaskResult();
+        taskResult.setName("Test export single object " + Util.uuid());
+        taskResult.setDefinition(taskDefinition);
+
+        context.saveObject(taskResult);
+
+        TaskMonitor monitor = new TaskMonitor(context, taskResult);
+        setMonitor(monitor);
+
+        setFilterString("id == \"" + id + "\"");
+        setExportTimestamp(0L);
+        setCutoffDate(0L);
+        setRunKey("Test export " + taskResult.getId());
+
+        String url = taskDefinition.getString("url");
+        String username = taskDefinition.getString("username");
+        String password = taskDefinition.getString("password");
+
+        ExportConnectionInfo connectionInfo = new ExportConnectionInfo(url, username, password);
+        setConnectionInfo(connectionInfo);
+
+        String configurationName = taskDefinition.getString("configurationName");
+        setConfigurationName(configurationName);
+
+        this.execute(context, logger);
     }
 
     @Override
