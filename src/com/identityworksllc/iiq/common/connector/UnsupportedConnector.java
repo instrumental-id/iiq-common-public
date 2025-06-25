@@ -72,6 +72,21 @@ public class UnsupportedConnector implements Connector {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
     }
 
+    /**
+     * New in 8.4p2
+     *
+     * @param var1 unknown
+     * @return unknown
+     * @throws ConnectorException if the connector cannot be used
+     * @throws ObjectNotFoundException if the object is not found
+     * @throws UnsupportedOperationException if the operation is not supported in this context
+     * @see Connector
+     */
+    @SuppressWarnings({"unused"})
+    public Map<String, Object> getConfigOptions(String var1) throws ConnectorException, ObjectNotFoundException, UnsupportedOperationException {
+        throw new UnsupportedOperationException("Connector operations are not available in this situation");
+    }
+
     @Override
     public ConnectorServices getConnectorServices() {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
@@ -226,4 +241,5 @@ public class UnsupportedConnector implements Connector {
     public void updateApplicationConfig() throws GeneralException {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
     }
+
 }
