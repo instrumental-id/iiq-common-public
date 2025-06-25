@@ -6,14 +6,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.w3c.dom.Document;
 import sailpoint.api.SailPointContext;
-import sailpoint.object.Application;
-import sailpoint.object.Bundle;
-import sailpoint.object.Filter;
-import sailpoint.object.Identity;
-import sailpoint.object.Link;
-import sailpoint.object.ManagedAttribute;
-import sailpoint.object.ProvisioningPlan;
-import sailpoint.object.SailPointObject;
+import sailpoint.object.*;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.xml.AbstractXmlObject;
 
@@ -31,11 +24,7 @@ import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Date;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -130,6 +119,8 @@ public class SLogger implements org.apache.commons.logging.Log {
 
 			if (valueToFormat == null) {
 				value.append("(null)");
+			} else if (valueToFormat instanceof Supplier) {
+				value.append(format(((Supplier<?>) valueToFormat).get(), indent));
 			} else if (valueToFormat instanceof String) {
 				value.append(valueToFormat);
 			} else if (valueToFormat instanceof bsh.This) {
@@ -345,12 +336,42 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * An enumeration of log levels to replace the one in log4j
 	 */
 	public enum Level {
+		/**
+		 * Trace level logs
+		 */
 		TRACE,
+		/**
+		 * Debug level logs
+		 */
 		DEBUG,
+		/**
+		 * Info level logs
+		 */
 		INFO,
+		/**
+		 * Warning level logs
+		 */
 		WARN,
+		/**
+		 * Error level logs
+		 */
 		ERROR,
-		FATAL
+		/**
+		 * Fatal level logs
+		 */
+		FATAL,
+		/**
+		 * Log messages indicating that the code has reached a certain point
+		 */
+		HERE,
+		/**
+		 * Log messages indicating that the code is entering a certain segment
+		 */
+		ENTER,
+		/**
+		 * Log messages indicating that the code is exiting a certain segment
+		 */
+		EXIT
 	}
 
 	/**
@@ -401,14 +422,21 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 */
 	private final PrintStream out;
 
+	private final Stack<String> contextStack;
+
+	private SLogger(Log logger, PrintStream out) {
+		contextStack = new Stack<>();
+		this.logger = logger;
+		this.out = out;
+	}
+
 	/**
 	 * Creates a new logger.
 	 *
 	 * @param Owner The class to log messages for.
 	 */
 	public SLogger(Class<?> Owner) {
-		logger = LogFactory.getLog(Owner);
-		out = null;
+		this(LogFactory.getLog(Owner), null);
 	}
 
 	/**
@@ -417,8 +445,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @param WrapLog The logger to wrap
 	 */
 	public SLogger(Log WrapLog) {
-		logger = WrapLog;
-		out = null;
+		this(WrapLog, null);
 	}
 
 	/**
@@ -427,8 +454,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @param Out The output stream to
 	 */
 	public SLogger(PrintStream Out) {
-		logger = null;
-		out = Out;
+		this(null, Out);
 	}
 	
 	@Override
@@ -449,6 +475,32 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 */
 	public void debug(String MessageTemplate, Object... Args) {
 		log(Level.DEBUG, MessageTemplate, format(Args));
+	}
+
+	/**
+	 * Logs an entry message for a segment of code. This will log at DEBUG level if
+	 * the system configuration property IIQCommon.SLogger.EnterExitEnabled is set to true.
+	 *
+	 * @param value The value to log as the 'location', e.g., a method name, a chunk of code, etc
+	 */
+	public void enter(String value) {
+		if (isDebugEnabled()) {
+			log(Level.ENTER, "Entering: {0}", value);
+		}
+	}
+
+	/**
+	 * Logs an entry message for a Beanshell function. This will log at DEBUG level if
+	 * 	 * the system configuration property IIQCommon.SLogger.EnterExitEnabled is set to true.
+	 *
+	 * @param bshThis The Beanshell 'this' object, which contains the namespace name.
+	 */
+	public void enter(bsh.This bshThis) {
+		if (bshThis != null && bshThis.getNameSpace() != null) {
+			enter(bshThis.getNameSpace().getName());
+		} else {
+			enter("(unknown Beanshell function)");
+		}
 	}
 
 	/**
@@ -476,6 +528,32 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 */
 	public void error(String MessageTemplate, Object... Args) {
 		log(Level.ERROR, MessageTemplate, format(Args));
+	}
+
+	/**
+	 * Logs an exit message for a segment of code. This will log at DEBUG level if
+	 * the system configuration property IIQCommon.SLogger.EnterExitEnabled is set to true.
+	 *
+	 * @param value The value to log as the 'location', e.g., a method name, a chunk of code, etc
+	 */
+	public void exit(String value) {
+		if (isDebugEnabled()) {
+			log(Level.EXIT, "Exiting: {0}", value);
+		}
+	}
+
+	/**
+	 * Logs an exit message for a Beanshell function. This will log at DEBUG level if
+	 * the system configuration property IIQCommon.SLogger.EnterExitEnabled is set to true.
+	 *
+	 * @param bshThis The Beanshell 'this' object, which contains the namespace name.
+	 */
+	public void exit(bsh.This bshThis) {
+		if (bshThis != null && bshThis.getNameSpace() != null) {
+			exit(bshThis.getNameSpace().getName());
+		} else {
+			exit("(unknown Beanshell function)");
+		}
 	}
 
 	@Override
@@ -519,6 +597,17 @@ public class SLogger implements org.apache.commons.logging.Log {
 		} else if (out != null) {
 			Error.printStackTrace(out);
 		}
+	}
+
+	/**
+	 * Logs a message "Here", along with a custom suffix, indicating that the code
+	 * has reached a certain point. This will only be logged (at INFO level) if
+	 * the system configuration property IIQCommon.SLogger.HereEnabled is set to true.
+	 *
+	 * @param value The value to log as the 'location', e.g., a method name, a chunk of code, etc.
+	 */
+	public void here(String value) {
+		log(Level.HERE, "Here: {0}", value);
 	}
 	
 	@Override
@@ -566,6 +655,11 @@ public class SLogger implements org.apache.commons.logging.Log {
 			return log.isTraceEnabled();
 		case DEBUG:
 			return log.isDebugEnabled();
+		case ENTER:
+		case EXIT:
+			Configuration sc1 = Configuration.getSystemConfig();
+			boolean enterExitEnabled = sc1 != null && sc1.getBoolean("IIQCommon.SLogger.EnterExitEnabled", false);
+			return enterExitEnabled && log.isDebugEnabled();
 		case INFO:
 			return log.isInfoEnabled();
 		case WARN:
@@ -574,6 +668,10 @@ public class SLogger implements org.apache.commons.logging.Log {
 			return log.isErrorEnabled();
 		case FATAL:
 			return log.isFatalEnabled();
+		case HERE:
+			Configuration sc2 = Configuration.getSystemConfig();
+			boolean hereEnabled = sc2 != null && sc2.getBoolean("IIQCommon.SLogger.HereEnabled", false);
+			return hereEnabled && log.isInfoEnabled();
 		}
 		return false;
 	}
@@ -649,9 +747,12 @@ public class SLogger implements org.apache.commons.logging.Log {
 			logger.trace(message);
 			break;
 		case DEBUG:
+		case ENTER:
+		case EXIT:
 			logger.debug(message);
 			break;
 		case INFO:
+		case HERE:
 			logger.info(message);
 			break;
 		case WARN:
@@ -678,11 +779,40 @@ public class SLogger implements org.apache.commons.logging.Log {
 		if (logger != null) {
 			if (isEnabledFor(logger, logLevel)) {
 				String message = renderMessage(messageTemplate, args);
+				if (!contextStack.isEmpty()) {
+					String ctx = "[" + contextStack.stream().reduce((a, b) -> a + " > " + b).orElse("") + "]";
+					message = ctx + " " + message;
+				}
 				log(logLevel, message);
 			}
 		} else if (out != null) {
 			String message = renderMessage(messageTemplate, args);
+			if (!contextStack.isEmpty()) {
+				String ctx = "[" + contextStack.stream().reduce((a, b) -> a + " > " + b).orElse("") + "]";
+				message = ctx + " " + message;
+			}
 			out.println(message);
+		}
+	}
+
+	/**
+	 * Pops the top value off the context stack
+	 * @return The value popped off the stack, or null if the stack is empty.
+	 */
+	public String pop() {
+		if (contextStack.isEmpty()) {
+			return null;
+		}
+		return contextStack.pop();
+	}
+
+	/**
+	 * Pushes a value onto the context stack. This will be logged with the message
+	 * @param value The context value to add
+	 */
+	public void push(String value) {
+		if (value != null) {
+			contextStack.push(value);
 		}
 	}
 
