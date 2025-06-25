@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common.logging;
 
+import com.identityworksllc.iiq.common.AccountUtilities;
+import com.identityworksllc.iiq.common.IdentityLinkUtil;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
@@ -13,6 +15,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import sailpoint.rest.plugin.BasePluginResource;
+import sailpoint.task.AbstractTaskExecutor;
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +28,10 @@ import java.util.Map;
  * different Logger semantics, requiring separate code.
  */
 public class CaptureLogs8 implements CaptureLogs {
+    /**
+     * The name of the appender inserted by this class
+     */
+    public static final String APPENDER_NAME_IDW_WRITER = "idw-writer-appender";
     /**
      * The layout used for captured messages
      */
@@ -62,20 +70,33 @@ public class CaptureLogs8 implements CaptureLogs {
         }
     }
 
+    /**
+     * Captures the majority of the most important loggers in IIQ 8+, as well as a few
+     * from IIQCommon itself.
+     */
     @Override
     public void captureMost() {
         captureLogger("org.hibernate.SQL");
         captureLogger("hibernate.hql.ast.AST");
+        captureLogger("sailpoint.api.AbstractEntitlizer");
         captureLogger("sailpoint.api.Aggregator");
         captureLogger("sailpoint.api.Identitizer");
+        captureLogger("sailpoint.api.IdentityService");
+        captureLogger("sailpoint.api.PasswordPolice");
+        captureLogger("sailpoint.api.RoleEntitlizer");
         captureLogger("sailpoint.api.Workflower");
         captureLogger("sailpoint.provisioning.AssignmentExpander");
         captureLogger("sailpoint.provisioning.ApplicationPolicyExpander");
         captureLogger("sailpoint.provisioning.IIQEvaluator");
         captureLogger("sailpoint.provisioning.Provisioner");
+        captureLogger("sailpoint.provisioning.PlanApplier");
         captureLogger("sailpoint.provisioning.PlanCompiler");
+        captureLogger("sailpoint.provisioning.PlanEvaluator");
+        captureLogger("sailpoint.provisioning.PlanSimplifier");
+        captureLogger("sailpoint.provisioning.TemplateCompiler");
         captureLogger("sailpoint.persistence.hql");
         captureLogger("sailpoint.connector.AbstractConnector");
+        captureLogger("sailpoint.connector.ConnectorProxy");
         captureLogger("sailpoint.connector.ADLDAPConnector");
         captureLogger("sailpoint.connector.LDAPConnector");
         captureLogger("sailpoint.connector.AbstractIQServiceConnector");
@@ -93,15 +114,24 @@ public class CaptureLogs8 implements CaptureLogs {
         captureLogger("openconnector.connector.WorkDay");
         captureLogger("openconnector.AbstractConnector");
 
+        captureLogger(AbstractTaskExecutor.class.getName());
+        captureLogger(AccountUtilities.class.getName());
+        captureLogger(IdentityLinkUtil.class.getName());
+
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
 
         config.getLoggerConfig("sailpoint.web").setLevel(Level.ERROR);
         config.getLoggerConfig("sailpoint.server.Servicer").setLevel(Level.ERROR);
+        config.getLoggerConfig("org.apache.commons.dbcp2").setLevel(Level.ERROR);
 
         ctx.updateLoggers(config);
     }
 
+    /**
+     * Adds the given loggers to the capture list
+     * @param names The names of the loggers to capture
+     */
     @Override
     public void capture(String... names) {
         for(String name : names) {
@@ -110,7 +140,10 @@ public class CaptureLogs8 implements CaptureLogs {
     }
 
     /**
-     * Captures the logger with the given name
+     * Captures the logger with the given name by replacing its appender with our
+     * capturing appender. If the appender or logger does not exist, they will be
+     * created here.
+     *
      * @param loggerName The logger
      */
     public static void captureLogger(String loggerName) {
@@ -119,16 +152,20 @@ public class CaptureLogs8 implements CaptureLogs {
         PatternLayout layout =
                 PatternLayout.newBuilder().withPattern(PatternLayout.SIMPLE_CONVERSION_PATTERN).withConfiguration(config).withCharset(StandardCharsets.UTF_8).build();
 
-        Appender appender = config.getAppender("idw-writer-appender");
+        Appender appender = config.getAppender(APPENDER_NAME_IDW_WRITER);
 
         if (appender == null) {
-            appender = new CapturingAppender("idw-writer-appender", null, layout, false, null);
-                    //WriterAppender.newBuilder().setName("idw-writer-appender").setTarget(new CapturedLogsWriter()).setLayout(layout).setConfiguration(config).setFilter().build();
-            appender.start();
-            config.addAppender(appender);
+            synchronized (CaptureLogs8.class) {
+                appender = config.getAppender(APPENDER_NAME_IDW_WRITER);
+                if (appender == null) {
+                    appender = new CapturingAppender(APPENDER_NAME_IDW_WRITER, null, layout, false, null);
+                    appender.start();
+                    config.addAppender(appender);
+                }
+            }
         }
 
-        AppenderRef ref = AppenderRef.createAppenderRef("idw-writer-appender", Level.DEBUG, null);
+        AppenderRef ref = AppenderRef.createAppenderRef(APPENDER_NAME_IDW_WRITER, Level.DEBUG, null);
         AppenderRef[] refs = new AppenderRef[] {ref};
         LoggerConfig loggerConfig = config.getLoggerConfig(loggerName);
         if (loggerConfig == null) {
@@ -150,7 +187,7 @@ public class CaptureLogs8 implements CaptureLogs {
 
         loggerConfig.setAdditive(false);
 
-        if (!loggerConfig.getAppenders().containsKey("idw-writer-appender")) {
+        if (!loggerConfig.getAppenders().containsKey(APPENDER_NAME_IDW_WRITER)) {
             loggerConfig.addAppender(appender, Level.DEBUG, null);
         }
 
@@ -168,7 +205,7 @@ public class CaptureLogs8 implements CaptureLogs {
     private static void wrapAppenders(LoggerConfig toModify, LoggerConfig current, Level originalLevel) {
         Map<String, Appender> appenders = current.getAppenders();
         for(String name : appenders.keySet()) {
-            if (!name.equals("idw-writer-appender")) {
+            if (!name.equals(APPENDER_NAME_IDW_WRITER)) {
                 Appender existing = appenders.get(name);
                 toModify.removeAppender(name);
                 toModify.addAppender(existing, originalLevel, null);
