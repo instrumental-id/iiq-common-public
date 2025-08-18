@@ -729,6 +729,9 @@ public class BetterDifferencer {
     }
 
     private AttributeDefinition nullSafeObjectAttribute(Schema source, String name) {
+		if (source == null) {
+			return new AttributeDefinition();
+		}
         AttributeDefinition attr = source.getAttributeDefinition(name);
         if (attr == null) {
             attr = new AttributeDefinition();
