@@ -2,6 +2,7 @@ package com.identityworksllc.iiq.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.identityworksllc.iiq.common.annotation.CoreStable;
+import com.identityworksllc.iiq.common.annotation.Experimental;
 import com.identityworksllc.iiq.common.vo.OutcomeType;
 import sailpoint.api.Aggregator;
 import sailpoint.api.Identitizer;
@@ -457,6 +458,7 @@ public class AccountUtilities extends AbstractBaseUtility {
     /**
      * {@code AggregateOptions} builder static inner class.
      */
+    @Experimental
     public static final class AggregateOptionsBuilder {
         private String accountName;
         private Map<String, Object> aggregateOptions;
