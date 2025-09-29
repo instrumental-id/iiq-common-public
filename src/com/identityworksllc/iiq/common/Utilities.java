@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.identityworksllc.iiq.common.annotation.CoreStable;
 import com.identityworksllc.iiq.common.logging.SLogger;
 import com.identityworksllc.iiq.common.query.ContextConnectionWrapper;
 import org.apache.commons.beanutils.PropertyUtils;
@@ -72,6 +73,7 @@ import java.util.stream.Stream;
  * @author Devin Rosenbauer
  * @author Instrumental Identity
  */
+@CoreStable
 @SuppressWarnings("unused")
 public class Utilities {
 
@@ -1404,6 +1406,10 @@ public class Utilities {
 	 * @throws GeneralException if a failure occurs
 	 */
 	public static Object getProperty(Object source, String paramPropertyPath, boolean gracefulNulls) throws GeneralException {
+		if (source instanceof Optional) {
+			source = ((Optional<?>) source).orElse(null);
+		}
+
 		String propertyPath = paramPropertyPath.replaceAll("\\[(\\w+)]", ".$1");
 
 		Object tryQuick = getQuickProperty(source, propertyPath);
@@ -1499,6 +1505,10 @@ public class Utilities {
 		// Giant ladders of if statements for common attributes will be much faster.
 		if (source == null || propertyPath == null) {
 			return null;
+		}
+		// Unwrap an optional, if it is one
+		if (source instanceof Optional) {
+			source = ((Optional<?>) source).orElse(null);
 		}
 		if (source instanceof SailPointObject) {
 			if (propertyPath.equals("name")) {
@@ -1635,6 +1645,8 @@ public class Utilities {
 				}
 			} else if (propertyPath.equals("capabilities")) {
 				return nullToEmpty(((Identity) source).getCapabilityManager().getEffectiveCapabilities());
+			} else if (propertyPath.equals("rights")) {
+				return nullToEmpty(((Identity) source).getCapabilityManager().getEffectiveFlattenedRights());
 			} else if (propertyPath.equals("email")) {
 				return ((Identity) source).getEmail();
 			}
@@ -2691,6 +2703,7 @@ public class Utilities {
 	 *
 	 * @param list The array to get the value from
 	 * @param index The index from which to get the value.
+	 * @param <S> The actual type ofthe array, which must be a subclass of T
 	 * @param <T> The expected return type
 	 * @return The value at the given index in the array, or null
 	 */
@@ -2707,6 +2720,7 @@ public class Utilities {
 	 * @param list The array to get the value from
 	 * @param index The index from which to get the value.
 	 * @param defaultValue The default value to return if the input is null
+	 * @param <S> The actual type of the array, which must be a subclass of T
 	 * @param <T> The expected return type
 	 * @return The value at the given index in the array, or null
 	 */
@@ -2729,6 +2743,7 @@ public class Utilities {
 	 *
 	 * @param list The List to get the value from
 	 * @param index The index from which to get the value.
+	 * @param <S> The actual type of the list items, which must be a subclass of T
 	 * @param <T> The expected return type
 	 * @return The value at the given index in the List, or null
 	 */
