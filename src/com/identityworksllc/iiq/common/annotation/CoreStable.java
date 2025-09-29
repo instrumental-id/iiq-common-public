@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common.annotation;
 
+import java.lang.annotation.*;
+
 /**
  * Indicates that a class or method is considered a core part of the library,
  * and will remain API-compatible. This is a promise that future versions
@@ -9,5 +11,8 @@ package com.identityworksllc.iiq.common.annotation;
  * compatibility, it will be deprecated for at least six months before being removed
  * or changed.
  */
+@Retention(RetentionPolicy.CLASS)
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Inherited
 public @interface CoreStable {
 }
