@@ -1,5 +1,7 @@
 package com.identityworksllc.iiq.common;
 
+import com.identityworksllc.iiq.common.annotation.CoreStable;
+import com.identityworksllc.iiq.common.annotation.InProgress;
 import sailpoint.api.IdentityService;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.*;
@@ -38,7 +40,54 @@ import java.util.Optional;
  * account. If the flag is false, as is default, the value from the newest Link
  * will be retrieved.
  */
+@CoreStable
 public class IdentityLinkUtil {
+
+    /**
+     * The Sailpoint context
+     */
+    private final SailPointContext context;
+    /**
+     * If true, the various get-attribute methods will fail if the user has more
+     * than one of the same type.
+     */
+    private boolean failOnMultiple;
+    /**
+     * If true, the identity's Links will be forcibly loaded by calling load()
+     * on the whole collection before running any operation. This will make
+     * subsequent operations on the same object in the same session potentially
+     * faster. You also will want to use this option in an Identity Attribute
+     * rule, as those may be invoked before the Identity or Link is persisted.
+     */
+    private boolean forceLoad;
+    /**
+     * The global link filter, to be applied to any queries for a Link by application
+     */
+    private Filter globalLinkFilter;
+    /**
+     * The Identity associated with this utility
+     */
+    private final Identity identity;
+    /**
+     * Identity Link utility constructor
+     * @param context The Sailpoint context
+     * @param identity the Identity
+     */
+    public IdentityLinkUtil(SailPointContext context, Identity identity) {
+        this(context, identity, null);
+    }
+    /**
+     * Identity Link utility constructor
+     * @param context The Sailpoint context
+     * @param identity the Identity
+     */
+    public IdentityLinkUtil(SailPointContext context, Identity identity, Filter globalLinkFilter) {
+        this.context = Objects.requireNonNull(context);
+        this.identity = Objects.requireNonNull(identity);
+        this.forceLoad = false;
+        this.failOnMultiple = false;
+        this.globalLinkFilter = globalLinkFilter;
+    }
 
     /**
      * Finds a unique Link by Native ID and Application, returning a non-null Optional
@@ -101,53 +150,6 @@ public class IdentityLinkUtil {
         } else {
             throw new TooManyResultsException(Link.class, theFilter.getExpression(true), links.size());
         }
-    }
-    /**
-     * The Sailpoint context
-     */
-    private final SailPointContext context;
-    /**
-     * If true, the various get-attribute methods will fail if the user has more
-     * than one of the same type.
-     */
-    private boolean failOnMultiple;
-    /**
-     * If true, the identity's Links will be forcibly loaded by calling load()
-     * on the whole collection before running any operation. This will make
-     * subsequent operations on the same object in the same session potentially
-     * faster. You also will want to use this option in an Identity Attribute
-     * rule, as those may be invoked before the Identity or Link is persisted.
-     */
-    private boolean forceLoad;
-    /**
-     * The global link filter, to be applied to any queries for a Link by application
-     */
-    private Filter globalLinkFilter;
-    /**
-     * The Identity associated with this utility
-     */
-    private final Identity identity;
-
-    /**
-     * Identity Link utility constructor
-     * @param context The Sailpoint context
-     * @param identity the Identity
-     */
-    public IdentityLinkUtil(SailPointContext context, Identity identity) {
-        this(context, identity, null);
-    }
-
-    /**
-     * Identity Link utility constructor
-     * @param context The Sailpoint context
-     * @param identity the Identity
-     */
-    public IdentityLinkUtil(SailPointContext context, Identity identity, Filter globalLinkFilter) {
-        this.context = Objects.requireNonNull(context);
-        this.identity = Objects.requireNonNull(identity);
-        this.forceLoad = false;
-        this.failOnMultiple = false;
-        this.globalLinkFilter = globalLinkFilter;
     }
 
     /**
@@ -466,6 +468,20 @@ public class IdentityLinkUtil {
                 return Util.otoa(value);
             }
         }
+    }
+
+    /**
+     * A shortcut that returns true if the Identity has at least one Link of the given
+     * application type.
+     *
+     * @param applicationName The application name to check
+     * @return True if the Identity has at least one Link of the given application type
+     * @throws GeneralException if any failures occur
+     */
+    @InProgress
+    public boolean hasLinkByApplication(String applicationName) throws GeneralException {
+        List<Link> links = getLinksByApplication(applicationName);
+        return links != null && !links.isEmpty();
     }
 
     /**
