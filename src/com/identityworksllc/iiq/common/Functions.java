@@ -114,6 +114,13 @@ public class Functions {
      * the error will be caught, logged, and re-thrown.
      */
     public interface PredicateWithError<A> extends Predicate<A> {
+        /**
+         * Wraps the default {@link Predicate#and(Predicate)} method, allowing it
+         * to return a PredicateWithError that can throw an exception.
+         *
+         * @param other a predicate that will be logically-ANDed with this predicate
+         * @return a PredicateWithError that combines the two predicates
+         */
         default PredicateWithError<A> and(Predicate<? super A> other) {
             return (a) -> {
                 boolean result = testWithError(a);
@@ -1150,6 +1157,7 @@ public class Functions {
     /**
      * Functionally implements the {@link Utilities#getProperty(Object, String)} method
      * @param beanPath The path to the property to retrieve from the object
+     * @return A function that retrieves the property value from the object
      */
     public static Function<Object, Object> get(String beanPath) {
         return get(Object.class, beanPath);
@@ -1159,7 +1167,10 @@ public class Functions {
      * Functionally implements the {@link Utilities#getProperty(Object, String)} method.
      * If the value is not of the expected type, returns null silently.
      *
+     * @param expectedType The expected type of the property value
      * @param beanPath The path to the property to retrieve from the object
+     * @return A function that retrieves the value of the given property
+     * @param <T> The expected type of the property value
      */
     public static <T> Function<Object, T> get(Class<T> expectedType, String beanPath) {
         return obj -> {
@@ -1169,6 +1180,14 @@ public class Functions {
                 return null;
             }
         };
+    }
+
+    /**
+     * Returns a function to get the administrator of the given Identity.
+     * @return The function that retrieves the administrator of the Identity
+     */
+    public static Function<Identity, Identity> getAdministrator() {
+        return Identity::getAdministrator;
     }
 
     /**
@@ -1269,6 +1288,10 @@ public class Functions {
 
     /**
      * Gets all links associated with the given Identity on the given Application(s).
+     *
+     * @param applicationName The name of the application for which to retrieve links
+     * @param moreApplicationNames Additional application names to retrieve links for
+     * @return A function that retrieves the links for the Identity on the specified applications
      */
     public static Function<Identity, List<Link>> getLinks(final String applicationName, final String... moreApplicationNames) {
         if (applicationName == null) {
@@ -1311,7 +1334,19 @@ public class Functions {
     }
 
     /**
-     * Gets the given attribute as a string from the input object
+     * Returns a function mapping an Identity to its manager
+     * @return The function that retrieves the manager of the Identity
+     */
+    public Function<Identity, Identity> getManager() {
+        return Identity::getManager;
+    }
+
+    /**
+     * Gets the given attribute as a string from the input object. If the object has no
+     * attributes, or the attribute is not present, returns null.
+     *
+     * @param attributeName The name of the attribute to retrieve
+     * @return A function that retrieves the attribute value as a string
      */
     public static Function<? extends SailPointObject, String> getStringAttribute(final String attributeName) {
         return spo -> {
@@ -1325,6 +1360,8 @@ public class Functions {
 
     /**
      * Gets the given attribute as a string list from the input object
+     * @param attributeName The name of the attribute to retrieve
+     * @return A function that retrieves the attribute value as a string list
      */
     public static Function<? extends SailPointObject, List<String>> getStringListAttribute(final String attributeName) {
         return spo -> {
@@ -1395,6 +1432,25 @@ public class Functions {
                 }
             }
             return useAnd && fieldNames.size() > attributeNames.size();
+        };
+    }
+
+    /**
+     * Returns a Predicate that resolves to true if the input Identity has an account of the given application
+     * @param applicationName The name of the application to check for
+     * @return A predicate that resolves to true if the Identity has a link to the application
+     */
+    public static Predicate<Identity> hasLink(final String applicationName) {
+        return (identity) -> {
+            try {
+                SailPointContext context = SailPointFactory.getCurrentContext();
+                IdentityLinkUtil service = new IdentityLinkUtil(context, identity);
+                List<Link> links = service.getLinksByApplication(applicationName);
+                return links != null && !links.isEmpty();
+            } catch (GeneralException e) {
+                log.error("Caught an exception getting links for identity " + identity.getName() + " in a function");
+                return false;
+            }
         };
     }
 
