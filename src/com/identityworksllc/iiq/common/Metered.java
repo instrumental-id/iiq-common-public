@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common;
 
+import com.identityworksllc.iiq.common.annotation.CoreStable;
 import sailpoint.api.Meter;
 import sailpoint.tools.GeneralException;
 
@@ -14,6 +15,7 @@ import sailpoint.tools.GeneralException;
  * })
  *
  */
+@CoreStable
 public class Metered {
     /**
      * Callback interface where no output is required

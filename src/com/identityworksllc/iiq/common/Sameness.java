@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common;
 
+import com.identityworksllc.iiq.common.annotation.CoreStable;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
  * @author Devin Rosenbauer
  * @author Instrumental Identity
  */
+@CoreStable
 public class Sameness {
     private static final Log log = LogFactory.getLog(Sameness.class);
 
