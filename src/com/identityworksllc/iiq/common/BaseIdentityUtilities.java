@@ -18,10 +18,7 @@ import sailpoint.tools.Util;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Utilities for handling Identity operations
@@ -68,6 +65,32 @@ public class BaseIdentityUtilities extends AbstractBaseUtility {
         args.put(Identitizer.ARG_REFRESH_PROVISIONING_REQUESTS, true);
         args.put(Identitizer.ARG_CHECK_HISTORY, true);
         return args;
+    }
+
+    /**
+     * Gets an optional property from the Identity object, which itself may be null. If the
+     * input Identity is null or the attribute name is null or empty, this will return an empty
+     * Optional. If the property does not exist or is null, it will also return an empty Optional.
+     *
+     * Uses {@link Utilities#getProperty(Object, String, boolean)}, with graceful nulls set to true,
+     * to retrieve the property value.
+     *
+     * @param identity The Identity object to query
+     * @param attributeName The path to the property to retrieve, which must not be null or empty
+     * @return An Optional containing the attribute value if it exists, or empty if not
+     * @param <U> The type of the attribute value, which will be inferred from the Identity's attribute type
+     * @throws GeneralException if any IIQ failure occurs, such as if the attribute cannot be retrieved
+     */
+    public <U> Optional<U> getOptionalProperty(Identity identity, String attributeName) throws GeneralException {
+        if (identity == null || attributeName == null || attributeName.isEmpty()) {
+            return Optional.empty();
+        }
+        @SuppressWarnings("unchecked")
+        U value = (U) Utilities.getProperty(identity, attributeName, true);
+        if (value == null) {
+            return Optional.empty();
+        }
+        return Optional.of(value);
     }
 
     /**
