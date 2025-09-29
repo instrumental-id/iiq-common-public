@@ -2,6 +2,7 @@ package com.identityworksllc.iiq.common;
 
 import com.identityworksllc.iiq.common.access.AccessCheck;
 import com.identityworksllc.iiq.common.access.AccessCheckInput;
+import com.identityworksllc.iiq.common.annotation.CoreStable;
 import com.identityworksllc.iiq.common.auth.DummyPluginResource;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,6 +28,7 @@ import java.util.Map;
  *
  * @see AccessCheck
  */
+@CoreStable
 @SuppressWarnings("unused")
 public final class ThingAccessUtils {
 
