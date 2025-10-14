@@ -171,16 +171,18 @@ dependencies {
     }
     implementation group: 'org.apache.httpcomponents', name: 'httpcore', version: '4.4'
 
-    testImplementation group: 'org.mockito', name: 'mockito-core', version: '5.11.0'
-    testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.11.0'
+    testImplementation group: 'org.mockito', name: 'mockito-core', version: '5.20.0'
+    testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.20.0'
     testImplementation group: 'com.googlecode.juniversalchardet', name: 'juniversalchardet', version: '1.0.3'
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.13.4'
     testImplementation spLib
     testImplementation includeLib
 
     testRuntimeOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.20.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-engine:1.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.13.4'
 
     compileOnly 'org.projectlombok:lombok:1.18.36'
     annotationProcessor 'org.projectlombok:lombok:1.18.36'
