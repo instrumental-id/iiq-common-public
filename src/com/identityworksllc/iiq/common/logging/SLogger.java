@@ -24,7 +24,10 @@ import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
+import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -40,13 +43,72 @@ import java.util.function.Supplier;
  * level is active. If the log level is not active, the operation becomes a
  * quick no-op. This prevents a lot of isDebugEnabled() type checks.
  *
+ * You can also pass a {@link Supplier} to any argument, and the supplier's
+ * get() method will be called to derive the value, but only if the log level
+ * is active. This allows you to wrap complex operations in a lambda and
+ * only have them executed if the log level is active.
+ *
+ * If you invoke {@link #capture()}, all log messages will be captured in a
+ * thread-local buffer, which can be retrieved with {@link #getCapturedLogs()}.
+ * You should always invoke {@link #reset()} in a finally block to ensure that
+ * the thread-local buffer is cleared. Capture state is shared at the global
+ * level for a particular thread, so all instances of SLogger, regardless
+ * of classloader, will share the same capture buffer.
+ *
+ * In addition to the usual Log levels, this class supports the following levels:
+ * - HERE: A log message indicating that the code has reached a certain point. This is mostly useful for tracing execution.
+ * - ENTER: A log message indicating that the code is entering a certain segment, such as a method. This is logged at DEBUG level.
+ * - EXIT: A log message indicating that the code is exiting a certain segment, such as a method. This is logged at DEBUG level.
+ *
  * The 'S' stands for Super. Super Logger.
  */
 public class SLogger implements org.apache.commons.logging.Log {
-	
+
 	/**
-	 * Helper class to format an object for logging. The format is only derived
-	 * when the {@link #toString()} is called, meaning that if you log one of these
+	 * An enumeration of log levels to replace the one in log4j
+	 */
+	public enum Level {
+		/**
+		 * Trace level logs
+		 */
+		TRACE,
+		/**
+		 * Debug level logs
+		 */
+		DEBUG,
+		/**
+		 * Info level logs
+		 */
+		INFO,
+		/**
+		 * Warning level logs
+		 */
+		WARN,
+		/**
+		 * Error level logs
+		 */
+		ERROR,
+		/**
+		 * Fatal level logs
+		 */
+		FATAL,
+		/**
+		 * Log messages indicating that the code has reached a certain point
+		 */
+		HERE,
+		/**
+		 * Log messages indicating that the code is entering a certain segment
+		 */
+		ENTER,
+		/**
+		 * Log messages indicating that the code is exiting a certain segment
+		 */
+		EXIT
+	}
+
+    /**
+	 * Container class to format an object for logging. The format is only derived
+	 * when {@link Formatter#toString()} is called, meaning that if you log one of these
 	 * and the log level is not enabled, a slow string conversion will never occur.
 	 *
 	 * Null values are transformed into the special string '(null)'.
@@ -66,14 +128,23 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * - XML {@link Document}s
 	 * - Various SailPointObjects
 	 *
-	 * Nested objects are also passed through a Formatter.
+	 * Nested objects (e.g., the items in a list) are also passed through Formatter.
 	 */
 	public static class Formatter implements Supplier<String> {
+        /**
+         * Formats the given object for logging
+         * @param obj The object to format
+         * @return The formatted object
+         */
+        public static String format(Object obj) {
+            return new Formatter(obj).toString();
+        }
 
 		/**
-		 * The cached formatted value
+		 * The formatted value cached after the first call to toString()
 		 */
 		private String formattedValue;
+
 		/**
 		 * The object to format.
 		 */
@@ -92,19 +163,21 @@ public class SLogger implements org.apache.commons.logging.Log {
 		@SuppressWarnings("unchecked")
 		private Map<String, Object> createLogMap(SailPointObject value) {
 			Map<String, Object> map = new ListOrderedMap();
-			map.put("class", value.getClass().getName());
+			map.put("class", value.getClass().getSimpleName());
 			map.put("id", value.getId());
-			map.put("name", value.getName());
+            if (!(value instanceof Link)) {
+                map.put("name", value.getName());
+            }
 			return map;
 		}
 
 		/**
-		 * Formats an object.
+		 * Formats an object. Equivalent to format(valueToFormat, false).
 		 *
 		 * @param valueToFormat The object to format.
 		 * @return The formatted version of that object.
 		 */
-		private String format(Object valueToFormat) {
+		private String formatInternal(Object valueToFormat) {
 			return format(valueToFormat, false);
 		}
 
@@ -120,7 +193,8 @@ public class SLogger implements org.apache.commons.logging.Log {
 			if (valueToFormat == null) {
 				value.append("(null)");
 			} else if (valueToFormat instanceof Supplier) {
-				value.append(format(((Supplier<?>) valueToFormat).get(), indent));
+                // Note that the Supplier's code is only invoked at this point
+                value.append(format(((Supplier<?>) valueToFormat).get(), indent));
 			} else if (valueToFormat instanceof String) {
 				value.append(valueToFormat);
 			} else if (valueToFormat instanceof bsh.This) {
@@ -176,7 +250,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 						value.append(",\n");
 					}
 					value.append("  ");
-					value.append(format(entry.getKey()));
+					value.append(formatInternal(entry.getKey()));
 					value.append("=");
 					value.append(format(entry.getValue(), true));
 					first = false;
@@ -186,7 +260,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 				DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
 				value.append(format.format((Date) valueToFormat));
 			} else if (valueToFormat instanceof Calendar) {
-				value.append(format(((Calendar) valueToFormat).getTime()));
+				value.append(formatInternal(((Calendar) valueToFormat).getTime()));
 			} else if (valueToFormat instanceof Document) {
 				try {
 					Transformer transformer = TransformerFactory.newInstance().newTransformer();
@@ -200,15 +274,15 @@ public class SLogger implements org.apache.commons.logging.Log {
 					return "Exception transforming object of type Document " + e;
 				}
 			} else if (valueToFormat instanceof Identity) {
-				value.append("Identity").append(format(toLogMap((Identity) valueToFormat)));
+				value.append("Identity").append(formatInternal(toLogMap((Identity) valueToFormat)));
 			} else if (valueToFormat instanceof Bundle) {
-				value.append("Bundle").append(format(toLogMap((Bundle)valueToFormat)));
+				value.append("Bundle").append(formatInternal(toLogMap((Bundle)valueToFormat)));
 			} else if (valueToFormat instanceof ManagedAttribute) {
-				value.append("ManagedAttribute").append(format(toLogMap((ManagedAttribute) valueToFormat)));
+				value.append("ManagedAttribute").append(formatInternal(toLogMap((ManagedAttribute) valueToFormat)));
 			} else if (valueToFormat instanceof Link) {
-				value.append("Link").append(format(toLogMap((Link) valueToFormat)));
+				value.append("Link").append(formatInternal(toLogMap((Link) valueToFormat)));
 			} else if (valueToFormat instanceof Application) {
-				value.append("Application").append(format(toLogMap((Application) valueToFormat)));
+				value.append("Application").append(formatInternal(toLogMap((Application) valueToFormat)));
 			} else if (valueToFormat instanceof SailPointContext) {
 				value.append("SailPointContext[").append(valueToFormat.hashCode()).append(", username = ").append(((SailPointContext) valueToFormat).getUserName()).append("]");
 			} else if (valueToFormat instanceof ProvisioningPlan) {
@@ -231,20 +305,22 @@ public class SLogger implements org.apache.commons.logging.Log {
 
 			String result = value.toString();
 			if (indent) {
-				result = result.replace("\n", "\n  ").trim();
+				result = result.replace("\n", "\n" + TAB_SPACES).trim();
 			}
 
 			return result;
 		}
 
 		/**
-		 * Returns the formatted string of the item when invoked via the {@link Supplier} interface
-		 * @return The formatted string
+		 * Returns the formatted string of the item when invoked via the {@link Supplier} interface.
+         * This output will NOT be cached, unlike a call to toString().
+         *
+		 * @return The formatted string, freshly calculated
 		 * @see Supplier#get()
 		 */
 		@Override
 		public String get() {
-			return toString();
+			return formatInternal(this.item);
 		}
 
 		/**
@@ -257,7 +333,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 			map.put("type", value.getType());
 			map.put("displayName", value.getDisplayName());
 			map.put("disabled", value.isDisabled() || value.isInactive());
-			map.put("attributes", format(value.getAttributes()));
+			map.put("attributes", formatInternal(value.getAttributes()));
 			return map;
 		}
 
@@ -326,109 +402,56 @@ public class SLogger implements org.apache.commons.logging.Log {
 		@Override
 		public String toString() {
 			if (this.formattedValue == null) {
-				this.formattedValue = format(item);
+				this.formattedValue = formatInternal(item);
 			}
 			return this.formattedValue;
 		}
 	}
 
-	/**
-	 * An enumeration of log levels to replace the one in log4j
-	 */
-	public enum Level {
-		/**
-		 * Trace level logs
-		 */
-		TRACE,
-		/**
-		 * Debug level logs
-		 */
-		DEBUG,
-		/**
-		 * Info level logs
-		 */
-		INFO,
-		/**
-		 * Warning level logs
-		 */
-		WARN,
-		/**
-		 * Error level logs
-		 */
-		ERROR,
-		/**
-		 * Fatal level logs
-		 */
-		FATAL,
-		/**
-		 * Log messages indicating that the code has reached a certain point
-		 */
-		HERE,
-		/**
-		 * Log messages indicating that the code is entering a certain segment
-		 */
-		ENTER,
-		/**
-		 * Log messages indicating that the code is exiting a certain segment
-		 */
-		EXIT
-	}
+    public static final String CUSTOM_GLOBAL_CAPTURED_LOGS_TOKEN = "IIQCommon.SLogger.CapturedLogs";
 
-	/**
-	 * Wraps the arguments for future formatting. The format string is not resolved
-	 * at this time.
-	 *
-	 * NOTE: In newer versions of logging APIs, this would be accomplished
-	 * by passing a {@link Supplier} to the API. However, in Commons Logging 1.x,
-	 * this is not available. It is also not available in Beanshell, as it requires
-	 * lambda syntax. If that ever becomes available, this class will become
-	 * obsolete.
-	 *
-	 * @param args The arguments for any place-holders in the message template.
-	 * @return The formatted arguments.
-	 */
-	public static SLogger.Formatter[] format(Object[] args) {
-		if (args == null) {
-			return null;
-		}
-		Formatter[] argsCopy = new Formatter[args.length];
-		for (int i = 0; i < args.length; i++) {
-			argsCopy[i] = new Formatter(args[i]);
-		}
-		return argsCopy;
-	}
-
-	/**
-	 * Renders the MessageTemplate using the given arguments
-	 * @param messageTemplate The message template
-	 * @param args The arguments
-	 * @return The resolved message template
-	 */
-	public static String renderMessage(String messageTemplate, Object[] args) {
-		if (args != null && args.length > 0) {
-			MessageFormat template = new MessageFormat(messageTemplate);
-			return template.format(args);
-		} else {
-			return messageTemplate;
-		}
-	}
-
+    /**
+     * Spaces to use for tabs in stack traces
+     */
+    private static final String TAB_SPACES = "    ";
+    /**
+     * The context name, typically the class name
+     */
+    private String contextName;
+    /**
+     * The context stack, which can be used to track nested contexts,
+     * such as method calls. The context stack will be prepended to
+     * all log messages if it is not empty.
+     */
+	protected final Stack<String> contextStack;
 	/**
 	 * The underlying logger to use.
 	 */
-	private final Log logger;
+	protected final Log logger;
 	/**
 	 * The underlying output stream to use.
 	 */
-	private final PrintStream out;
+	protected final PrintStream out;
 
-	private final Stack<String> contextStack;
-
-	private SLogger(Log logger, PrintStream out) {
+    /**
+     * Creates a new logger with the given logger and print stream.
+     * @param logger the underlying Commons Logging logger to use
+     * @param out the underlying PrintStream to use
+     */
+	protected SLogger(Log logger, PrintStream out) {
 		contextStack = new Stack<>();
 		this.logger = logger;
 		this.out = out;
 	}
+    /**
+     * Creates a new logger.
+     * @param name The name to log messages for. Typically, this is a class name, but may be a rule library, etc
+     */
+    public SLogger(String name) {
+        this(LogFactory.getLog(name), null);
+
+        this.contextName = name;
+    }
 
 	/**
 	 * Creates a new logger.
@@ -437,7 +460,9 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 */
 	public SLogger(Class<?> Owner) {
 		this(LogFactory.getLog(Owner), null);
-	}
+
+        this.contextName = Owner.getName();
+    }
 
 	/**
 	 * Wraps the given log4j logger with this logger
@@ -456,12 +481,116 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public SLogger(PrintStream Out) {
 		this(null, Out);
 	}
-	
+
+	/**
+	 * Wraps the arguments for future formatting. The format string is not resolved
+	 * at this time, meaning that the toString() is lazily evaluated.
+	 *
+	 * @param args The arguments for any place-holders in the message template.
+	 * @return The formatted arguments.
+	 */
+	public static SLogger.Formatter[] format(Object[] args) {
+		if (args == null) {
+			return null;
+		}
+		Formatter[] argsCopy = new Formatter[args.length];
+		for (int i = 0; i < args.length; i++) {
+			argsCopy[i] = new Formatter(args[i]);
+		}
+		return argsCopy;
+	}
+
+    /**
+     * Gets the captured logs ref for the given thread from the CustomGlobal.
+     * If it does not exist, it will be created. Using CustomGlobal and only
+     * core JDK classes for this allows this trace to be shared across plugins
+     * that may contain an obfuscated instance of this class.
+     *
+     * If the ThreadLocal does not already exist, it will be created in a block
+     * synchronized on the CustomGlobal class itself, preventing double creation.
+     *
+     * The contents of the AtomicReference may be null if capture() has not been
+     * invoked yet, or if reset() has been invoked.
+     *
+     * @return The AtomicReference containing the StringBuilder for captured logs for this thread
+     */
+    @SuppressWarnings("unchecked")
+    protected static AtomicReference<StringBuilder> getCapturedLogsRef() {
+        ThreadLocal<AtomicReference<StringBuilder>> threadLocal = (ThreadLocal<AtomicReference<StringBuilder>>) CustomGlobal.get(CUSTOM_GLOBAL_CAPTURED_LOGS_TOKEN);
+        if (threadLocal == null) {
+            synchronized(CustomGlobal.class) {
+                threadLocal = (ThreadLocal<AtomicReference<StringBuilder>>) CustomGlobal.get(CUSTOM_GLOBAL_CAPTURED_LOGS_TOKEN);
+                if (threadLocal == null) {
+                    threadLocal = InheritableThreadLocal.withInitial(AtomicReference::new);
+                    CustomGlobal.put(CUSTOM_GLOBAL_CAPTURED_LOGS_TOKEN, threadLocal);
+                }
+            }
+        }
+        return threadLocal.get();
+    }
+
+	/**
+	 * Renders the MessageTemplate using the given arguments
+	 * @param messageTemplate The message template
+	 * @param args The arguments
+	 * @return The resolved message template
+	 */
+	public static String renderMessage(String messageTemplate, Object[] args) {
+		if (args != null && args.length > 0) {
+			MessageFormat template = new MessageFormat(messageTemplate);
+			return template.format(args);
+		} else {
+			return messageTemplate;
+		}
+	}
+
+    /**
+     * Appends the standard prefix to the captured logs, including timestamp and context stack
+     */
+    protected void appendStandardPrefix() {
+        String prefix = getTimestamp();
+        builder().append(prefix);
+        builder().append("[").append(contextName).append("] ");
+        if (!contextStack.isEmpty()) {
+            String ctx = "[" + contextStack.stream().reduce((a, b) -> a + " > " + b).orElse("") + "] ";
+            builder().append(ctx);
+        }
+    }
+
+    /**
+     * Returns the StringBuilder used to capture logs, initializing it if necessary
+     * @return The StringBuilder for captured logs
+     */
+    protected StringBuilder builder() {
+        AtomicReference<StringBuilder> ref = getCapturedLogsRef();
+        if (ref.get() == null) {
+            ref.set(new StringBuilder());
+        }
+        return ref.get();
+    }
+
+    /**
+     * Begins capturing logs. This will clear any previously captured logs by
+     * replacing the current StringBuilder with a new one.
+     */
+    public void capture() {
+        builder().append("Starting capture at ").append(getTimestamp()).append("\n\n");
+    }
+
+    /**
+     * @see Log#debug(Object)
+     * @param arg0 The message to log
+     */
 	@Override
 	public void debug(Object arg0) {
 		debug("{0}", arg0);
 	}
-	
+
+    /**
+     * @see Log#debug(Object, Throwable)
+     * @param arg0 The message to log
+     * @param arg1 The exception to log
+     */
 	@Override
 	public void debug(Object arg0, Throwable arg1) {
 		debug("{0} {1}", arg0, arg1);
@@ -474,7 +603,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @param Args The arguments for any place-holders in the message template.
 	 */
 	public void debug(String MessageTemplate, Object... Args) {
-		log(Level.DEBUG, MessageTemplate, format(Args));
+		log(Level.DEBUG, MessageTemplate, (Object[]) format(Args));
 	}
 
 	/**
@@ -527,7 +656,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @param Args The arguments for any place-holders in the message template.
 	 */
 	public void error(String MessageTemplate, Object... Args) {
-		log(Level.ERROR, MessageTemplate, format(Args));
+		log(Level.ERROR, MessageTemplate, (Object[]) format(Args));
 	}
 
 	/**
@@ -576,6 +705,14 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public void fatal(String MessageTemplate, Object... Args) {
 		log(Level.FATAL, MessageTemplate, format(Args));
 	}
+	
+    /**
+     * Returns the captured logs as a String
+     * @return The captured logs
+     */
+    public String getCapturedLogs() {
+        return builder().toString();
+    }
 
 	/**
 	 * Gets the internal Log object wrapped by this class
@@ -584,6 +721,16 @@ public class SLogger implements org.apache.commons.logging.Log {
 	/*package*/ Log getLogger() {
 		return logger;
 	}
+
+    /**
+     * Generates a timestamp string for captured log entries
+     * @return The timestamp string
+     */
+    protected String getTimestamp() {
+        ZonedDateTime now = ZonedDateTime.now();
+        String timestamp = now.toString();
+        return "[" + timestamp + "] ";
+    }
 
 	/**
 	 * Handles an exception.
@@ -609,7 +756,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public void here(String value) {
 		log(Level.HERE, "Here: {0}", value);
 	}
-	
+
 	@Override
 	public void info(Object arg0) {
 		info("{0}", arg0);
@@ -629,6 +776,15 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public void info(String MessageTemplate, Object... Args) {
 		log(Level.INFO, MessageTemplate, format(Args));
 	}
+
+    /**
+     * Returns true if log capturing is currently active
+     * @return true if capturing is active
+     */
+    public boolean isCapturing() {
+        AtomicReference<StringBuilder> ref = getCapturedLogsRef();
+        return ref.get() != null;
+    }
 
 	/**
 	 * @see Log#isDebugEnabled()
@@ -774,7 +930,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @param messageTemplate A message template, which can either be a plain string or contain place-holders like {0} and {1}.
 	 * @param args The arguments for any place-holders in the message template.
 	 */
-	private void log(Level logLevel, String messageTemplate, Object... args) {
+	protected void log(Level logLevel, String messageTemplate, Object... args) {
 		save(logLevel, messageTemplate, args);
 		if (logger != null) {
 			if (isEnabledFor(logger, logLevel)) {
@@ -816,26 +972,59 @@ public class SLogger implements org.apache.commons.logging.Log {
 		}
 	}
 
-	/**
-	 * Hook to allow log messages to be intercepted and saved.
-	 *
-	 * @param LogLevel The level to log the message at.
-	 * @param MessageTemplate A message template, which can either be a plain string or contain place-holders like {0} and {1}.
-	 * @param Args The arguments for any place-holders in the message template.
-	 */
-	protected void save(@SuppressWarnings("unused") Level LogLevel, @SuppressWarnings("unused") String MessageTemplate, @SuppressWarnings("unused") Object[] Args) {
-		/* Does Nothing */
-	}
+    /**
+     * Resets/clears the captured logs
+     */
+    public void reset() {
+        AtomicReference<StringBuilder> ref = getCapturedLogsRef();
+        ref.set(new StringBuilder());
+    }
 
-	/**
-	 * Hook to allow log messages to be intercepted and saved. In this version of this
-	 * class, this is a no-op.
-	 *
-	 * @param Error The exception to handle.
-	 */
-	protected void save(@SuppressWarnings("unused") Throwable Error) {
-		/* Does Nothing */
-	}
+    /**
+     * Saves an error message and stack trace to the captured logs. If the
+     * error cannot be rendered for whatever reason, a message will be printed
+     * to standard error as a last resort.
+     *
+     * @param error The exception to handle.
+     */
+    @SuppressWarnings("UseOfSystemOutOrSystemErr")
+    protected void save(Throwable error) {
+        if (!isCapturing()) {
+            return;
+        }
+
+        appendStandardPrefix();
+
+        builder().append("[THROWABLE] ");
+
+        try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
+            error.printStackTrace(pw);
+            pw.flush();
+            String stackTrace = sw.toString().replace("\t", TAB_SPACES);
+            builder().append(stackTrace).append("\n");
+        } catch (Exception e) {
+            System.err.println("LAST RESORT: Error logging stack trace: " + e.getMessage());
+            error.printStackTrace();
+        }
+    }
+
+    /**
+     * Saves a log message to the captured logs
+     *
+     * @param LogLevel The level to log the message at.
+     * @param MessageTemplate A message template, which can either be a plain string or contain place-holders like {0} and {1}.
+     * @param Args The arguments for any place-holders in the message template.
+     */
+    protected void save(Level LogLevel, String MessageTemplate, Object[] Args) {
+        if (!isCapturing()) {
+            return;
+        }
+
+        appendStandardPrefix();
+
+        String formattedMessage = String.format(MessageTemplate, Args);
+        builder().append("[").append(LogLevel.name()).append("] ").append(formattedMessage).append("\n");
+    }
 
 	@Override
 	public void trace(Object arg0) {
@@ -882,4 +1071,5 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public void warn(String MessageTemplate, Object... Args) {
 		log(Level.WARN, MessageTemplate, format(Args));
 	}
+
 }
