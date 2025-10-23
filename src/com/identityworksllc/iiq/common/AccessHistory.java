@@ -39,6 +39,23 @@ public class AccessHistory {
      * The logger
      */
     private static final Log log = LogFactory.getLog(AccessHistory.class);
+    /**
+     * The cached flag indicating that access history is available
+     */
+    private final AtomicReference<Boolean> accessHistoryEnabled;
+    /**
+     * The cached Method to get the context
+     */
+    private final AtomicReference<Method> cachedAccessHistoryContextGetMethod;
+    /**
+     * The cached Method to get the environment
+     */
+    private final AtomicReference<Method> cachedAccessHistoryEnvGetMethod;
+    private AccessHistory() {
+        accessHistoryEnabled = new AtomicReference<>();
+        cachedAccessHistoryEnvGetMethod = new AtomicReference<>();
+        cachedAccessHistoryContextGetMethod = new AtomicReference<>();
+    }
 
     /**
      * Gets an instance of the utility class with version-specific implementation
@@ -65,33 +82,43 @@ public class AccessHistory {
         return INSTANCE;
     }
 
+    /**
+     * Returns a newly created SailPointContext associated with Access History
+     * @return The access history context, or an empty optional if not available
+     * @throws GeneralException on failures
+     */
+    public Optional<SailPointContext> createAccessHistoryContext() throws GeneralException {
+        if (this.isAccessHistoryEnabled()) {
+            try {
+                Class<?> dbInstanceClass = Class.forName("sailpoint.api.DatabaseInstance");
+                Method method = dbInstanceClass.getMethod("valueOf", String.class);
+                Object dbInstance = method.invoke(null, "ACCESS_HISTORY");
 
-    /**
-     * The cached flag indicating that access history is available
-     */
-    private final AtomicReference<Boolean> accessHistoryEnabled;
-    /**
-     * The cached Method to get the context
-     */
-    private final AtomicReference<Method> cachedAccessHistoryContextGetMethod;
-    /**
-     * The cached Method to get the environment
-     */
-    private final AtomicReference<Method> cachedAccessHistoryEnvGetMethod;
+                Class<?> spFactory = Class.forName("sailpoint.api.SailPointFactory");
+                Method getContextMethod = spFactory.getMethod("createPrivateContext", dbInstanceClass);
+                SailPointContext ahContext = (SailPointContext) getContextMethod.invoke(null, dbInstance);
 
-    private AccessHistory() {
-        accessHistoryEnabled = new AtomicReference<>();
-        cachedAccessHistoryEnvGetMethod = new AtomicReference<>();
-        cachedAccessHistoryContextGetMethod = new AtomicReference<>();
+                return Optional.of(ahContext);
+            } catch (NoSuchMethodException | SecurityException | IllegalAccessException e) {
+                log.debug("Caught an exception constructing the 8.4 access history feature", e);
+            } catch(ClassNotFoundException e) {
+                log.warn("This environment appears to be 8.4, but AccessHistoryUtil was not found", e);
+                throw new GeneralException("This environment appears to be 8.4, but AccessHistoryUtil was not found", e);
+            } catch (InvocationTargetException e) {
+                throw new GeneralException("Exception thrown while constructing the AH Environment", e);
+            }
+        } else {
+            log.debug("Access history is not available or is not enabled (version = " + Version.getVersion() + ")");
+        }
+
+        return Optional.empty();
     }
-
 
     /**
      * Returns the SailPointContext associated with Access History
      * @return The access history context, or an empty optional if not available
      */
     public Optional<SailPointContext> getAccessHistoryContext() throws GeneralException {
-        boolean is84 = Utilities.isIIQVersionAtLeast(CommonConstants.VERSION_8_4);
         if (this.isAccessHistoryEnabled()) {
             try {
                 if (cachedAccessHistoryContextGetMethod.get() == null) {
@@ -169,6 +196,24 @@ public class AccessHistory {
 
         accessHistoryEnabled.set(false);
         return false;
+    }
+
+    /**
+     * Releases the given Access History context
+     * @param ahContext the context to release
+     * @throws GeneralException on failures
+     */
+    public void releaseAccessHistoryContext(SailPointContext ahContext) throws GeneralException {
+        if (this.isAccessHistoryEnabled() && ahContext != null) {
+            try {
+                Class<?> ahu = Class.forName("sailpoint.accesshistory.AccessHistoryUtil");
+                Method method = ahu.getMethod("safeRelease", SailPointContext.class);
+
+                method.invoke(null, ahContext);
+            } catch(Exception e) {
+                throw new GeneralException(e);
+            }
+        }
     }
 
 
