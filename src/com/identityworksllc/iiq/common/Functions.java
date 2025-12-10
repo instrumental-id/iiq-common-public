@@ -4,6 +4,7 @@ import bsh.EvalError;
 import bsh.This;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.identityworksllc.iiq.common.logging.SLogger;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -365,6 +366,10 @@ public class Functions {
             static final OtobWrapper _singleton = new OtobWrapper();
         }
 
+        private OtobWrapper() {
+            /* do not instantiate */
+        }
+
         /**
          * Gets an instance of OtobWrapper. At this time, this is a Singleton
          * object, but you should not depend on that behavior.
@@ -373,10 +378,6 @@ public class Functions {
          */
         public static OtobWrapper get() {
             return OtobWrapperSingletonHolder._singleton;
-        }
-
-        private OtobWrapper() {
-            /* do not instantiate */
         }
 
         @Override
@@ -394,6 +395,13 @@ public class Functions {
      * Logger shared among various functions
      */
     private static final Log log = LogFactory.getLog(Functions.class);
+
+    /**
+     * Private utility constructor
+     */
+    private Functions() {
+
+    }
 
     /**
      * A flatMap() function to extract the account requests from a plan
@@ -1331,14 +1339,6 @@ public class Functions {
             throw new IllegalArgumentException("Application must not be null");
         }
         return getLinks(application.getName());
-    }
-
-    /**
-     * Returns a function mapping an Identity to its manager
-     * @return The function that retrieves the manager of the Identity
-     */
-    public Function<Identity, Identity> getManager() {
-        return Identity::getManager;
     }
 
     /**
@@ -2648,6 +2648,40 @@ public class Functions {
     }
 
     /**
+     * Returns a Supplier that formats the given object for logging. The returned
+     * object is an instance of {@link com.identityworksllc.iiq.common.logging.SLogger.Formatter}.
+     *
+     * @param obj The object to format
+     * @return A supplier that formats the object for logging, as {@link SLogger} would do
+     */
+    public static Supplier<String> toLogFormat(Object obj) {
+        return new SLogger.Formatter(obj);
+    }
+
+    /**
+     * Returns a Supplier that invokes toString() on the given object, or
+     * returns an empty string if the object is null.
+     *
+     * If the input is a Supplier itself (e.g., if you want lazily extract
+     * an expensive object later), the Supplier will be invoked first
+     * and then its result will be converted to string.
+     *
+     * @param obj The object to convert to string
+     * @return A supplier that invokes toString() on the object
+     */
+    public static Supplier<String> toString(Object obj) {
+        // Handle case where the input is itself a Supplier
+        if (obj instanceof Supplier) {
+            return () -> {
+                Object supplied = ((Supplier<?>) obj).get();
+                return supplied == null ? "" : supplied.toString();
+            };
+        }
+
+        return () -> obj == null ? "" : obj.toString();
+    }
+
+    /**
      * Returns a Supplier that translates the given AbstractXmlObject to XML.
      * This can be used with modern log4j2 invocations, notably. The call
      * to {@link AbstractXmlObject#toXml()} happens on invocation. The
@@ -2682,9 +2716,10 @@ public class Functions {
     }
 
     /**
-     * Private utility constructor
+     * Returns a function mapping an Identity to its manager
+     * @return The function that retrieves the manager of the Identity
      */
-    private Functions() {
-
+    public Function<Identity, Identity> getManager() {
+        return Identity::getManager;
     }
 }
