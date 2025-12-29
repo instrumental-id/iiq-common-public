@@ -1,5 +1,6 @@
 package com.identityworksllc.iiq.common.connector;
 
+import connector.common.DiscoveredApplication;
 import connector.common.statisticscollector.StatisticsCollector;
 import openconnector.ConnectorServices;
 import sailpoint.connector.AuthenticationFailedException;
@@ -50,6 +51,11 @@ public class UnsupportedConnector implements Connector {
     @Override
     public Map<String, Object> discoverApplicationAttributes(Map<String, Object> map) throws ConnectorException {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
+    }
+
+    @Override
+    public CloseableIterator<DiscoveredApplication> discoverApplications() throws ConnectorException, UnsupportedOperationException {
+        return null;
     }
 
     @Override
