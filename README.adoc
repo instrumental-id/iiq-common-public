@@ -60,9 +60,9 @@ Certain releases will be forked into branches. These will receive backports of s
 
 === JDK version
 
-You can build this library with JDK 8, JDK 11, or JDK 17.
+You can build this library with JDK 11 or JDK 17.
 
-For 2024 releases, the code level is set to JDK 8 so that the library will be compatible with existing IIQ installations.
+Beginning with 2026 releases, the library will be built with JDK 11 and will require JDK 11 or later to run.
 
 === Supplying the IIQ dependencies
 

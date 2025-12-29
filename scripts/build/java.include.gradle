@@ -2,8 +2,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import java.time.LocalDate
 
 java {
-    sourceCompatibility = JavaLanguageVersion.of(8)
-    targetCompatibility = JavaLanguageVersion.of(8);
+    sourceCompatibility = JavaLanguageVersion.of(11)
+    targetCompatibility = JavaLanguageVersion.of(11);
 
     withSourcesJar()
     if (!JavaVersion.current().isJava11Compatible()) {

@@ -53,6 +53,10 @@ buildscript {
     }
 }
 
+plugins {
+    id("io.freefair.lombok") version "8.14.3"
+}
+
 apply plugin: 'checkstyle'
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
@@ -183,12 +187,6 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-engine:1.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.13.4'
-
-    compileOnly 'org.projectlombok:lombok:1.18.36'
-    annotationProcessor 'org.projectlombok:lombok:1.18.36'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.36'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
 }
 
 test {
