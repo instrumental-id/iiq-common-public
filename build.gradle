@@ -148,7 +148,7 @@ dependencies {
     compileOnly spLib
     compileOnly includeLib
 
-    toolLibraries 'info.picocli:picocli:4.77'
+    toolLibraries 'info.picocli:picocli:4.7.7'
     toolLibraries group: 'org.jline', name: 'jline', version: '3.30.6'
 
     implementation group: 'org.glassfish.jersey.bundles', name: 'jaxrs-ri', version: '2.22.2'
