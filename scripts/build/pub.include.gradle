@@ -66,6 +66,7 @@ publishing {
                 header(HttpHeaderAuthentication)
             }
         }
+        /*
         maven {
             name = "GitHubPackages"
             url = "https://maven.pkg.github.com/instrumental-id/iiq-common-public"
@@ -75,6 +76,7 @@ publishing {
                 password = System.getenv("GITHUB_TOKEN")
             }
         }
+        */
     }
 }
 
