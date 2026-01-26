@@ -20,9 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * likely to cause problems, such as during externally defined maintenance windows,
  * final exam periods, or other critical times.
  *
- * BETA!
  */
-@Experimental
 public class ConditionalTask extends AbstractTaskExecutor {
     /**
      * The task manager, used to synchronously run the other task

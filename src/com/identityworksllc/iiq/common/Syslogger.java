@@ -1,5 +1,8 @@
 package com.identityworksllc.iiq.common;
 
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 import sailpoint.api.SailPointContext;
 import sailpoint.api.SailPointFactory;
 import sailpoint.api.logging.SyslogThreadLocal;
@@ -8,6 +11,7 @@ import sailpoint.persistence.Sequencer;
 import sailpoint.tools.GeneralException;
 import sailpoint.tools.Util;
 
+import javax.validation.constraints.NotNull;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +21,62 @@ import java.util.concurrent.atomic.AtomicReference;
  * produce them. The events are saved via an autonomous transaction.
  */
 public class Syslogger {
+    /**
+     * Argument VO for syslog events
+     */
+    @Setter
+    @Getter
+    @Builder
+    public static final class SyslogArgs {
+        /**
+         * The error, optionally
+         */
+        private Throwable error;
+
+        /**
+         * The event level (ERROR, INFO, WARN)
+         */
+        private String eventLevel;
+
+        /**
+         * The logged in user, optionally
+         */
+        private String loggedInUser;
+
+        /**
+         * The message to log (not null)
+         */
+        @NotNull
+        private String message;
+
+        /**
+         * The owning class, optionally
+         */
+        private Class<?> owningClass;
+    }
+
+    /**
+     * Event level error
+     */
+    public static final String EVENT_LEVEL_ERROR = "ERROR";
+
+    /**
+     * Event level info
+     */
+    public static final String EVENT_LEVEL_INFO = "INFO";
+
+    /**
+     * Event level warn
+     */
+    public static final String EVENT_LEVEL_WARN = "WARN";
+
+    /**
+     * Private utility constructor
+     */
+    private Syslogger() {
+
+    }
+
     /**
      * @see #logEvent(Class, String, Throwable)
      */
@@ -38,6 +98,10 @@ public class Syslogger {
         return logEvent(null, message, error);
     }
 
+    public static String logEvent(final Class<?> owningClass, final String message, final Throwable error) throws GeneralException {
+        return logEvent(owningClass, message, error, EVENT_LEVEL_ERROR);
+    }
+
     /**
      * Logs a SyslogEvent of ERROR type with a sequential QuickKey, returning that key
      *
@@ -47,7 +111,7 @@ public class Syslogger {
      * @return The quick key generated for this event
      * @throws GeneralException if any failures occur during logging or creating the private context
      */
-    public static String logEvent(final Class<?> owningClass, final String message, final Throwable error) throws GeneralException {
+    public static String logEvent(final Class<?> owningClass, final String message, final Throwable error, final String eventLevel) throws GeneralException {
         final String authenticatedUser;
         final SailPointContext currentContext = SailPointFactory.getCurrentContext();
         if (currentContext != null && currentContext.getUserName() != null) {
@@ -65,7 +129,7 @@ public class Syslogger {
             event.setQuickKey(quickKey);
             event.setUsername(authenticatedUser);
             event.setServer(Util.getHostName());
-            event.setEventLevel("ERROR");
+            event.setEventLevel(eventLevel);
             event.setThread(Thread.currentThread().getName());
             event.setMessage(message);
             if (owningClass != null) {
@@ -85,12 +149,5 @@ public class Syslogger {
             context.commitTransaction();
         });
         return quickKeyRef.get();
-    }
-
-    /**
-     * Private utility constructor
-     */
-    private Syslogger() {
-
     }
 }
