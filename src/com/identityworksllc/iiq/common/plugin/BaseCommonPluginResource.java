@@ -1,11 +1,9 @@
 package com.identityworksllc.iiq.common.plugin;
 
-import com.identityworksllc.iiq.common.AbstractBaseUtility;
-import com.identityworksllc.iiq.common.Sameness;
-import com.identityworksllc.iiq.common.Syslogger;
-import com.identityworksllc.iiq.common.ThingAccessUtils;
-import com.identityworksllc.iiq.common.TooManyResultsException;
-import com.identityworksllc.iiq.common.Utilities;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.identityworksllc.iiq.common.*;
 import com.identityworksllc.iiq.common.logging.LogCapture;
 import com.identityworksllc.iiq.common.logging.SLogger;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizeAll;
@@ -16,6 +14,7 @@ import com.identityworksllc.iiq.common.plugin.annotations.ResponsesAllowed;
 import com.identityworksllc.iiq.common.plugin.vo.ExpandedDate;
 import com.identityworksllc.iiq.common.plugin.vo.RestObject;
 import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.core.annotation.AnnotationUtils;
 import sailpoint.api.Matchmaker;
 import sailpoint.api.Meter;
@@ -111,17 +110,6 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 			FacesContext.setCurrentInstance(facesContext);
 		}
 	}
-
-	/**
-	 * Transforms a date response into a known format
-	 *
-	 * @param response The date response
-	 * @return if any failures occur
-	 */
-	private static Response transformDate(Date response) {
-		return Response.ok().entity(new ExpandedDate(response)).build();
-	}
-
 	/**
 	 * If true, logs will be captured in handle() and appended to any error messages
 	 */
@@ -161,7 +149,6 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	 */
 	@Context
 	protected ServletContext servletContext;
-	
 	/**
 	 * The plugin resource
 	 */
@@ -172,7 +159,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		this.forwardLogs = new ThreadLocal<>();
 		this.constructedContext = new ThreadLocal<>();
 	}
-
+	
 	/**
 	 * The plugin resource
 	 * @param parent The parent resource, used to inherit IIQ configuration
@@ -184,6 +171,16 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		this.captureLogs = new ThreadLocal<>();
 		this.forwardLogs = new ThreadLocal<>();
 		this.constructedContext = new ThreadLocal<>();
+	}
+
+	/**
+	 * Transforms a date response into a known format
+	 *
+	 * @param response The date response
+	 * @return if any failures occur
+	 */
+	private static Response transformDate(Date response) {
+		return Response.ok().entity(new ExpandedDate(response)).build();
 	}
 
 	/**
@@ -300,6 +297,14 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 	}
 
+    /**
+     * Allows subclasses to add custom audit information to the audit map
+     * @param auditMap The audit map
+     */
+    protected void customizeAuditMap(Map<String, Object> auditMap) {
+        // Subclasses may override to add custom audit information
+    }
+
 	/**
 	 * Allows successful responses to be customized by overriding this method. By
 	 * default, simply returns the input Response object.
@@ -357,7 +362,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	public int getConfigurationInt(String settingName) {
 		return new ExtendedPluginContextHelper(getPluginName(), getContext(), this, this::getConfigurationName).getConfigurationInt(settingName);
 	}
-
+	
 	/**
 	 * Returns the name of the Configuration object for this plugin. It defaults to
 	 * `Plugin Configuration [plugin name]`, but a subclass may want to override it.
@@ -396,7 +401,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	public String getConfigurationString(String settingName) {
 		return new ExtendedPluginContextHelper(getPluginName(), getContext(), this, this::getConfigurationName).getConfigurationString(settingName);
 	}
-	
+
 	/**
 	 * Returns a distinct object matching the given filter. If the results are not distinct
 	 * (i.e. more than one result is returned), a 400 error will be thrown. If there are no
@@ -420,7 +425,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 		return results.get(0);
 	}
-
+	
 	/**
 	 * Returns a distinct object of the given type matching the given filter. If the results are not distinct (i.e. more than one result is returned), a 400 error will be thrown. If there are no matching objects, a 404 error will be thrown.
 	 * @param <T> The class to search for
@@ -490,7 +495,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 		return object;
 	}
-	
+
 	/**
 	 * A wrapper around {@link SailPointContext#getObject(Class, String)} that will throw a 404 exception if the search returns no records
 	 * @param <T> The class to search for
@@ -550,9 +555,9 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 	}
 
 	/**
-	 * This method is responsible for executing the given action after checking the
-	 * Authorizers. The action should be specified as a Java lambda expression.
-	 *
+	 * This entry point method is responsible for executing the given action after checking
+     * the Authorizers. The action should be specified as a Java lambda expression.
+     *
 	 * ```
 	 * {@literal @}GET
 	 * {@literal @}Path("endpoint/path")
@@ -592,7 +597,10 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 		final String _meterName = "pluginRest:" + request.getRequestURI();
 		boolean shouldMeter = shouldMeter(request);
-		try {
+        boolean shouldAudit = shouldAudit(request);
+
+        Map<String, Object> auditMap = new HashMap<>();
+        try {
 			if (forwardLogs.get() != null && forwardLogs.get()) {
 				LogCapture.addLoggers(this.getClass().getName());
 				LogCapture.startInterception(message -> log.warn("{0}  {1} {2} - {3}", message.getDate(), message.getLevel(), message.getSource(), message.getMessage()));
@@ -603,13 +611,33 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 			if (shouldMeter) {
 				Meter.enter(_meterName);
 			}
-			try {
+
+            // Allows us to trace these operations through their whole existence
+            ThreadContext.push(LoggingConstants.LOG_CTX_ID, UUID.randomUUID().toString());
+            ThreadContext.put(LoggingConstants.LOG_MDC_USER, getLoggedInUserName());
+            ThreadContext.put(LoggingConstants.LOG_MDC_USER_DISPLAY, getLoggedInUser().getDisplayName());
+            ThreadContext.put(LoggingConstants.LOG_MDC_PLUGIN, getPluginName());
+            ThreadContext.put(LoggingConstants.LOG_MDC_URI, request.getRequestURI());
+
+            try {
+                auditMap.put(LoggingConstants.LOG_MDC_URI, request.getRequestURI());
+                auditMap.put("httpMethod", request.getMethod());
+                auditMap.put(LoggingConstants.LOG_MDC_USER, getLoggedInUserName());
+                auditMap.put(LoggingConstants.LOG_MDC_PLUGIN, getPluginName());
+
 				boolean hasReturnValue = true;
 				List<Class<?>> allowedReturnTypes = null;
 				try {
 					if (resourceInfo != null) {
 						Class<?> endpointClass = this.getClass();
 						Method endpointMethod = resourceInfo.getResourceMethod();
+
+                        auditMap.put(LoggingConstants.LOG_MDC_ENDPOINT_CLASS, endpointClass.getName());
+                        auditMap.put(LoggingConstants.LOG_MDC_ENDPOINT_METHOD, endpointMethod.getName());
+
+                        ThreadContext.put(LoggingConstants.LOG_MDC_ENDPOINT_CLASS, endpointClass.getName());
+                        ThreadContext.put(LoggingConstants.LOG_MDC_ENDPOINT_METHOD, endpointMethod.getName());
+
 						authorize(endpointClass, endpointMethod);
 						if (endpointClass.isAnnotationPresent(NoReturnValue.class) || endpointMethod.isAnnotationPresent(NoReturnValue.class)) {
 							hasReturnValue = false;
@@ -649,6 +677,15 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 					if (this instanceof Authorizer) {
 						authorize((Authorizer)this);
 					}
+
+                    if (shouldAudit) {
+                        customizeAuditMap(auditMap);
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
+                        String auditJson = mapper.writeValueAsString(auditMap);
+                        log.warn("API Audit: {0}", auditJson);
+                        Syslogger.logEvent(this.getClass(), auditJson, null, Syslogger.EVENT_LEVEL_WARN);
+                    }
+
 					Object actionResult = action.execute();
 
 					Response restResult;
@@ -678,6 +715,15 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 				}
 			}
 		} catch(UnauthorizedAccessException | SecurityException e) {
+            if (shouldAudit) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
+                    String auditJson = mapper.writeValueAsString(auditMap);
+                    log.warn("Unauthorized access to API: {0}", auditJson);
+                } catch(JsonProcessingException e2) {
+                    log.error("Caught a JSON exception attempting to audit a previous exception", e2);
+                }
+            }
 			return handleException(Response.status(Status.FORBIDDEN), e);
 		} catch(ObjectNotFoundException | NotFoundException e) {
 			return handleException(Response.status(Status.NOT_FOUND), e);
@@ -686,6 +732,8 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		} catch(Exception e) {
 			return handleException(e);
 		} finally {
+            ThreadContext.pop();
+            ThreadContext.clearMap();
 			if (shouldMeter) {
 				Meter.exit(_meterName);
 			}
@@ -698,7 +746,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 	}
 
-	/**
+    /**
 	 * A wrapper method to handle plugin inputs. This is identical to invoking
 	 * {@link #handle(Authorizer, PluginAction)} with a null Authorizer. See
 	 * the documentation for that variant for more detail.
@@ -978,13 +1026,28 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		this.pluginAuthorizationCheck = pluginAuthorizationCheck;
 	}
 
+    /**
+     * Returns true if we ought to audit API calls to this resource. Subclasses
+     * can override this method to do their own detection.
+     *
+     * @param request The inbound servlet request
+     * @return True if we should audit
+     */
+    protected boolean shouldAudit(HttpServletRequest request) {
+        return false;
+    }
+
 	/**
 	 * Returns true if we ought to meter API calls to this resource. Subclasses
 	 * can override this method to do their own detection.
+     *
+     * UPDATE 2026-01-22: Change default from true to false to reduce noise
+     *
 	 * @param request The inbound servlet request
+     * @return True if we should meter
 	 */
 	protected boolean shouldMeter(HttpServletRequest request) {
-		return true;
+		return false;
 	}
 
 	/**
