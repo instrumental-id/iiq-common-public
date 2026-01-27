@@ -51,6 +51,10 @@ public class AccessHistory {
      * The cached Method to get the environment
      */
     private final AtomicReference<Method> cachedAccessHistoryEnvGetMethod;
+
+    /**
+     * Private constructor
+     */
     private AccessHistory() {
         accessHistoryEnabled = new AtomicReference<>();
         cachedAccessHistoryEnvGetMethod = new AtomicReference<>();

@@ -44,7 +44,7 @@ import java.util.stream.StreamSupport;
 import static com.identityworksllc.iiq.common.Utilities.getProperty;
 
 /**
- * This class implements a whole slew of java.util.function implementations, which
+ * This class implements a whole slew of `java.util.function` implementations, which
  * can be used as a hack to get streams working in Beanshell. This can simplify code
  * enormously.
  *

@@ -127,10 +127,10 @@ public class ManagedAttributeUtilities extends AbstractBaseUtility {
      *
      * The resulting Form may be used in a workflow.
      *
-     * @param map
-     * @param options
-     * @return
-     * @throws GeneralException
+     * @param map The input map
+     * @param options Any options you'd like to specify for building the form
+     * @return The resulting Form
+     * @throws GeneralException if anything goes wrong
      */
     public Form buildForm(Map<String, Object> map, BuildForm.Option... options) throws GeneralException {
         Form form = new Form();

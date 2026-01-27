@@ -22,8 +22,16 @@ import java.util.*;
  */
 public class ConfigurationMerger {
 
+    /**
+     * The token used to indicate that a value should be removed from the
+     * result, rather than merged.
+     */
 	public static final String NULL_TOKEN = "(null)";
-	public static final String REPLACE_TOKEN = "_replace";
+
+    /**
+     * The token used to replace a value in the target Map
+     */
+    public static final String REPLACE_TOKEN = "_replace";
 	/**
 	 * Logger used for tracing purposes
 	 */
@@ -115,6 +123,7 @@ public class ConfigurationMerger {
 	 * 
 	 * @param newMap The new map to merge into the final product
 	 * @param existingMap The existing map, built from this or previous mergers
+     * @return The merged Map
 	 */
 	@SuppressWarnings("unchecked")
 	public static Map<String, Object> mergeMaps(final Map<String, Object> newMap, final Map<String, Object> existingMap) {
