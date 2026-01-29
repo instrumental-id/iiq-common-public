@@ -139,16 +139,14 @@ public class SLogger implements org.apache.commons.logging.Log {
         public static String format(Object obj) {
             return new Formatter(obj).toString();
         }
-
-		/**
-		 * The formatted value cached after the first call to toString()
-		 */
-		private String formattedValue;
-
 		/**
 		 * The object to format.
 		 */
 		private final Object item;
+		/**
+		 * The formatted value cached after the first call to toString()
+		 */
+		private String formattedValue;
 
 		/**
 		 * Creates a new formatter.
@@ -169,16 +167,6 @@ public class SLogger implements org.apache.commons.logging.Log {
                 map.put("name", value.getName());
             }
 			return map;
-		}
-
-		/**
-		 * Formats an object. Equivalent to format(valueToFormat, false).
-		 *
-		 * @param valueToFormat The object to format.
-		 * @return The formatted version of that object.
-		 */
-		private String formatInternal(Object valueToFormat) {
-			return format(valueToFormat, false);
 		}
 
 		/**
@@ -312,6 +300,16 @@ public class SLogger implements org.apache.commons.logging.Log {
 		}
 
 		/**
+		 * Formats an object. Equivalent to format(valueToFormat, false).
+		 *
+		 * @param valueToFormat The object to format.
+		 * @return The formatted version of that object.
+		 */
+		private String formatInternal(Object valueToFormat) {
+			return format(valueToFormat, false);
+		}
+
+		/**
 		 * Returns the formatted string of the item when invoked via the {@link Supplier} interface.
          * This output will NOT be cached, unlike a call to toString().
          *
@@ -408,79 +406,15 @@ public class SLogger implements org.apache.commons.logging.Log {
 		}
 	}
 
+    /**
+     * The token used to store the captured logs for an SLogger in CustomGlobal
+     */
     public static final String CUSTOM_GLOBAL_CAPTURED_LOGS_TOKEN = "IIQCommon.SLogger.CapturedLogs";
 
     /**
      * Spaces to use for tabs in stack traces
      */
     private static final String TAB_SPACES = "    ";
-    /**
-     * The context name, typically the class name
-     */
-    private String contextName;
-    /**
-     * The context stack, which can be used to track nested contexts,
-     * such as method calls. The context stack will be prepended to
-     * all log messages if it is not empty.
-     */
-	protected final Stack<String> contextStack;
-	/**
-	 * The underlying logger to use.
-	 */
-	protected final Log logger;
-	/**
-	 * The underlying output stream to use.
-	 */
-	protected final PrintStream out;
-
-    /**
-     * Creates a new logger with the given logger and print stream.
-     * @param logger the underlying Commons Logging logger to use
-     * @param out the underlying PrintStream to use
-     */
-	protected SLogger(Log logger, PrintStream out) {
-		contextStack = new Stack<>();
-		this.logger = logger;
-		this.out = out;
-	}
-    /**
-     * Creates a new logger.
-     * @param name The name to log messages for. Typically, this is a class name, but may be a rule library, etc
-     */
-    public SLogger(String name) {
-        this(LogFactory.getLog(name), null);
-
-        this.contextName = name;
-    }
-
-	/**
-	 * Creates a new logger.
-	 *
-	 * @param Owner The class to log messages for.
-	 */
-	public SLogger(Class<?> Owner) {
-		this(LogFactory.getLog(Owner), null);
-
-        this.contextName = Owner.getName();
-    }
-
-	/**
-	 * Wraps the given log4j logger with this logger
-	 *
-	 * @param WrapLog The logger to wrap
-	 */
-	public SLogger(Log WrapLog) {
-		this(WrapLog, null);
-	}
-
-	/**
-	 * Creates a new logger.
-	 *
-	 * @param Out The output stream to
-	 */
-	public SLogger(PrintStream Out) {
-		this(null, Out);
-	}
 
 	/**
 	 * Wraps the arguments for future formatting. The format string is not resolved
@@ -529,6 +463,27 @@ public class SLogger implements org.apache.commons.logging.Log {
         return threadLocal.get();
     }
 
+    /**
+     * Factory method for getting an SLogger instance with the same syntax
+     * as the similar Apache Commons Logging API.
+     * @param name The name of the logger to get.
+     * @return the newly created logger
+     */
+    public static SLogger getLogger(String name) {
+        return new SLogger(name);
+    }
+
+    /**
+     * Factory method for getting an SLogger instance with the same syntax
+     * as the similar Commons Logging API
+     *
+     * @param cls The class whose name to use for the logger
+     * @return the newly created logger
+     */
+    public static SLogger getLogger(Class<?> cls) {
+        return new SLogger(cls);
+    }
+
 	/**
 	 * Renders the MessageTemplate using the given arguments
 	 * @param messageTemplate The message template
@@ -542,6 +497,74 @@ public class SLogger implements org.apache.commons.logging.Log {
 		} else {
 			return messageTemplate;
 		}
+	}
+    /**
+     * The context stack, which can be used to track nested contexts,
+     * such as method calls. The context stack will be prepended to
+     * all log messages if it is not empty.
+     */
+	protected final Stack<String> contextStack;
+	/**
+	 * The underlying logger to use.
+	 */
+	protected final Log logger;
+	/**
+	 * The underlying output stream to use.
+	 */
+	protected final PrintStream out;
+    /**
+     * The context name, typically the class name
+     */
+    private String contextName;
+
+    /**
+     * Creates a new logger with the given logger and print stream.
+     * @param logger the underlying Commons Logging logger to use
+     * @param out the underlying PrintStream to use
+     */
+	protected SLogger(Log logger, PrintStream out) {
+		contextStack = new Stack<>();
+		this.logger = logger;
+		this.out = out;
+	}
+
+    /**
+     * Creates a new logger.
+     * @param name The name to log messages for. Typically, this is a class name, but may be a rule library, etc
+     */
+    public SLogger(String name) {
+        this(LogFactory.getLog(name), null);
+
+        this.contextName = name;
+    }
+
+	/**
+	 * Creates a new logger.
+	 *
+	 * @param Owner The class to log messages for.
+	 */
+	public SLogger(Class<?> Owner) {
+		this(LogFactory.getLog(Owner), null);
+
+        this.contextName = Owner.getName();
+    }
+
+	/**
+	 * Wraps the given log4j logger with this logger
+	 *
+	 * @param WrapLog The logger to wrap
+	 */
+	public SLogger(Log WrapLog) {
+		this(WrapLog, null);
+	}
+
+	/**
+	 * Creates a new logger.
+	 *
+	 * @param Out The output stream to
+	 */
+	public SLogger(PrintStream Out) {
+		this(null, Out);
 	}
 
     /**
