@@ -14,7 +14,9 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Creates a fake plugin context for use outside of a plugin.
+ * Creates a fake plugin context for use outside a plugin. This will simulate the
+ * logged-in user (via the HttpSession) as well as plugin settings and can be passed
+ * as a parent resource to any BaseResource class.
  */
 public class DummyPluginResource extends BasePluginResource implements UserContext, PluginContext {
     /**
@@ -44,6 +46,7 @@ public class DummyPluginResource extends BasePluginResource implements UserConte
         this.loggedInUser = loggedInUser;
         this.pluginName = pluginName;
         this.uriInfo = new DummyUriInfo();
+        this.request = new DummyRequest(loggedInUser);
     }
 
     /**

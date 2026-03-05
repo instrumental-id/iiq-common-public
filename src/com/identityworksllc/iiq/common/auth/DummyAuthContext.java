@@ -24,12 +24,12 @@ public class DummyAuthContext implements UserContext {
 	/**
 	 * The current SailPointContext
 	 */
-	private SailPointContext context;
+	private final SailPointContext context;
 	
 	/**
 	 * The identity name
 	 */
-	private String identityName;
+	private final String identityName;
 	
 	/**
 	 * Constructor
