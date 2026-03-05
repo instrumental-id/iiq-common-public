@@ -141,6 +141,7 @@ includeLib.include "*.jar"
 def spLib = fileTree(dir: "${libRoot}/sailpoint")
 spLib.include ("identityiq.jar")
 spLib.include ("connector-bundle-identityiq.jar")
+spLib.include ("pam-credential.jar")
 
 dependencies {
     markdownDoclet "org.jdrupes.mdoclet:doclet:2.1.0"
