@@ -286,7 +286,11 @@ public final class AccessCheckInput {
      */
     public AccessCheckInput setTarget(Identity target) {
         this.target = target;
-        this.targetName = target.getName();
+        if (this.target != null) {
+            this.targetName = target.getName();
+        } else {
+            this.targetName = null;
+        }
         return this;
     }
 
