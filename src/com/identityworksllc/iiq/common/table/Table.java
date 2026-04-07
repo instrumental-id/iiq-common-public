@@ -52,13 +52,44 @@ import java.util.Map;
  */
 @SuppressWarnings("unused")
 public class Table extends Element {
+    /**
+     * The internal state of the Table builder, tracking the current
+     * cell and row being built.
+     */
     private static class BuilderState {
+        /**
+         * The list of CSS classes to apply to all cells added in the future. This is modified by withCellClasses and cleared by clearCellClasses.
+         */
         private final List<String> alwaysCellClasses;
+
+        /**
+         * The list of CellOptions to apply to all cells added in the future. This is modified by withCellOptions when applied to the table level.
+         */
         private final List<CellOption> alwaysCellOptions;
+
+        /**
+         * The list of CSS classes to apply to all rows added in the future. This is modified by withRowClasses and cleared by clearRowClasses.
+         */
         private final List<String> alwaysRowClasses;
+
+        /**
+         * The current cell being built, or null if not currently building a cell. This is set by cell() and cleared by row() and rows().
+         */
         private Cell currentCell;
+
+        /**
+         * The current row being built, or null if not currently building a row. This is set by row() and cleared by rows().
+         */
         private Row currentRow;
+
+        /**
+         * If true, the current row is a header row, so any cells added to it should be header cells. This is set by header() and cleared by row() and rows().
+         */
         private boolean header;
+
+        /**
+         * Set after invoking rows() or row(List), indicating that the rows are already populated and thus cannot accept any more cells until row() is called again. This is set by rows() and row(List) and cleared by row().
+         */
         private boolean singleInsertCells;
 
         public BuilderState() {
@@ -206,6 +237,10 @@ public class Table extends Element {
                 }
             }
 
+            for(CellOption cellOption : Util.safeIterable(builderState.alwaysCellOptions)) {
+                cellOption.accept(newCell);
+            }
+
             return this;
         }
     }
@@ -248,6 +283,7 @@ public class Table extends Element {
 
     /**
      * Clears the cell classes list set by {@link #withCellClasses(String...)}
+     * @return This Table object, for fluent API chaining
      */
     public Table clearCellClasses() {
         this.builderState.alwaysCellClasses.clear();
@@ -257,6 +293,7 @@ public class Table extends Element {
     /**
      * Sets the current row or cell to be a header. If the current object
      * is a row, all cells in that row will be header cells.
+     * @return This Table object, for fluent API chaining
      */
     public Table header() {
         if (this.builderState.currentCell != null) {
@@ -273,6 +310,8 @@ public class Table extends Element {
     /**
      * Creates a new header row and populates it with the given cell values
      * @param values The values to add
+     * @return This Table object, for fluent API chaining
+     * @throws GeneralException if anything fails, usually because a CellOption failed
      */
     public Table header(List<Object> values) throws GeneralException {
         row();
@@ -286,6 +325,7 @@ public class Table extends Element {
     /**
      * Adds a new HTML cell to the current row
      * @param value The HTML contents
+     * @return This Table object, for fluent API chaining
      */
     public Table htmlCell(Object value) throws GeneralException {
         if (!(value instanceof String || value instanceof Collection)) {
@@ -558,6 +598,8 @@ public class Table extends Element {
      * If applied to the table, it will apply to all cells in any row.
      *
      * @param options The options to apply to each relevant cell
+     * @return This Table object, for fluent API chaining
+     * @throws GeneralException On any failures applying the CellOptions
      */
     public Table withCellOptions(List<CellOption> options) throws GeneralException {
         if (options != null) {
@@ -586,6 +628,8 @@ public class Table extends Element {
      * currently in the row and all cells added to the row in the future.
      *
      * @param options The options to apply to each relevant cell
+     * @return This Table object, for fluent API chaining
+     * @throws GeneralException On any failures applying the CellOptions
      */
     public Table withCellOptions(CellOption... options) throws GeneralException {
         if (options != null) {
@@ -597,6 +641,7 @@ public class Table extends Element {
     /**
      * Adds the given CSS class to the current object
      * @param cssClasses The CSS class (or space-separated classes)
+     * @return This Table object, for fluent API chaining
      */
     public Table withClass(String... cssClasses) {
         for(String cssClass : cssClasses) {
@@ -616,6 +661,7 @@ public class Table extends Element {
      * set and any given options applied to all cells in the row.
      *
      * @param options An optional list of CellOptions to apply to each cell in the row
+     * @return This Table object for fluent API chaining
      * @throws GeneralException On any failures applying the CellOptions
      */
     public Table withHeaderRow(CellOption... options) throws GeneralException {
