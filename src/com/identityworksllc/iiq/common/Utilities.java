@@ -18,7 +18,6 @@ import sailpoint.Version;
 import sailpoint.api.*;
 import sailpoint.object.*;
 import sailpoint.plugin.PluginsCache;
-import sailpoint.plugin.PluginsUtil;
 import sailpoint.rest.BaseResource;
 import sailpoint.server.AbstractSailPointContext;
 import sailpoint.server.Environment;
@@ -42,7 +41,6 @@ import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -96,12 +94,6 @@ public class Utilities {
 			return Objects.hash("");
 		}
 	}
-
-	/**
-	 * THe default Jackson object mapper, created on first use
-	 */
-	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
-
 	/**
 	 * The prefix in {@link CustomGlobal} used by {@link #getPluginVersionedGlobalMap()}.
 	 */
@@ -110,6 +102,14 @@ public class Utilities {
 	 * The name of the worker pool, stored in CustomGlobal by default
 	 */
 	public static final String IDW_WORKER_POOL = "idw.worker.pool";
+    /**
+     * The set of tokens that may appear in likely secret or password properties
+     */
+    public static final List<String> LIKELY_PASSWORD_TOKENS = Arrays.asList("password", "unicodepwd", "secret", "private");
+    /**
+     * The string used to mask likely secrets when logging or displaying values
+     */
+    public static final String MASKED_SECRET = "********";
 	/**
 	 * The key used to store the user's most recent locale on their UIPrefs,
 	 * captured by {@link #tryCaptureLocationInfo(SailPointContext, Identity)}
@@ -125,29 +125,24 @@ public class Utilities {
 	 * If the property is not an available 'quick property', this object will be returned.
 	 */
 	public static final Object NONE = new PropertyLookupNone();
+    /**
+	 * THe default Jackson object mapper, created on first use
+	 */
+	private static final AtomicReference<ObjectMapper> DEFAULT_OBJECT_MAPPER = new AtomicReference<>();
 	/**
 	 * Indicates whether velocity has been initialized in this Utilities class
 	 */
 	private static final AtomicBoolean VELOCITY_INITIALIZED = new AtomicBoolean();
-
 	/**
 	 * The static map used to cache version comparisons in {@link #compareVersions(String, String)}
 	 */
 	private static final Map<Pair<String, String>, Integer> VERSION_COMPARE_MAP = new HashMap<>();
-
 	/**
 	 * The internal logger
 	 */
 	private static final Log logger = LogFactory.getLog(Utilities.class);
 
-	/**
-	 * Private utility constructor
-	 */
-	private Utilities() {
-
-	}
-
-	/**
+    /**
 	 * Adds the given value to a {@link Collection} at the given key in the map.
 	 * <p>
 	 * If the map does not have a {@link Collection} at the given key, a new {@link ArrayList} is added, then the value is added to that.
@@ -1691,6 +1686,40 @@ public class Utilities {
 		return backgroundPool;
 	}
 
+    /**
+     * Mask any attributes flagged as secret attributes by the OOTB ProvisioningPlan, as well as any
+     * attributes whose names contain likely password tokens.
+     *
+     * The Map will be modified in-place.
+     *
+     * @param attributes The attribute map to modify
+     */
+    public static void heuristicMaskSecretAttributes(Map<String, Object> attributes) {
+        if (attributes == null) {
+            return;
+        }
+        maskSecretAttributes(attributes);
+        List<String> toMask = new ArrayList<>();
+        for(String key : attributes.keySet()) {
+            Object value = attributes.get(key);
+            if (value instanceof Map) {
+                // Recursively mask nested maps
+                @SuppressWarnings("unchecked")
+                Map<String, Object> valueMap = (Map<String, Object>) value;
+                heuristicMaskSecretAttributes(valueMap);
+            } else {
+                for (String token : LIKELY_PASSWORD_TOKENS) {
+                    if (key.toLowerCase().contains(token) && !key.toLowerCase().contains("expir")) {
+                        toMask.add(key);
+                    }
+                }
+            }
+        }
+        for(String key : toMask) {
+            attributes.put(key, MASKED_SECRET);
+        }
+    }
+
 	/**
 	 * Returns true if parentClass is assignable from testClass, e.g. if the following code
 	 * would not fail to compile:
@@ -2074,6 +2103,32 @@ public class Utilities {
 
 		return map;
 	}
+
+    /**
+     * Mask any attributes flagged as secret attributes by the OOTB ProvisioningPlan.
+     *
+     * The Map will be modified in-place.
+     *
+     * @param attributes The attribute map to modify
+     */
+    public static void maskSecretAttributes(Map<String, Object> attributes) {
+        if (attributes == null) {
+            return;
+        }
+        List<String> secretAttributeNames = ProvisioningPlan.getSecretProvisionAttributeNames();
+        for(String attr : secretAttributeNames) {
+            if (attributes.containsKey(attr)) {
+                Object value = attributes.get(attr);
+                if (value instanceof String) {
+                    attributes.put(attr, MASKED_SECRET);
+                } else if (value instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> valueMap = (Map<String, Object>) value;
+                    maskSecretAttributes(valueMap);
+                }
+            }
+        }
+    }
 
 	/**
 	 * Transforms a MatchExpression selector into a CompoundFilter
@@ -3709,6 +3764,13 @@ public class Utilities {
 		} finally {
 			ObjectUtil.unlockObject(context, object, PersistenceManager.LOCK_TYPE_TRANSACTION);
 		}
+	}
+
+	/**
+	 * Private utility constructor
+	 */
+	private Utilities() {
+
 	}
 
 }

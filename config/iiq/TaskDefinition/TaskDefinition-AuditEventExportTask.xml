@@ -1,0 +1,115 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.AuditEventExportTask" name="IDW - Audit Event Export Task" progressInterval="5000" progressMode="String" template="true" type="System">
+    <Description>
+        Exports audit events specified by the given filters to a Logger, which can be consumed however you want.
+    </Description>
+    <Attributes>
+        <Map>
+            <entry key="dateFormat" value="yyyy-MM-dd'T'HH:mm:ssZ"/>
+            <entry key="timestampName" value="AuditEventExportTask"/>
+        </Map>
+    </Attributes>
+    <Signature>
+        <Inputs>
+            <Argument name="loggerName" type="string" required="true">
+                <Prompt>Logger Name</Prompt>
+            </Argument>
+            <Argument name="identityFields" type="string">
+                <Prompt>List (CSV) of identity fields to include in the output</Prompt>
+            </Argument>
+            <Argument name="filter1" type="string">
+                <Prompt>Filter 1</Prompt>
+            </Argument>
+            <Argument name="filter2" type="string">
+                <Prompt>Filter 2</Prompt>
+            </Argument>
+            <Argument name="filter3" type="string">
+                <Prompt>Filter 3</Prompt>
+            </Argument>
+            <Argument name="filter4" type="string">
+                <Prompt>Filter 4</Prompt>
+            </Argument>
+            <Argument name="filter5" type="string">
+                <Prompt>Filter 5</Prompt>
+            </Argument>
+            <Argument name="filter6" type="string">
+                <Prompt>Filter 6</Prompt>
+            </Argument>
+            <Argument name="filter7" type="string">
+                <Prompt>Filter 7</Prompt>
+            </Argument>
+            <Argument name="filter8" type="string">
+                <Prompt>Filter 8</Prompt>
+            </Argument>
+            <Argument name="filter9" type="string">
+                <Prompt>Filter 9</Prompt>
+            </Argument>
+            <Argument name="filter10" type="string">
+                <Prompt>Filter 10</Prompt>
+            </Argument>
+            <Argument name="filter11" type="string">
+                <Prompt>Filter 11</Prompt>
+            </Argument>
+            <Argument name="filter12" type="string">
+                <Prompt>Filter 12</Prompt>
+            </Argument>
+            <Argument name="filter13" type="string">
+                <Prompt>Filter 13</Prompt>
+            </Argument>
+            <Argument name="filter14" type="string">
+                <Prompt>Filter 14</Prompt>
+            </Argument>
+            <Argument name="filter15" type="string">
+                <Prompt>Filter 15</Prompt>
+            </Argument>
+            <Argument name="filter16" type="string">
+                <Prompt>Filter 16</Prompt>
+            </Argument>
+            <Argument name="filter17" type="string">
+                <Prompt>Filter 17</Prompt>
+            </Argument>
+            <Argument name="filter18" type="string">
+                <Prompt>Filter 18</Prompt>
+            </Argument>
+            <Argument name="filter19" type="string">
+                <Prompt>Filter 19</Prompt>
+            </Argument>
+            <Argument name="filter20" type="string">
+                <Prompt>Filter 20</Prompt>
+            </Argument>
+
+            <Argument name="commonFilter" type="string" helpKey="This filter is run in-memory and so can filter on attributes within XML fields, and so forth">
+                <Prompt>Filter to apply to all events that match other filters</Prompt>
+            </Argument>
+
+            <Argument name="filterScript" type="string">
+                <Prompt>Beanshell script to filter events</Prompt>
+            </Argument>
+
+            <Argument name="filterRuleName" type="string">
+                <Prompt>Rule to filter events</Prompt>
+            </Argument>
+
+            <Argument name="dateFormat" type="string" defaultValue="yyyy-MM-dd'T'HH:mm:ssZ">
+                <Prompt>Output date format</Prompt>
+            </Argument>
+
+            <Argument name="timestampName" type="string" defaultValue="AuditEventExportTask">
+                <Prompt>Last run NamedTimestamp object</Prompt>
+            </Argument>
+
+        </Inputs>
+        <Returns>
+            <Argument name="exportedEvents" type="int">
+                <Prompt>Number of events exported</Prompt>
+            </Argument>
+            <Argument name="skippedEvents" type="int">
+                <Prompt>Number of events skipped due to filters</Prompt>
+            </Argument>
+            <Argument name="totalEvents" type="int">
+                <Prompt>Total number of events processed</Prompt>
+            </Argument>
+        </Returns>
+    </Signature>
+</TaskDefinition>
