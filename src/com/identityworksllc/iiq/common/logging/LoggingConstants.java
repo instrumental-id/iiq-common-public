@@ -32,7 +32,7 @@ public class LoggingConstants {
     /**
      * The request URI
      */
-    public static final String LOG_MDC_URI = "requestUri";
+    public static final String LOG_MDC_URI = "endpoint:uri";
     /**
      * Logged-in user name (Identity.name)
      */
