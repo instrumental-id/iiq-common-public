@@ -1,10 +1,11 @@
 package com.identityworksllc.iiq.common.plugin;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.identityworksllc.iiq.common.*;
 import com.identityworksllc.iiq.common.logging.LogCapture;
+import com.identityworksllc.iiq.common.logging.LoggingConstants;
+import com.identityworksllc.iiq.common.logging.MDC;
 import com.identityworksllc.iiq.common.logging.SLogger;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizeAll;
 import com.identityworksllc.iiq.common.plugin.annotations.AuthorizeAny;
@@ -14,15 +15,12 @@ import com.identityworksllc.iiq.common.plugin.annotations.ResponsesAllowed;
 import com.identityworksllc.iiq.common.plugin.vo.ExpandedDate;
 import com.identityworksllc.iiq.common.plugin.vo.RestObject;
 import org.apache.commons.logging.LogFactory;
-import org.apache.logging.log4j.ThreadContext;
 import org.springframework.core.annotation.AnnotationUtils;
 import sailpoint.api.Matchmaker;
 import sailpoint.api.Meter;
 import sailpoint.api.ObjectUtil;
 import sailpoint.api.SailPointContext;
-import sailpoint.api.logging.SyslogThreadLocal;
 import sailpoint.authorization.Authorizer;
-import sailpoint.authorization.CapabilityAuthorizer;
 import sailpoint.authorization.UnauthorizedAccessException;
 import sailpoint.object.*;
 import sailpoint.rest.BaseResource;
@@ -48,9 +46,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.time.ZoneId;
-import java.time.format.TextStyle;
 import java.util.*;
 
 /**
@@ -476,6 +471,18 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		}
 		return buildFacesContext();
 	}
+
+    /**
+     * Gets the name of the given Identity for use in log messages. By default, this is just the Identity's
+     * name, but you may want to override it to include additional information (e.g. display name) for easier
+     * debugging.
+     *
+     * @param who The Identity to get the log name for
+     * @return The log name for the Identity
+     */
+    protected String getIdentityLogName(Identity who) {
+        return who.getName();
+    }
 	
 	/**
 	 * A wrapper around {@link SailPointContext#getObject(Class, String)} that
@@ -599,6 +606,10 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		boolean shouldMeter = shouldMeter(request);
         boolean shouldAudit = shouldAudit(request);
 
+        String requestId = UUID.randomUUID().toString();
+        final MDC.MDCContext mdcContext = MDC.start(requestId, this::getIdentityLogName);
+        String remoteIp = CommonPluginUtils.getClientIP(request).orElse("unknown");
+
         Map<String, Object> auditMap = new HashMap<>();
         try {
 			if (forwardLogs.get() != null && forwardLogs.get()) {
@@ -612,17 +623,21 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 				Meter.enter(_meterName);
 			}
 
-            // Allows us to trace these operations through their whole existence
-            ThreadContext.push(LoggingConstants.LOG_CTX_ID, UUID.randomUUID().toString());
-            ThreadContext.put(LoggingConstants.LOG_MDC_USER, getLoggedInUserName());
-            ThreadContext.put(LoggingConstants.LOG_MDC_USER_DISPLAY, getLoggedInUser().getDisplayName());
-            ThreadContext.put(LoggingConstants.LOG_MDC_PLUGIN, getPluginName());
-            ThreadContext.put(LoggingConstants.LOG_MDC_URI, request.getRequestURI());
+            if (shouldSetLogMDC()) {
+                mdcContext.put(LoggingConstants.LOG_MDC_USER, getIdentityLogName(getLoggedInUser()));
+                mdcContext.put(LoggingConstants.LOG_MDC_USER_DISPLAY, getLoggedInUser().getDisplayName());
+                mdcContext.put(LoggingConstants.LOG_MDC_PLUGIN, getPluginName());
+                mdcContext.put(LoggingConstants.LOG_MDC_URI, request.getRequestURI());
+                mdcContext.put(LoggingConstants.LOG_CLIENT_IP, remoteIp);
+            }
 
             try {
+                auditMap.put(LoggingConstants.LOG_CTX_ID, requestId);
                 auditMap.put(LoggingConstants.LOG_MDC_URI, request.getRequestURI());
-                auditMap.put("httpMethod", request.getMethod());
-                auditMap.put(LoggingConstants.LOG_MDC_USER, getLoggedInUserName());
+                auditMap.put(LoggingConstants.LOG_HTTP_METHOD, request.getMethod());
+                auditMap.put(LoggingConstants.LOG_CLIENT_IP, remoteIp);
+                auditMap.put(LoggingConstants.LOG_MDC_USER, getIdentityLogName(getLoggedInUser()));
+                auditMap.put(LoggingConstants.LOG_MDC_USER_DISPLAY, getLoggedInUser().getDisplayName());
                 auditMap.put(LoggingConstants.LOG_MDC_PLUGIN, getPluginName());
 
 				boolean hasReturnValue = true;
@@ -635,8 +650,10 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
                         auditMap.put(LoggingConstants.LOG_MDC_ENDPOINT_CLASS, endpointClass.getName());
                         auditMap.put(LoggingConstants.LOG_MDC_ENDPOINT_METHOD, endpointMethod.getName());
 
-                        ThreadContext.put(LoggingConstants.LOG_MDC_ENDPOINT_CLASS, endpointClass.getName());
-                        ThreadContext.put(LoggingConstants.LOG_MDC_ENDPOINT_METHOD, endpointMethod.getName());
+                        if (shouldSetLogMDC()) {
+                            mdcContext.put(LoggingConstants.LOG_MDC_ENDPOINT_CLASS, endpointClass.getName());
+                            mdcContext.put(LoggingConstants.LOG_MDC_ENDPOINT_METHOD, endpointMethod.getName());
+                        }
 
 						authorize(endpointClass, endpointMethod);
 						if (endpointClass.isAnnotationPresent(NoReturnValue.class) || endpointMethod.isAnnotationPresent(NoReturnValue.class)) {
@@ -682,7 +699,7 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
                         customizeAuditMap(auditMap);
                         com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
                         String auditJson = mapper.writeValueAsString(auditMap);
-                        log.warn("API Audit: {0}", auditJson);
+                        log.info("API access: {0}", auditJson);
                         Syslogger.logEvent(this.getClass(), auditJson, null, Syslogger.EVENT_LEVEL_WARN);
                     }
 
@@ -732,8 +749,10 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
 		} catch(Exception e) {
 			return handleException(e);
 		} finally {
-            ThreadContext.pop();
-            ThreadContext.clearMap();
+            if (shouldSetLogMDC()) {
+                mdcContext.close();
+            }
+
 			if (shouldMeter) {
 				Meter.exit(_meterName);
 			}
@@ -1035,6 +1054,16 @@ public abstract class BaseCommonPluginResource extends BasePluginResource implem
      */
     protected boolean shouldAudit(HttpServletRequest request) {
         return false;
+    }
+
+    /**
+     * Returns true if we ought to add MDC information to the logging context during this
+     * API call.
+     *
+     * @return True if we should set MDC information
+     */
+    protected boolean shouldSetLogMDC() {
+        return true;
     }
 
 	/**
