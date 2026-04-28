@@ -4,6 +4,7 @@ import bsh.This;
 import org.apache.commons.collections.map.ListOrderedMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.ThreadContext;
 import org.w3c.dom.Document;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.*;
@@ -28,6 +29,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -979,6 +981,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	 * @return The value popped off the stack, or null if the stack is empty.
 	 */
 	public String pop() {
+        ThreadContext.pop();
 		if (contextStack.isEmpty()) {
 			return null;
 		}
@@ -992,6 +995,7 @@ public class SLogger implements org.apache.commons.logging.Log {
 	public void push(String value) {
 		if (value != null) {
 			contextStack.push(value);
+            ThreadContext.push(value);
 		}
 	}
 
