@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.CleanupStuckWorkflowCases" name="IDW - Cleanup Stuck WorkflowCases" progressInterval="5000" progressMode="String" template="true" type="System">
+    <Description>
+        Cleans up any stuck workflow cases (without a TaskResult ID attached) that are older than a
+        certain number of hours.
+    </Description>
+</TaskDefinition>
