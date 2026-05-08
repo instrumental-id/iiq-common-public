@@ -20,11 +20,11 @@ import java.util.UUID;
  * A custom servlet filter that populates the logging context with request metadata
  * such as request ID, remote IP, session ID, and authenticated user.
  */
-public class ContextLoggerServlet implements Filter {
+public class ContextLoggerServletFilter implements Filter {
     /**
      * Logger for the ContextLoggerServlet class
      */
-    private static final SLogger log = new SLogger(ContextLoggerServlet.class);
+    private static final SLogger log = new SLogger(ContextLoggerServletFilter.class);
 
     /**
      * MDC key for the session ID associated with the request, if available (a truncated and hashed version
@@ -45,7 +45,7 @@ public class ContextLoggerServlet implements Filter {
     /**
      * Default constructor that initializes the nameAttribute to "name" (Identity.name) by default
      */
-    public ContextLoggerServlet() {
+    public ContextLoggerServletFilter() {
         this.nameAttribute = "name";
     }
 

@@ -4,7 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.identityworksllc.iiq.common.HybridObjectMatcher;
 import com.identityworksllc.iiq.common.TaskUtil;
 import com.identityworksllc.iiq.common.Utilities;
+import com.identityworksllc.iiq.common.logging.LoggingConstants;
+import com.identityworksllc.iiq.common.logging.MDC;
 import com.identityworksllc.iiq.common.logging.SLogger;
+import org.apache.logging.log4j.ThreadContext;
 import sailpoint.api.IncrementalObjectIterator;
 import sailpoint.api.SailPointContext;
 import sailpoint.object.*;
@@ -127,7 +130,14 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
         setMonitor(monitor);
 
         var loggerName = Util.otoa(attributes.get("loggerName"));
+
+        if (Util.isNullOrEmpty(loggerName)) {
+            throw new IllegalArgumentException("loggerName is null or empty");
+        }
+
+        var logAsJson = Utilities.isFlagSet(attributes.get("jsonMessage"));
         var identityFields = Util.otol(attributes.get("identityFields"));
+        final String identityNameField = Util.otoa(attributes.get("identityNameField"));
         var commonFilterString = Util.otoa(attributes.get("commonFilter"));
         var dateFormatString = Util.otoa(attributes.get("dateFormat"));
         var filterScript = Utilities.getAsScript(attributes.get("filterScript"));
@@ -135,6 +145,15 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
         if (Util.isNullOrEmpty(dateFormatString)) {
             dateFormatString = "yyyy-MM-dd'T'HH:mm:ssZ";
         }
+
+        MDC.MDCCalculator identityNameSupplier = (Identity identity) -> {
+            try {
+                return getName(identity, identityNameField);
+            } catch(GeneralException e) {
+                log.warn("Error getting name for identity " + identity.getId(), e);
+                return "unknown";
+            }
+        };
 
         var dateFormatter = new SimpleDateFormat(dateFormatString);
 
@@ -187,6 +206,7 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
         final AtomicInteger totalEvents = new AtomicInteger();
         final AtomicInteger skippedEvents = new AtomicInteger();
         final AtomicInteger exportedEvents = new AtomicInteger();
+
         final ObjectMapper mapper = new ObjectMapper();
 
         for(final Filter filter : filters) {
@@ -195,7 +215,7 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                 break;
             }
 
-            log.info("Executing audit event filter: {0}", filter.getExpression(true));
+            log.debug("Executing audit event filter: {0}", filter.getExpression(true));
             TaskUtil.withLockedMasterResult(monitor, (tr) -> {
                 tr.addMessage(Message.info("Executing audit event filter: " + filter.getExpression(true)));
             });
@@ -210,7 +230,6 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                 }
 
                 var totalCount = totalEvents.incrementAndGet();
-
 
                 if (totalCount % 200 == 0) {
                     log.debug("Processed {0} events so far (exported {1}, skipped {2})", totalCount, exportedEvents.get(), skippedEvents.get());
@@ -258,7 +277,6 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                     }
 
                     final Map<String, Object> eventData = new HashMap<>();
-                    putIfNotNull(eventData, "id", ae.getId());
                     putIfNotNull(eventData, "timestamp", dateFormatter.format(ae.getCreated()));
                     putIfNotNull(eventData, "timestampMillis", ae.getCreated().getTime());
                     putIfNotNull(eventData, "action", ae.getAction());
@@ -267,7 +285,7 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                     putIfNotNull(eventData, "attributeName", ae.getAttributeName());
                     putIfNotNull(eventData, "attributeValue", likelySecret ? Utilities.MASKED_SECRET : ae.getAttributeValue());
                     putIfNotNull(eventData, "serverHost", ae.getServerHost());
-                    putIfNotNull(eventData, "clientHost", ae.getClientHost());
+                    putIfNotNull(eventData, LoggingConstants.LOG_CLIENT_IP, ae.getClientHost());
                     putIfNotNull(eventData, "string1", ae.getString1());
                     putIfNotNull(eventData, "string2", ae.getString2());
                     putIfNotNull(eventData, "string3", ae.getString3());
@@ -295,11 +313,11 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
 
                     if (sourceIdentity != null) {
                         Map<String, Object> sourceData = createIdentityDataMap(sourceIdentity, identityFields);
-                        putIfNotNull(eventData, "sourceIdentity", sourceData);
+                        putIfNotNull(eventData, "requester", sourceData);
                     }
                     if (targetIdentity != null) {
                         Map<String, Object> targetData = createIdentityDataMap(targetIdentity, identityFields);
-                        putIfNotNull(eventData, "targetIdentity", targetData);
+                        putIfNotNull(eventData, "target", targetData);
                     }
 
                     if (filterScript != null) {
@@ -335,8 +353,36 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                     var count = exportedEvents.incrementAndGet();
                     monitor.updateProgress("Exporting " + count + ": " + ae.getId());
 
-                    String json = mapper.writeValueAsString(eventData);
-                    outputLog.info(json);
+                    Map<String, String> oldValues = new HashMap<>();
+
+                    if (logAsJson) {
+                        // The message content is the important part
+                        String json = mapper.writeValueAsString(eventData);
+                        outputLog.info(json);
+                    } else {
+                        // The MDC is the important part and the message is just to log *something*
+                        try (MDC.MDCContext ctx = MDC.start(identityNameSupplier)) {
+                            for (Map.Entry<String, Object> entry : eventData.entrySet()) {
+                                String key = entry.getKey();
+                                Object value = entry.getValue();
+                                if (value instanceof String) {
+                                    var s = (String) value;
+                                    ctx.put(key, Util.truncate(s, 500));
+                                } else if (value instanceof List) {
+                                    ctx.put(key, Util.listToCsv((List<?>) value));
+                                }
+                            }
+                            if (sourceIdentity != null) {
+                                ctx.identity("requester", sourceIdentity);
+                            }
+                            if (targetIdentity != null) {
+                                ctx.target(targetIdentity);
+                            }
+                            outputLog.info("audit action = {0}, target = {1}, source = {2}", ae.getAction(), eventData.get("target"), eventData.get("requester"));
+                        } catch(GeneralException e) {
+                            log.error("Error populating MDC for event " + ae.getId(), e);
+                        }
+                    }
 
                     // Clean up after ourselves
                     if (sourceIdentity != null) {
@@ -371,6 +417,27 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
             tr.setAttribute(OUTPUT_SKIPPED_EVENTS, skippedEvents.get());
             tr.setAttribute(OUTPUT_EXPORTED_EVENTS, exportedEvents.get());
         });
+    }
+
+    /**
+     * Gets the name of an identity from the specified field, or from the getName() method if the field is
+     * not specified or is empty. This is used to populate the MDC context with a human-readable name for
+     * the identity.
+     *
+     * @param target the identity to get the name of
+     * @param field the field to get the name from; if null or empty, the getName() method will be used instead
+     * @return the name of the identity to use in the MDC context
+     * @throws GeneralException if there is an error accessing the specified field on the identity
+     */
+    private String getName(Identity target, String field) throws GeneralException {
+        if (target == null) {
+            return "null";
+        }
+        if (Util.isNullOrEmpty(field)) {
+            field = "name";
+        }
+        String value = Util.otoa(Utilities.getProperty(target, field));
+        return Util.isNotNullOrEmpty(value) ? value : target.getName();
     }
 
     /**

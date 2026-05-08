@@ -13,8 +13,13 @@
     <Signature>
         <Inputs>
             <Argument name="loggerName" type="string" required="true">
-                <Prompt>Logger Name</Prompt>
+                <Prompt>Logger name</Prompt>
             </Argument>
+
+            <Argument name="identityNameField" type="string" defaultValue="name">
+                <Prompt>Identity field to use as the name of the identity in MDC</Prompt>
+            </Argument>
+
             <Argument name="identityFields" type="string">
                 <Prompt>List (CSV) of identity fields to include in the output</Prompt>
             </Argument>
@@ -98,6 +103,11 @@
             <Argument name="timestampName" type="string" defaultValue="AuditEventExportTask">
                 <Prompt>Last run NamedTimestamp object</Prompt>
             </Argument>
+
+            <Argument name="jsonMessage" type="boolean" defaultValue="true">
+                <Prompt>Log message as a JSON string (will use MDC if false)</Prompt>
+            </Argument>
+
 
         </Inputs>
         <Returns>

@@ -181,8 +181,8 @@ public class MDC {
             if (identity != null) {
                 put(prefix, nameCalculator.getMDCAuditName(identity));
                 if (identity.getDisplayName() != null) {
-                    put(prefix + ":id", identity.getId());
-                    put(prefix + ":displayName", identity.getDisplayName());
+                    put(prefix + "_id", identity.getId());
+                    put(prefix + "_displayName", identity.getDisplayName());
                 }
             } else {
                 identityUnknown(prefix);
