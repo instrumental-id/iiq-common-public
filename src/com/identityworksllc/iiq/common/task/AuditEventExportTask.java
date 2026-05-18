@@ -365,11 +365,36 @@ public class AuditEventExportTask extends AbstractTaskExecutor {
                             for (Map.Entry<String, Object> entry : eventData.entrySet()) {
                                 String key = entry.getKey();
                                 Object value = entry.getValue();
+                                if (key.contains(":")) {
+                                    key = key.replace(":", "_");
+                                }
                                 if (value instanceof String) {
                                     var s = (String) value;
                                     ctx.put(key, Util.truncate(s, 500));
+                                } else if (value instanceof Long) {
+                                    // Should be just the timestamp
+                                    ctx.put(key, String.valueOf(value));
                                 } else if (value instanceof List) {
                                     ctx.put(key, Util.listToCsv((List<?>) value));
+                                } else if (key.equals("attributes")) {
+                                    @SuppressWarnings("unchecked")
+                                    var attrs = (Attributes<String, Object>) entry.getValue();
+                                    for (String attrKey : attrs.keySet()) {
+                                        Object attrValue = attrs.get(attrKey);
+                                        if (ProvisioningPlan.isSecret(attrKey)) {
+                                            attrValue = Utilities.MASKED_SECRET;
+                                        }
+                                        if (attrValue != null) {
+                                            String mdcKey = "attr_" + attrKey;
+                                            String mdcValue = Util.otoa(attrValue);
+                                            if (mdcValue.startsWith("<") && mdcValue.endsWith(">")) {
+                                                mdcValue = "[XML content]";
+                                            }
+                                            if (Util.isNotNullOrEmpty(mdcValue)) {
+                                                ctx.put(mdcKey, Util.truncate(mdcValue, 300));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if (sourceIdentity != null) {
