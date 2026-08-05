@@ -1,4 +1,3 @@
-
 /*
  * A quick and easy way to run the Plugin Installer command line tool. The downside
  * is that the output is not as easy to parse via a command pipeline.
@@ -8,5 +7,5 @@ tasks.register("pluginTool", JavaExec) {
 
     mainClass = "com.identityworksllc.iiq.common.plugin.RemotePluginInstaller"
 
-    args '-p', 'plugin-installer.properties', project.findProperty("cmd"), project.findProperty("arg")
+    args '-p', 'plugin-installer.properties', project.findProperty("cmd") ?: "", project.findProperty("arg") ?: ""
 }
