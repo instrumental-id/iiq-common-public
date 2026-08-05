@@ -10,7 +10,7 @@ publishing {
             pom {
                 name = 'IIQ Common Public'
                 description = 'A library of common SailPoint IdentityIQ utilities for Rules and Java code'
-                url = 'https://www.identityworksllc.com/utilities/iiqcommon'
+                url = 'https://www.instrumentalidentity.com/utilities/iiqcommon'
                 packaging = "jar"
                 inceptionYear = "2022"
 
@@ -37,9 +37,9 @@ publishing {
                 }
 
                 scm {
-                    connection = 'scm:git:git://git.identityworksllc.com/pub/iiqcommon.git'
-                    developerConnection = 'scm:git:ssh://git.identityworksllc.com/pub/iiqcommon.git'
-                    url = 'https://www.identityworksllc.com/utilities/iiqcommon'
+                    connection = 'scm:git:git://git.instrumentalidentity.com/pub/iiqcommon.git'
+                    developerConnection = 'scm:git:ssh://git.instrumentalidentity.com/pub/iiqcommon.git'
+                    url = 'https://www.instrumentalidentity.com/utilities/iiqcommon'
                 }
             }
 
@@ -55,7 +55,7 @@ publishing {
     }
     repositories {
         maven {
-            url "https://git.identityworksllc.com/api/v4/projects/157/packages/maven"
+            url "https://git.instrumentalidentity.com/api/v4/projects/157/packages/maven"
 
             credentials(HttpHeaderCredentials) {
                 name = 'Job-Token'
@@ -66,17 +66,6 @@ publishing {
                 header(HttpHeaderAuthentication)
             }
         }
-        /*
-        maven {
-            name = "GitHubPackages"
-            url = "https://maven.pkg.github.com/instrumental-id/iiq-common-public"
-
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-        */
     }
 }
 
