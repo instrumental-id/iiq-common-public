@@ -60,9 +60,9 @@ Certain releases will be forked into branches. These will receive backports of s
 
 === JDK version
 
-You can build this library with JDK 11 or JDK 17.
+You must build this library with JDK 21 or later. This is the minimum version supported by the Markdown Javadoc doclet library.
 
-Beginning with 2026 releases, the library will be built with JDK 11 and will require JDK 11 or later to run.
+Beginning with August 2026 releases, the library will be built with JDK 21 and will require JDK 17 or later to run. Older versions will still be usable by those running IIQ on old Java versions.
 
 === Supplying the IIQ dependencies
 
