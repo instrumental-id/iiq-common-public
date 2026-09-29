@@ -1,0 +1,322 @@
+= IDW Partial JDBC Aggregation
+
+IIQCommon ships with a task that runs an account aggregation against only a _subset_ of the data in a JDBC application. You can use it to re-aggregate a known slice of a large JDBC source (for example, "only employees in department 42" or "only rows changed today") without running the application's full account aggregation, and without permanently altering the application's configured SQL.
+
+The task implementation is `com.identityworksllc.iiq.common.task.PartialJdbcAggregation`. The template TaskDefinition is named `IDW Partial JDBC Aggregation`, and can be found in `config/iiq/TaskDefinition/TaskDefinition-PartialJdbcAggregation.xml`.
+
+The task is a subclass of IIQCommon's `AbstractThreadedTask`, so it runs on a single IIQ host but processes accounts in parallel using a configurable thread pool. It is not a partitioned (Request-based) task.
+
+== How it works
+
+On each run, the task:
+
+. Loads the Application named by the `application` argument, and verifies that its type is exactly `JDBC`. Any other connector type (including JDBC-derived connectors with a different type name) causes the task to fail immediately.
+. Makes an in-memory, non-persistent copy of the Application and replaces the copy's account `SQL` attribute, using exactly one of the three strategies described in <<Selecting the subset of data>>. *The real Application object is never modified or saved.*
+. Constructs a connector from the modified copy (via `ConnectorFactory`, so the standard `ConnectorProxy` behavior applies) and calls `iterateObjects("account", ...)` on it. The connector's live iterator is streamed, in a single thread, directly to the thread pool; the full result set is never loaded into a list first.
+. As each `ResourceObject` (or batch of them, see `batchSize`) is read, it is submitted to the `AbstractThreadedTask` thread pool. Each `ResourceObject` is aggregated individually by a worker thread, using `AccountUtilities.aggregateAccount()`, which in turn uses the standard IIQ `Aggregator`. Aggregation therefore begins while the database is still being read.
+. Closes the connector's iterator (and thus its database resources) as soon as the results are exhausted, the task completes or fails, or the task is terminated, whichever comes first.
+
+Because the connector is built from an otherwise-identical copy of your Application, all of the JDBC application's other settings are honored exactly as they would be during a normal aggregation. See <<Interaction with JDBC connector configuration>>.
+
+In general, you would use this task in parallel with a full aggregation,perhaps weekly, which can also have "checkDeleted" enabled. A partial aggregation can never check deleted objects.
+
+== Selecting the subset of data
+
+You must supply one of `replacementSQL`, `sqlFilter`, or `partition`. If none are supplied, the task fails with the error `No SQL replacement specified via replacementSQL, sqlFilter, or partition`.
+
+If more than one is supplied, they are evaluated in the following order of precedence, and only the first one present is used:
+
+. `replacementSQL`
+. `sqlFilter`
+. `partition`
+
+=== Replacement SQL
+
+When `replacementSQL` is set, it _entirely_ replaces the application's account aggregation query (the `SQL` attribute, labeled _SQL Statement_ in the application UI). The existing SQL is ignored.
+
+This is the most flexible option, but you are responsible for ensuring that the query returns the same columns (by name) as the application's normal query, so that they line up with the application's account schema, merge configuration, and BuildMap rule.
+
+[source,sql]
+----
+SELECT * FROM hr_employees WHERE department_id = 42 ORDER BY employee_id
+----
+
+=== SQL filter
+
+When `sqlFilter` is set, it is combined with the application's existing account `SQL`. There are two modes, chosen automatically based on the filter's text:
+
+*Appended mode.* If the filter begins with ``AND `` (case-insensitive, with no leading whitespace), it is appended to the end of the existing SQL, separated by a single space. This is intended for applications whose existing SQL already ends in a `WHERE` clause.
+
+----
+Existing SQL:  SELECT * FROM hr_employees WHERE active = 1
+sqlFilter:     AND department_id = 42
+Result:        SELECT * FROM hr_employees WHERE active = 1 AND department_id = 42
+----
+
+IMPORTANT: This mode will not work if the existing SQL ends in an `ORDER BY`, `GROUP BY`, or any other clause that cannot be followed by `AND`.
+
+*Subquery mode.* If the filter does not begin with `AND `, the existing SQL is wrapped in a subquery and the filter is used as the outer `WHERE` clause. The filter should therefore reference the _output column names_ of the existing query.
+
+----
+Existing SQL:  SELECT e.id, e.name, d.name AS dept FROM emp e JOIN dept d ON ...
+sqlFilter:     dept = 'Finance'
+Result:        SELECT * FROM (SELECT e.id, e.name, d.name AS dept FROM emp e JOIN dept d ON ...) partial_agg WHERE dept = 'Finance'
+----
+
+NOTE: The subquery is given the alias `partial_agg` (without `AS`, which Oracle does not allow), so this form works on Oracle, SQL Server, MySQL, and PostgreSQL. You may use `partial_agg.` to qualify column names in the filter. Note that some databases (e.g., SQL Server) do not permit an `ORDER BY` inside a subquery, which matters if your application uses row merging.
+
+=== Partition
+
+When `partition` is set, the task reads the application's `partitionStatements` attribute (the _Partitioning Statements_ configured under the application's Iteration Partitioning settings) and uses the statement at that zero-based index as the account `SQL`. This lets you re-run a single partition of a normally-partitioned JDBC aggregation, for example to retry a partition that failed.
+
+* If the application has no `partitionStatements` at all, the task fails.
+* The application does _not_ need to have partitioning enabled (`partitionMode`) for this to work; only the statements need to be present.
+* If the `partition` number is negative, or is greater than or equal to the number of partition statements, the task fails rather than running any query.
+* The application's _Use Stored Procedure_ setting for partitioning statements (`useStoredProcedurePartition`) is carried over to the main SQL setting (`useStoredProcedureSqlStmt`) on the task's private copy of the application, so stored procedure partition statements are executed correctly.
+
+== Interaction with JDBC connector configuration
+
+The task only changes the account `SQL` attribute on its private copy of the Application. Everything else configured on the JDBC application behaves as it would during a normal aggregation. The following JDBC connector settings are particularly relevant.
+
+|===
+|Application setting (UI label) |Attribute key |Effect on this task
+
+|Connection URL, JDBC Driver, User, Password
+|`url`, `driverClass`, `user`, `password`
+|Used as-is to connect to the database. Any connection pooling settings, `additionalConnProperties`, TLS, or Kerberos configuration also apply.
+
+|SQL Statement
+|`SQL`
+|The account aggregation query. This is the only attribute replaced by the task (via `replacementSQL`, `sqlFilter`, or `partition`). The JDBC connector requires that SQL entries not end with a semicolon, and that restriction applies to all three options.
+
+|Use Stored Procedure (for SQL Statement)
+|`useStoredProcedureSqlStmt`
+|If enabled, the connector treats the `SQL` attribute as a stored procedure call. Your `replacementSQL` must then be a stored procedure call, and `sqlFilter` will generally not produce valid syntax.
+
+|Partitioning Enabled / Partitioning Statements
+|`partitionMode`, `partitionStatements`
+|`partitionStatements` is the source of the SQL for the `partition` option. The task does not otherwise use connector-level partitioning; the selected statement is run as the single account query.
+
+|Use Stored Procedure (for Partitioning Statements)
+|`useStoredProcedurePartition`
+|Honored for the `partition` option. Because the selected partition statement is placed into `SQL`, this value is copied into `useStoredProcedureSqlStmt` on the task's private copy of the application.
+
+|Data needs to be merged / Index Columns / Merge Columns
+|`mergeRows`, `indexColumns`, `mergeColumns`
+|Row merging is still performed by the connector. As with a normal aggregation, the query must be ordered by the index column(s) for merging to work correctly, so make sure your `replacementSQL` or filtered SQL preserves the `ORDER BY`.
+
+|Use executeQuery
+|`useExecuteQuery`
+|Honored as normal.
+
+|BuildMap rule, MergeMaps rule
+|(application rules)
+|Run by the connector for each row, exactly as during a normal aggregation.
+
+|ResourceObject Customization rule (application and schema)
+|(application / schema rules)
+|Run by the `ConnectorProxy` as each object is iterated, exactly as during a normal aggregation. The task does _not_ run them a second time during aggregation.
+
+|Enable Retry, Retry Account, Delay Between Retry Attempts, `connRetryExceptionList`
+|(retry settings)
+|Honored by the connector during the read phase, as for a normal (non-partitioned) aggregation.
+
+|Single Account SQL (getObjectSQL)
+|`getObjectSQL`
+|Not used. The task always iterates using the (modified) `SQL` attribute.
+
+|Delta Aggregation settings
+|`deltaTable`, `getDeltaSQL`, `useStoredProcedureDelta`
+|Not used. The task never performs a delta aggregation.
+
+|Group / other object type queries
+|e.g. `role.SQL`, group schema settings
+|Not used. The task only iterates the `account` object type.
+|===
+
+For full details on each of these connector settings, see SailPoint's https://documentation.sailpoint.com/connectors/identityiq/jdbc/help/integrating_jdbc/introduction.html[Integrating SailPoint with JDBC] documentation, especially the _Query Settings_, _Additional Query Settings_, _Iteration Partitioning_, _Partitioning Aggregation_, and _Merging_ sections.
+
+== Aggregation behavior
+
+Each account is aggregated using `AccountUtilities.aggregateAccount()`, which constructs a new `Aggregator` for each `ResourceObject` and calls `Aggregator.aggregate(Application, ResourceObject)`. This is the same mechanism IIQ uses for single-account ("targeted") aggregation, _not_ the full application aggregation loop. As a result, a partial aggregation differs from a normal account aggregation task in several ways:
+
+* *No deleted-account detection.* Because only a subset of accounts is read, the task cannot and does not remove Links for accounts that are missing from the result set. The standard `checkDeleted` option has no effect. You still need a normal full aggregation to clean up deleted accounts.
+* *No delta aggregation.* The task always reads the rows returned by the SQL, regardless of the application's delta settings.
+* *No group/entitlement aggregation.* Only accounts are aggregated. Use `promoteManagedAttributes` if you want new entitlement values to be created as ManagedAttributes.
+* *Application aggregation timestamps are not updated.* The application's `acctAggregationStart` / `acctAggregationEnd` values are left unchanged.
+* *No separate identity refresh.* The task does not run an additional identity refresh after aggregation. Any identity processing is limited to whatever the `Aggregator` itself performs based on the aggregation arguments below (for example, `correlateEntitlements`, `checkPolicies`, or `refreshScorecard`).
+
+=== Aggregation arguments
+
+*All* task arguments are passed through to the `Aggregator` as its arguments. This means that any standard account aggregation option recognized by the `Aggregator` may be added to the TaskDefinition, even if it is not listed in the template's signature. The template exposes the most common ones in the UI.
+
+The task sets the following `Aggregator` defaults. Each can be overridden by including an argument with the same name in the TaskDefinition.
+
+|===
+|Argument |Default |Purpose
+
+|promoteAttributes
+|`true`
+|Promote account attributes to identity attributes during aggregation.
+
+|noOptimizeReaggregation
+|`true`
+|Always fully process each account, even if IIQ believes nothing has changed since the last aggregation.
+
+|alwaysRefreshManager
+|`true`
+|Always re-evaluate the identity's manager during aggregation.
+|===
+
+== Arguments
+
+=== Task-specific arguments
+
+|===
+|Argument |Type |Required |Purpose
+
+|application
+|String
+|Yes
+|The name of the JDBC Application to aggregate. The Application's type must be exactly `JDBC`.
+
+|replacementSQL
+|String
+|One of `replacementSQL`, `sqlFilter`, or `partition` required
+|A SQL statement that entirely replaces the application's account aggregation `SQL` for this run. Takes precedence over `sqlFilter` and `partition`.
+
+|sqlFilter
+|String
+|One of `replacementSQL`, `sqlFilter`, or `partition` required
+|A SQL fragment combined with the application's existing `SQL`. If it begins with `AND `, it is appended directly to the existing SQL; otherwise, the existing SQL is wrapped in a subquery and this becomes the outer `WHERE` clause. See <<SQL filter>>. Takes precedence over `partition`.
+
+|partition
+|int
+|One of `replacementSQL`, `sqlFilter`, or `partition` required
+|The zero-based index of an entry in the application's `partitionStatements`. That statement is used as the account `SQL` for this run. See <<Partition>>.
+|===
+
+=== Threading arguments (from `AbstractThreadedTask`)
+
+These are not included in the template's signature, but may be added to the TaskDefinition's `<Attributes>` (or its signature) directly.
+
+|===
+|Argument |Type |Required |Purpose
+
+|threads
+|int
+|No (default `1`)
+|The number of worker threads used to aggregate accounts in parallel. If absent or less than 1, `threadCount` is checked instead.
+
+|threadCount
+|int
+|No
+|An alternate name for `threads`, used only if `threads` is not set.
+
+|batchSize
+|int
+|No (default `0`, no batching)
+|If greater than 1, each worker thread aggregates this many accounts in a single batch, using a single private `SailPointContext`, rather than creating a new context for each account. This is usually more efficient for large subsets.
+|===
+
+=== Standard aggregation arguments
+
+These are exposed in the template's signature, with IIQ's standard labels and help text, and behave as they do on a standard account aggregation task. Any other standard account aggregation argument may also be added.
+
+|===
+|Argument |Type |Purpose
+
+|creationRule
+|Rule (IdentityCreation)
+|A rule run when a new Identity is created from an uncorrelated account.
+
+|correlateEntitlements
+|boolean
+|Refresh assigned and detected roles on the correlated identity.
+
+|checkPolicies
+|boolean
+|Check active policies on the correlated identity.
+
+|refreshScorecard
+|boolean
+|Refresh the identity's risk scores.
+
+|checkHistory
+|boolean
+|Maintain identity history snapshots.
+
+|noNeedsRefresh
+|boolean
+|Do not mark aggregated identities as needing refresh.
+
+|promoteManagedAttributes
+|boolean
+|Create ManagedAttribute objects for newly seen entitlement values.
+
+|correlateOnly
+|boolean
+|Only aggregate accounts that correlate to an existing identity; do not create new identities.
+|===
+
+=== Return values
+
+|===
+|Return |Type |Purpose
+
+|successes
+|int
+|The number of accounts aggregated without errors. Accounts that aggregated with warnings are counted here.
+
+|failures
+|int
+|The number of accounts whose aggregation failed. An account is counted as a failure if aggregation throws an exception, if the aggregation outcome has a `Failure` status or an error message, or if the `Aggregator`'s own result contains errors. Each failure is also added to the TaskResult as an error message.
+|===
+
+NOTE: Accounts that aggregate with warnings (or that are skipped) are counted as `successes`, but the warnings are logged at `WARN` level by the `com.identityworksllc.iiq.common.task.PartialJdbcAggregation` logger.
+
+== Performance and memory
+
+Reading from the database happens in a single thread, streaming directly from the connector's result set. Each `ResourceObject` (or batch) is submitted to the thread pool as soon as it is read, so aggregation overlaps with the read. This means:
+
+* Workers start aggregating immediately rather than waiting for the whole query to finish.
+* The thread pool's work queue is unbounded, so if the database returns rows much faster than they can be aggregated, the queued `ResourceObject`s still accumulate in memory until the workers catch up. The task is intended for _partial_ aggregations. If your subset approaches the size of the whole application, use a normal (optionally partitioned) aggregation task instead.
+* The connector's database cursor stays open until the read completes, which, for a slow aggregation, may be for much of the task's run time. Ensure your database and network tolerate a long-lived connection.
+* Progress is reported as "Submitted N tasks" once the read finishes, then as "Completed N of M items" while the remaining queued work drains.
+* Increasing `threads` speeds up the aggregation, but not the read. Setting `batchSize` (for example, to 50 or 100) reduces the overhead of creating a new private context for each account.
+
+== Examples
+
+A TaskDefinition that re-aggregates a single department from an HR application using 4 threads:
+
+[source,xml]
+----
+<TaskDefinition name="HR - Partial Aggregation - Finance" type="System" resultAction="Rename">
+  <Attributes>
+    <Map>
+      <entry key="application" value="HR"/>
+      <entry key="sqlFilter" value="department = 'Finance'"/>
+      <entry key="threads" value="4"/>
+      <entry key="batchSize" value="50"/>
+      <entry key="correlateOnly" value="true"/>
+      <entry key="noNeedsRefresh" value="false"/>
+    </Map>
+  </Attributes>
+  <Parent>
+    <Reference class="sailpoint.object.TaskDefinition" name="IDW Partial JDBC Aggregation"/>
+  </Parent>
+</TaskDefinition>
+----
+
+To re-run only the third configured partition of the same application, replace `sqlFilter` with:
+
+[source,xml]
+----
+<entry key="partition" value="2"/>
+----
+
+== Termination
+
+The task supports standard IIQ task termination through `AbstractThreadedTask`. Termination interrupts the thread pool, so accounts already being aggregated may finish but no further accounts are started. Accounts that were already aggregated remain aggregated; there is no rollback.
+
+On termination, the connector's iterator is closed immediately (via a termination handler), which releases its database cursor and connection and stops any further rows from being read. If the task thread is blocked waiting on the database at that moment, the resulting read error is expected and is ignored. Rows fetched just before termination (at most one batch) may still be handed to the thread pool.

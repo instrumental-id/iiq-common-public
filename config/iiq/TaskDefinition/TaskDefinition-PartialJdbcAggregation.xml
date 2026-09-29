@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition executor="com.identityworksllc.iiq.common.task.PartialJdbcAggregation" name="IDW Partial JDBC Aggregation" progressInterval="5000" progressMode="String" subType="task_item_type_system" template="true" type="System">
+  <Description>
+    Template for the IDW Partial JDBC Aggregation task
+  </Description>
+  <Signature>
+    <Inputs>
+      <Argument name="application" type="string">
+        <Prompt>Application name</Prompt>
+      </Argument>
+      <Argument name="replacementSQL" type="string">
+        <Prompt>Replacement SQL (replaces existing SQL)</Prompt>
+      </Argument>
+      <Argument name="sqlFilter" type="string">
+        <Prompt>SQL Filter (appended to existing SQL)</Prompt>
+      </Argument>
+      <Argument name="partition" type="int">
+        <Prompt>Partition number (0-based)</Prompt>
+      </Argument>
+      <Argument filterString="type == Rule.Type.IdentityCreation" helpKey="help_task_identity_creation_rule" name="creationRule" type="Rule">
+        <Prompt>task_in_account_aggregation_creation_rule</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_refresh_roles" name="correlateEntitlements" type="boolean">
+        <Prompt>task_in_account_aggregation_correlate_entitlements</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_apply_active_policies" name="checkPolicies" type="boolean">
+        <Prompt>task_in_account_aggregation_check_policies</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_refresh_risk_scores" name="refreshScorecard" type="boolean">
+        <Prompt>task_in_account_aggregation_refresh_scorecard</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_maintain_history" name="checkHistory" type="boolean">
+        <Prompt>task_in_account_aggregation_check_history</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_no_needs_refresh" name="noNeedsRefresh" type="boolean">
+        <Prompt>task_in_account_aggregation_no_needs_refresh</Prompt>
+      </Argument>
+      <Argument helpKey="help_task_promote_managed_entitlements" name="promoteManagedAttributes" type="boolean">
+        <Prompt>task_in_account_aggregation_promote_managed_attributes</Prompt>
+      </Argument>
+      <Argument helpKey="help_tasK_correlate_only" name="correlateOnly" type="boolean">
+        <Prompt>task_in_account_aggregation_correlate_only</Prompt>
+      </Argument>
+    </Inputs>
+  </Signature>
+</TaskDefinition>
