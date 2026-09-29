@@ -30,7 +30,9 @@ import javax.servlet.http.HttpServletRequest;
  * during the persistence process so that they don't interfere with the main
  * flow of the application.
  *
- * The following fields can only be set once: action.
+ * You may set the `action` field via the constructor or by invoking {@link #setAction(String)}.
+ * If you attempt to set the 'action' a second time, an exception will be thrown. You must
+ * use {@link #replaceAction(String)} instead to assert that you definitely intend this.
  *
  * For example:
  *
@@ -345,6 +347,28 @@ public class Audit implements AutoCloseable {
     }
 
     /**
+     * Alias for {@link #setAttribute(String, Object)}
+     * @param key The key to set
+     * @param value The value to set
+     */
+    public void put(String key, Object value) {
+        setAttribute(key, value);
+    }
+
+    /**
+     * Replaces the AuditEvent's action with the given value. This is a separate method so that
+     * you need to be deliberate about it. For example, you would want to do this if you were
+     * changing the action from Action to ActionFailed.
+     *
+     * @param action The action to set on the AuditEvent. If null, the action will be cleared from the event.
+     */
+    public void replaceAction(String action) {
+        if (Util.isNotNullOrEmpty(action)) {
+            ae.setAction(action);
+        }
+    }
+
+    /**
      * Sets the name of the account affected by this audited action
      * @param accountName The name of the account to set
      */
@@ -460,6 +484,8 @@ public class Audit implements AutoCloseable {
         if (plan != null) {
             ProvisioningPlan loggingPlan = ProvisioningPlan.getLoggingPlan(plan);
             ae.setAttribute(ATTR_PLAN, loggingPlan);
+        } else {
+            ae.setAttribute(ATTR_PLAN, null);
         }
     }
 
@@ -590,6 +616,9 @@ public class Audit implements AutoCloseable {
         logMap.put("serverHost", ae.getServerHost());
         logMap.put("account", ae.getAccountName());
         logMap.put("application", ae.getApplication());
+        if (ae.getAttributes() != null) {
+            logMap.put("attributes", ae.getAttributes());
+        }
         return logMap;
     }
 
