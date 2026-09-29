@@ -1,0 +1,149 @@
+= IDW Audit Event Export Task
+
+IIQCommon ships with a task that exports IIQ `AuditEvent` objects to a standard Java `Logger`, one event at a time, in a granular format suitable for consumption by a SEIM tool such as Splunk.
+
+The task implementation is `com.identityworksllc.iiq.common.task.AuditEventExportTask`. It is a plain (non-partitioned) task executor, so a single task runs the entire export.
+
+Because the output goes through a Logger, you control the ultimate destination and format of the data using your logging framework's configuration (e.g., Log4j2). Typically, this will be a rolling file appender that a SEIM agent tails and ingests, but there's nothing stopping you from routing the logger to a syslog appender, a socket appender, or anywhere else your logging framework supports.
+
+== How it works
+
+On each run, the task queries `AuditEvent` objects using one or more IIQ search filters that you supply. Every matched event is optionally filtered further (in-memory, via script, or via rule), then translated into a flat set of fields and logged, either as a single JSON string or as a series of MDC (Mapped Diagnostic Context) values.
+
+The task keeps track of its own last-run time using a `NamedTimestamp` object, so each execution only exports events created since the previous run. This makes the task safe to schedule on a recurring basis (e.g., every five minutes) without re-exporting or losing events.
+
+=== Incremental execution and overlap avoidance
+
+The task records the time it started (not the time it finished) as the new "last run" timestamp. Each filter is automatically combined with a date range: events must have been `created` after the previous run's start time and before the current run's start time. This ensures that:
+
+* Events created while the task is running are not skipped on this run, nor duplicated on the next run.
+* If the task fails before completing, the timestamp is *not* updated, so the next run will safely re-process the same window.
+
+The `NamedTimestamp` object used to track this is named by the `timestampName` argument (default `AuditEventExportTask`). If you configure multiple instances of this task (e.g., one per SEIM destination or one per set of filters), give each a unique `timestampName` so that their incremental windows don't interfere with each other.
+
+== Specifying which events to export
+
+You must supply at least one IIQ search filter (a standard `Filter.compile()` string) identifying the `AuditEvent` objects to export. Filters can be supplied in either of two ways:
+
+* Via the `filters` argument, as a list of filter strings (typically used when editing the TaskDefinition XML directly).
+* Via the numbered `filter1` through `filter20` arguments (used by the standard IIQ task UI, which does not support list-of-string inputs well).
+
+If both are somehow present, `filters` takes precedence. Each filter runs as a separate query against `AuditEvent`, and the results of all filters are combined (each matching event will still only be exported once per query it matches, so overlapping filters will cause duplicate export of the same event).
+
+At least one non-empty filter must be supplied, or the task will fail immediately.
+
+=== Additional in-memory and scripted filtering
+
+Because some `AuditEvent` fields (particularly the attributes map) cannot easily be queried directly in Hibernate, the task supports three additional layers of filtering, applied in order, after the database query has returned a candidate event:
+
+* `commonFilter`: An IIQ filter string evaluated in-memory (via `HybridObjectMatcher`) against the whole `AuditEvent` object. Because this runs in memory rather than as a SQL query, it can reference nested XML attributes and other fields that a database filter cannot reach.
+* `filterScript`: A Beanshell script. The script is provided the bindings `event` (the `AuditEvent`), `sourceIdentity`, `targetIdentity`, and `eventData` (the in-progress export map described below). The script must return a `Boolean`; if it returns anything other than `Boolean.TRUE`, the event is skipped.
+* `filterRuleName`: The name of a `Rule` object, invoked with the same bindings as `filterScript`, and interpreted the same way.
+
+Events skipped by any of these filters are counted in the `skippedEvents` return value, but are still counted in `totalEvents`.
+
+Note that the `filterScript` and `filterRuleName` are evaluated *after* the `eventData` map is assembled, so they can inspect the flattened fields that will be exported. They may also freely modify the `eventData` map before it is logged, for example to mask or transform certain values.
+
+== Output format
+
+For each surviving event, the task assembles a map of data (`eventData`) containing, where present: `timestamp` (formatted per `dateFormat`), `timestampMillis`, `action`, `application`, `accountName`, `attributeName`, `attributeValue`, `serverHost`, `remoteAddr` (the client IP), `string1` through `string4`, `source`, `target`, and the event's `attributes` map.
+
+If the event's `attributeName` looks like it might hold a password or other secret (matched heuristically against a list of common tokens, excluding anything that looks like an expiration field), `attributeValue` is masked before export. The `attributes` map is likewise passed through the library's heuristic secret-masking logic before being included.
+
+If `identityFields` is set, and the event has a resolvable `source` and/or `target` Identity, a small map of identity data (`id`, `displayName`, and the requested attributes) is added to the export under `requester` and `target`, respectively.
+
+How this map is ultimately logged depends on `jsonMessage`:
+
+* When `true` (the default), the entire `eventData` map is serialized to a JSON string with Jackson, and that string is logged as a single message. This is the simplest format to parse in most SEIM tools.
+* When `false`, the fields of `eventData` are instead written into the logging MDC (one key per field; colons in keys are replaced with underscores, string values are truncated to 500 characters, and attribute values are prefixed with `attr_` and truncated to 300 characters), and a short, human-readable summary message is logged. This mode is useful if your logging pipeline already flattens MDC into structured fields (for example, via a Log4j2 JSON layout) and you would prefer not to double-encode the data as JSON-within-JSON.
+
+In both modes, the `Logger` used is looked up by the required `loggerName` argument, so you can route this task's output independently of the rest of the application's logs by configuring a dedicated logger/appender for that name.
+
+== Arguments
+
+|===
+|Argument |Type |Required |Purpose
+
+|loggerName
+|String
+|Yes
+|The name of the `Logger` (as configured in your logging framework, e.g., Log4j2) that exported events will be written to. This should typically point to a dedicated appender, such as a rolling file that your SEIM agent monitors.
+
+|filters
+|List of String
+|One of `filters` or `filter1`..`filter20` required
+|A list of IIQ search filter strings, each identifying a set of `AuditEvent` objects to export. Intended for use when editing the TaskDefinition XML directly.
+
+|filter1 .. filter20
+|String
+|One of `filters` or `filter1`..`filter20` required
+|Up to twenty individual filter strings, provided as separate arguments for use in the standard task scheduling UI, which cannot easily edit list-of-string inputs. Equivalent to `filters`.
+
+|commonFilter
+|String
+|No
+|An additional IIQ filter string, evaluated in-memory against each candidate event (via `HybridObjectMatcher`) after it is retrieved from the database. Because this is not translated to SQL, it can filter on values nested within XML attributes, unlike the primary filters.
+
+|filterScript
+|String (Beanshell)
+|No
+|A Beanshell script used to decide whether to export each event. It is passed `event`, `sourceIdentity`, `targetIdentity`, and `eventData` bindings, and must return a `Boolean`; any value other than `true` skips the event.
+
+|filterRuleName
+|String
+|No
+|The name of a `Rule` to invoke instead of (or in addition to) `filterScript`, with the same bindings and semantics.
+
+|identityNameField
+|String
+|No (default `name`)
+|The Identity attribute used to resolve a human-readable name for the source/target identities when populating the MDC. Falls back to the identity's `name` if the field is empty or unset.
+
+|identityFields
+|String (CSV)
+|No
+|A comma-separated list of additional Identity attributes to include in the `requester`/`target` identity data maps, alongside the always-included `id` and `displayName`.
+
+|dateFormat
+|String
+|No (default `yyyy-MM-dd'T'HH:mm:ssZ`)
+|A `SimpleDateFormat` pattern used to format the `timestamp` field of each exported event.
+
+|timestampName
+|String
+|No (default `AuditEventExportTask`)
+|The name of the `NamedTimestamp` object used to track this task's last successful run. Use a distinct value per task instance if you configure more than one export task, so their incremental windows do not conflict.
+
+|jsonMessage
+|Boolean
+|No (default `true`)
+|If `true`, each exported event is logged as a single JSON-serialized message. If `false`, the event's fields are instead written into the logging MDC, and a short summary message is logged.
+|===
+
+=== Return values
+
+|===
+|Return |Type |Purpose
+
+|exportedEvents
+|int
+|The number of events that were successfully exported to the logger.
+
+|skippedEvents
+|int
+|The number of events that matched the primary filters but were excluded by `commonFilter`, `filterScript`, or `filterRuleName`.
+
+|totalEvents
+|int
+|The total number of events retrieved from the database across all filters, whether exported or skipped.
+|===
+
+== Secret masking
+
+The task makes a best effort to avoid exporting sensitive values. `attributeValue` is masked whenever `attributeName` heuristically looks like a password or other secret field (using the library's shared `LIKELY_PASSWORD_TOKENS` list), and the event's `attributes` map is passed through the shared heuristic secret-masking logic before export. When exporting via MDC, individual attribute keys are also checked against `ProvisioningPlan.isSecret()` and masked if flagged.
+
+These heuristics are a safety net, not a guarantee. If your audited attributes include custom fields with non-obvious names that hold sensitive data, consider excluding or scrubbing them using `commonFilter`, `filterScript`, or `filterRuleName`.
+
+== Termination
+
+The task supports standard IIQ task termination. If terminated mid-run, processing stops as soon as practical, the last-run timestamp is *not* updated, and the partial results accumulated so far are still recorded in `totalEvents`, `skippedEvents`, and `exportedEvents`.
