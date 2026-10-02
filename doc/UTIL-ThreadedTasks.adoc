@@ -1,0 +1,238 @@
+= Threaded tasks
+:toc:
+:attribute-missing: drop
+
+IIQCommon offers four different ways to execute actions in parallel over a stream of objects:
+
+* Java classes extending `AbstractThreadedTask`
+* Java classes extending `AbstractPartitionedTask`
+* The implemented threaded task `ThreadedRuleRunner`
+* Various Beanshell structures, e.g., in _IDW - Rule Library - Threaded Iterate_
+
+[sidebar]
+Document generated on {docdatetime}. Latest Git commit ID is `{gitVersion}`.
+
+== Threaded tasks
+
+=== AbstractThreadedTask
+
+This class is available in `iiq-common-public.jar`.
+
+The `AbstractThreadedTask` and its provided subclasses allow you to easily define an action to be invoked on a defined collection of items in a thread pool. At minimum, you must supply an Iterator stream of items and a callback to invoke on each item in parallel.
+
+Your TaskDefinition _must_ include an argument called `threads`, which will be an integer representing the number of parallel threads to start. You _may_ also include a `batchSize`, which will default to _1_ if not specified.
+
+Additionally, your implementation must minimally override these methods:
+
+|===
+|Purpose |Method |Caveats
+
+|Get the stream of things to process
+a|`Iterator<T> getObjectIterator(SailPointContext context, Attributes<String, Object> args)`
+a|The `args` object is the TaskDefinition inputs.
+
+Your iterator should not contain "live" objects. This means:
+
+* The iterator returned supplied must _not_ be a "live" projection iterator, as those do not survive context commits. (You will get a "ResultSet Closed" error if you try.)
+
+* Your iterator should not be over "live" SailPointObjects, like Links. Instead, either return a String _id_ or wrap them into a _sailpoint.object.Reference_, then resolve the real object using the thread context in `threadExecute`.
+
+|Do an action to each thing
+a|`Object threadExecute(SailPointContext threadContext, Map<String, Object> parameters, T obj)`
+a|This method will be invoked in parallel, passing each object from your Iterator into it as `obj`.
+
+The returned Object is ignored.
+
+You will be able to see the parent `context` from here. _Don't use it._ All operations in this method should use the isolated _threadContext_.
+
+The worker thread will invoke `commitTransaction()` after each successful item passed to `threadExecute()`.
+
+You are responsible for calling `saveObject()` on any changed objects.
+
+You are responsible for calling `rollbackTransaction()` on any error conditions.
+
+|===
+
+==== The Map passed to `threadExecute`
+
+You probably won't need to worry about the _parameters_ Map passed to `threadExecute()`. It is mainly intended for making Beanshell-related code easier to write. However, you can use its contents however you need.
+
+It contains:
+
+* The current object (the same one passed to `threadExecute`) in `object`
+* A shared SLogger in `log` and `logger`
+* A reference to the SailPointWorker processing the batch in `worker`
+* A reference to the ThreadedTaskListener callback in `taskListener`
+
+==== Input arguments
+
+You may optionally implement `parseArgs(Attributes)`, will be passed the input arguments on task startup. This will be necessary if you use one of the subclasses of `AbstractThreadedTask`, because those have _final_ implementations of _getObjectIterator_.
+
+IMPORTANT: If you override _parseArgs_, make sure that you invoke _super.parseArgs_ at some point.
+
+==== Handling successes and failures
+
+Each worker thread will invoke a callback after both successful and failed execution of threadExecute for each item.
+
+* `markFailure(T item)`: Will be invoked when threadExecute throws an exception for the given item T.
+* `markSuccess(T item)`: Will be invoked when threadExecute completes normally for the given item T.
+
+By default, these methods increment the success and failure counters, which are used to update the task status at runtime. You should invoke the appropriate _super_ method if you wish to retain that behavior.
+
+==== Batching
+
+This class supports batching. Each item in a batch will have its `threadExecute` invoked using the same `threadContext`. This can make bulk actions more efficient, because opening a private context consumes database resources every time.
+
+To use batching, simply specify a number greater than _1_ in the TaskDefinition argument `batchSize`. The rest will be automated for you by default.
+
+You may optionally override these methods to do setup or cleanup at the batch level:
+
+* `beforeBatch(SailPointContext threadContext)`: Will be invoked before any items in the batch are consumed. If an exception is thrown, the batch will be skipped.
+* `afterBatch(SailPointContext threadContext)`: Will be invoked after any items in the batch are consumed and the transaction has been committed. If an exception is thrown, it will be logged, but will otherwise be ignored.
+
+=== AbstractThreadedObjectIteratorTask
+
+This class is available in `iiq-common-full.jar`.
+
+This is an extension of `AbstractThreadedTask` that handles retrieval and transformation of target objects. It can retrieve and potentially translate inputs from the following data sources:
+
+* CSV or line-based text files
+* IIQ Filters
+* SQL queries
+* IIQ Connectors
+* A Beanshell script or rule
+* A provided list of strings
+
+What makes this more complicated is that each retrieval type may produce a variety of different object types. Your code must be written to expect them.
+
+==== Inputs
+
+The input parameters are much more complex for this task type, permitting the greater flexibility. In addition to _threads_ and _batchSize_, your TaskDefinition can supply any of the following arguments.
+
+At a minimum, a _retrievalType_ and the parameters for some input method are required. The task will fail with an error if no valid arguments are provided.
+
+|===
+|Argument |Type |Description
+
+|retrievalType
+|string
+|Specifies which retrieval mode is used. Must be one of the following: provided, file, sql, rule, script, filter, connector.
+
+|retrievalRule
+|string
+|If the type is _rule_, this argument must specify the name of a Rule that will return an Iterator or Iterable of items to process.
+
+|retrievalScript
+|Beanshell code
+|If the type is _script_, this argument must specify a Beanshell script that will return an Iterator or Iterable of items to process.
+
+|retrievalFilter
+|IIQ filter
+|If the type is _filter_, this argument must specify a valid IIQ Filter String that will produce the appropriate set of items to process.
+
+|retrievalFilterClass
+|IIQ class name
+|Specifies the IIQ class to search using the _retrievalFilter_. If omitted, defaults to _Identity_.
+
+|retrievalFile
+|string
+|If the type is _file_, this argument specifies the full path of a file from which to retrieve CSV or line inputs.
+
+|retrievalFileDelimiter
+|string
+|A delimiter used to split the file into tokens. If specified, the file will be assumed to be a delimited file and interpreted as lists of tokens. If not specified, the file will be interpreted as string lines.
+
+|retrievalFileClass
+|IIQ class name
+|If specified, the file will be treated as a CSV and the first column will be assumed to be an ID of an object of this class.
+
+|retrievalSql
+|SQL query
+|If the type is _sql_, this SQL query will be executed against the IIQ database. Only the first column will ever be used.
+
+|retrievalSqlClass
+|IIQ class name
+|If specified, the output of the _retrievalSql_ query will be interpreted as object IDs of this class type, which will be loaded.
+
+|values
+|CSV string
+|If the type is 'provided', this comma-separated list of items will be iterated over.
+|===
+
+==== Object stream types
+
+The different inputs can produce a stream of various types of objects, depending on the retrievalType and other parameters. Null items in a stream will always be ignored.
+
+The iterator types you can expect are:
+
+|===
+|Retrieval type |Iterator type
+
+|provided
+|String
+
+|sql
+|If a _retrievalSqlClass_ is specified, instances of that class; otherwise String.
+
+|file
+a|If _retrievalFileClass_ is not specified, always  `List<String>`. If the file is interpreted as a CSV, the List will contain one entry per parsed token. Otherwise, the List will contain the entire line as a singleton entry.
+
+If _retrievalFileClass_ is specified, instances of that class.
+
+|connector
+|ResourceObject
+
+|rule or script
+|Any arbitrary object
+
+|filter
+|Instances of the _retrievalFilterClass_
+|===
+
+==== Object stream customization
+
+By default, the stream of objects will be assumed to contain the object type you are expecting. These objects will be provided _as-is_ to your `threadExecute` method. If you are _not_ expecting that type, you will end up with runtime ClassCastExceptions.
+
+You may (and probably should) coerce the stream of objects to your desired types by overriding the `T convertObject(Object)` method. You can think of this as the object stream equivalent to a Transformation or Customization rule.
+
+Each item from the data source will be passed to _convertObject_; you are responsible for translating to your desired type. For example, a SailPointObject might be converted to a Reference or a String line from a file might be converted to some other data structure.
+
+With a properly implemented `convertObject` method, any unexpected object types can be considered a usage error on the part of the person running your task.
+
+If you return null, that item will be ignored (just like a Customization rule).
+
+=== ThreadedRuleRunner
+
+This class is a useful implementation of `AbstractThreadedObjectIteratorTask`, a parallel implementation of a Run Rule task.
+
+It invokes an arbitrary Beanshell script or rule for each object in the stream. The Beanshell inputs may be of arbitrary type, depending on the data source configuration, which you will presumably know since you are writing the script!
+
+In addition to the parameters on its parent task, this task also provides the following options:
+
+* `iteratorType`: Either 'rule' or 'script', depending on how you have specified the scripted action.
+* `iteratorScript`: A Beanshell script that will be invoked for each object, passing the object as `object`.
+* `iteratorRule`: The name of a Beanshell Rule that will be invoked for each object, passing the object as `object`.
+* `extractReferences`: A boolean true or false; if true, any SailPointObjects in the object stream will be transformed into Reference objects, making them safe to pass around between threads. They will be "rehydrated" into their real object type before being passed to your Beanshell. If false, no conversion will be done.
+
+== Partitioned tasks
+
+=== AbstractPartitionedTask
+
+Implementations of `AbstractPartitionedTask` can execute arbitrary actions in partitions across the entire IIQ cluster. The action is implemented as subclasses of `SailPointWorker`, which are batched up, serialized, and distributed to each node.
+
+To create a basic partitioned task, you need to do the following:
+
+* Ensure that an appropriate RequestDefinition with executor _SailPointWorkerExecutor_ exists in your system. The provided _IDW Worker Executor_ can be used or you can create your own.
+* Create a sub-class of `SailPointWorker` that implements your business logic. This class and all of its contents must be Serializable. The worker class must be on the IIQ classpath on all IIQ nodes. (In other words, it cannot be part of a plugin.) Worker state should be fairly minimal.
+* Create a sub-class of `AbstractPartitionedTask` and override its `getPartitions`. This method returns a list of batches of your worker objects, i.e., `List<List<SailPointWorker>>`. Each batch (the inner list of workers) will be the content of a partition.
+
+Your TaskDefinition should take at least the following arguments:
+
+* `requestDefinitionName`: The name of your request definition, e.g., _IDW Worker Executor_
+* `partitions`: An integer number of partitions to invoke. If your `getPartitions` returns a smaller number of batches than this, that value will be used instead.
+
+Other arguments that you need in each partition should be extracted and encapsulated by the SailPointWorker objects. Other TaskDefinition arguments will _not_ be available to the workers once they are distributed.
+
+== Beanshell methods
+
+TODO
