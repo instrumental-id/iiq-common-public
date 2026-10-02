@@ -187,11 +187,11 @@ public class BasicObjectRetriever<ItemType> implements ObjectRetriever<ItemType>
         Objects.requireNonNull(context);
         Objects.requireNonNull(arguments);
 
-        initialize(context, arguments);
-
         this.log = LogFactory.getLog(BasicObjectRetriever.class);
         this.transformerConstructor = transformerConstructor;
         this.taskResult = taskResult;
+
+        initialize(context, arguments);
     }
 
 

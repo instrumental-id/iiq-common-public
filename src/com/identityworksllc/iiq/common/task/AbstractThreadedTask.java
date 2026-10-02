@@ -87,7 +87,7 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
 
         @Override
         public void afterBatch(SailPointContext threadContext) throws GeneralException {
-            AbstractThreadedTask.this.beforeBatch(threadContext);
+            AbstractThreadedTask.this.afterBatch(threadContext);
         }
 
         @Override

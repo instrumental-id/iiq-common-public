@@ -176,7 +176,7 @@ public class ThreadedRuleRunner extends AbstractThreadedObjectIteratorTask<Objec
 				if ((values.size() % 2) == 1) {
 					throw new IllegalArgumentException("If you specify a 'ruleConfig' in CSV format, there must be an even number of key-value pairs");
 				}
-				for(int i = 0; i < values.size(); i++) {
+				for(int i = 0; i < values.size(); i += 2) {
 					String key = values.get(i);
 					String value = values.get(i + 1);
 
@@ -199,7 +199,7 @@ public class ThreadedRuleRunner extends AbstractThreadedObjectIteratorTask<Objec
 		if (args.containsKey("beforeBatchRule")) {
 			this.beforeBatchRule = context.getObject(Rule.class, args.getString("beforeBatchRule"));
 			if (this.beforeBatchRule == null) {
-				throw new IllegalArgumentException("The after batch rule specified (" + args.get("beforeBatchRule") + ") does not exist");
+				throw new IllegalArgumentException("The before batch rule specified (" + args.get("beforeBatchRule") + ") does not exist");
 			}
 			this.beforeBatchRule.load();
 		}
