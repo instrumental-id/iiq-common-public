@@ -2,8 +2,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import java.time.LocalDate
 
 java {
-    sourceCompatibility = JavaLanguageVersion.of(11)
-    targetCompatibility = JavaLanguageVersion.of(11);
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 
     withSourcesJar()
     if (!JavaVersion.current().isJava11Compatible()) {
@@ -29,6 +29,8 @@ if (JavaVersion.current().isJava11Compatible()) {
 }
 
 tasks.withType(JavaCompile).configureEach {
+    // Compile against the Java 17 API, not just 17 bytecode, so a newer build JDK can't leak in newer APIs
+    options.release = 17
     options.warnings = false
     options.compilerArgs += '-Xlint:-deprecation'
     options.compilerArgs += '-Xlint:-unchecked'
@@ -88,7 +90,7 @@ tasks.register('java11doc', JavaExec) {
     args = ['-doctitle', "Instrumental ID iiq-common-public",
             '-use',
             '-linksource',
-            '-link', 'https://docs.oracle.com/en/java/javase/11/docs/api/',
+            '-link', 'https://docs.oracle.com/en/java/javase/17/docs/api/',
             '-doclet', 'org.jdrupes.mdoclet.MDoclet',
             '-docletpath', (configurations.named("markdownDoclet").get().files as List).join(":"),
             '-d', file("${project.buildDir}/docs/javadoc"),
