@@ -18,6 +18,34 @@ import sailpoint.tools.GeneralException;
 @CoreStable
 public class Metered {
     /**
+     * An instance of this class can be used in a try-with-resources block or in Beanshell
+     * with a try/finally block.
+     */
+    public static final class CloseableMeter implements AutoCloseable {
+        /**
+         * The name of the meter to stop
+         */
+        private final String meterName;
+
+        /**
+         * Starts the meter and stores the name for later
+         * @param meterName The name of the meter to start
+         */
+        private CloseableMeter(String meterName) {
+            Meter.enterByName(meterName);
+            this.meterName = meterName;
+        }
+
+        /**
+         * Stops the meter
+         */
+        @Override
+        public void close() {
+            Meter.exitByName(meterName);
+        }
+    }
+
+    /**
      * Callback interface where no output is required
      */
     @FunctionalInterface
@@ -75,6 +103,18 @@ public class Metered {
         } finally {
             Meter.exitByName(meterName);
         }
+    }
+
+    /**
+     * Starts a meter with the given name, returning a CloseableMeter that can be used to
+     * stop the meter when closed. This can be used in a try-with-resources block or in Beanshell
+     * with a try/finally block.
+     *
+     * @param meterName The name of the meter to start
+     * @return A CloseableMeter that can be used to stop the meter when closed
+     */
+    public static CloseableMeter start(String meterName) {
+        return new CloseableMeter(meterName);
     }
 
     /**
