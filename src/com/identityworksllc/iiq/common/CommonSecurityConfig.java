@@ -531,6 +531,14 @@ public class CommonSecurityConfig implements Serializable, MapDecodable {
                 map.put("invalidTargetFilter", this.invalidTargetFilter);
             }
 
+            if (Util.isNotNullOrEmpty(this.validTargetFilter)) {
+                map.put("validTargetFilter", this.validTargetFilter);
+            }
+
+            if (Util.isNotNullOrEmpty(this.mirrorRole)) {
+                map.put("mirrorRole", this.mirrorRole);
+            }
+
             if (Util.isNotNullOrEmpty(this.mirrorQuicklinkPopulation)) {
                 map.put("mirrorQuicklinkPopulation", this.mirrorQuicklinkPopulation);
             }

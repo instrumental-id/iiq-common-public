@@ -427,7 +427,7 @@ public final class AccessCheck {
         }
         if (result.isAllowed() && !Util.isEmpty(config.getExcludedRights())) {
             boolean userAllowed = true;
-            List<String> rights = config.getRequiredRights();
+            List<String> rights = config.getExcludedRights();
             Collection<String> userRights = pluginContext.getLoggedInUserRights();
             if (userRights != null) {
                 for(String right : Util.safeIterable(userRights)) {
@@ -444,7 +444,7 @@ public final class AccessCheck {
         }
         if (result.isAllowed() && !Util.isEmpty(config.getExcludedCapabilities())) {
             boolean userAllowed = true;
-            List<String> capabilities = config.getRequiredCapabilities();
+            List<String> capabilities = config.getExcludedCapabilities();
             List<Capability> loggedInUserCapabilities = pluginContext.getLoggedInUserCapabilities();
             for(Capability cap : Util.safeIterable(loggedInUserCapabilities)) {
                 if (capabilities.contains(cap.getName())) {
