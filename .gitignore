@@ -12,3 +12,9 @@ plugin-installer.properties
 doc/*.pdf
 sailpoint*.dtd
 sailpoint-catalog.xml
+
+# AI stuff, just in case
+.claude/
+.clinerules/
+.codex/
+.github/modernize/
