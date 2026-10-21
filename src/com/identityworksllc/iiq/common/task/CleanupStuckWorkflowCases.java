@@ -53,7 +53,9 @@ public class CleanupStuckWorkflowCases extends AbstractTaskExecutor {
     public void execute(SailPointContext context, TaskSchedule taskSchedule, TaskResult taskResult, Attributes<String, Object> attributes) throws Exception {
         QueryOptions qo = new QueryOptions();
 
-        Instant cutoff = ZonedDateTime.now().minusHours(1).toInstant();
+        int hours = attributes.getInt("hours", 1);
+
+        Instant cutoff = ZonedDateTime.now().minusHours(hours).toInstant();
 
         IncrementalObjectIterator<WorkflowCase> iterator = new IncrementalObjectIterator<>(context, WorkflowCase.class, qo);
 
