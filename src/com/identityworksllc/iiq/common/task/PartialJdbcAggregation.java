@@ -165,7 +165,7 @@ public class PartialJdbcAggregation extends AbstractThreadedTask<ResourceObject>
                     count.incrementAndGet();
                     return true;
                 }
-            } catch (NoSuchElementException e) {
+            } catch (NoSuchElementException ignored) {
                 /* Treated as exhaustion below */
             } catch (RuntimeException e) {
                 return handleReadFailure(e);
