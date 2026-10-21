@@ -140,6 +140,8 @@ dependencies {
     compileOnly spLib
     compileOnly includeLib
 
+    compileOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.25.1'
+
     toolLibraries 'info.picocli:picocli:4.7.7'
     toolLibraries group: 'org.jline', name: 'jline', version: '3.30.6'
 
@@ -179,6 +181,8 @@ dependencies {
     testImplementation includeLib
 
     testRuntimeOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.20.1'
+    // IIQ classes like Environment reference Hibernate types, which IIQ ships in WEB-INF/lib
+    testRuntimeOnly group: 'org.hibernate', name: 'hibernate-core', version: '5.3.7.Final'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-engine:1.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.13.4'
