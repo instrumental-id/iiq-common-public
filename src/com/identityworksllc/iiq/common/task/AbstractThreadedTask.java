@@ -223,6 +223,15 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
     }
 
     /**
+     * Invoked after completion of all threads, even if they fail
+     * @param context The SailPoint context
+     * @param taskResult The TaskResult to keep updated with changes
+     */
+    protected void afterCompletion(SailPointContext context, TaskResult taskResult) {
+        afterCompletion(context);
+    }
+
+    /**
      * Invoked by the default worker thread before each batch is begun. If this
      * method throws an exception, the batch worker ought to prevent the batch
      * from being executed.
@@ -298,7 +307,7 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
             try {
                 submitAndWait(ctx, taskResult, items);
             } finally {
-                afterCompletion(ctx);
+                afterCompletion(ctx, taskResult);
             }
 
             if (!terminated.get()) {
@@ -516,12 +525,7 @@ public abstract class AbstractThreadedTask<T> extends AbstractTaskExecutor imple
             while(!executor.isTerminated()) {
                 executor.awaitTermination(5, TimeUnit.SECONDS);
                 int finished = this.successCounter.get() + this.failureCounter.get();
-                try {
-                    monitor.updateProgress("Completed " + finished + " of " + totalItems + " items");
-                    monitor.commitMasterResult();
-                } catch(GeneralException e) {
-                    /* Ignore this */
-                }
+                monitor.updateProgress("Completed " + finished + " of " + totalItems + " items");
             }
 
             log.info("All threads have terminated in task " + taskResult.getName());
