@@ -1,0 +1,179 @@
+/*
+ * Builds a second artifact, classified "jakarta", for IIQ 9.0 and later, where the
+ * javax.servlet / javax.ws.rs / javax.faces APIs moved to the jakarta namespace.
+ *
+ * A single jar can't serve both, because the types in IIQ's own method signatures
+ * and fields differ. So the jakarta source is generated from 'src' at build time
+ * and compiled for real against the jakarta APIs:
+ *
+ *   1. 'src' is copied into build/generated/jakarta-src with an explicit list of
+ *      package renames applied to the .java files (not a blanket javax -> jakarta;
+ *      javax.annotation stays, for example).
+ *   2. Anything in 'src-jakarta' replaces the generated copy of the same file. These
+ *      are the classes that need real Servlet 6 / JAX-RS 3.1 implementations rather
+ *      than renamed imports, and they are the only hand-maintained fork.
+ *   3. The 'jakarta' source set compiles the result without any of the javax API
+ *      libraries on its classpath.
+ *   4. verifyJakartaJar fails the build if the jar still references a javax API.
+ */
+
+/*
+ * Package prefixes that moved to jakarta. Each is matched on a package boundary,
+ * so 'javax.servlet' will not rewrite 'javax.servletfoo'.
+ */
+def jakartaPackages = [
+        "servlet",
+        "faces",
+        "ws.rs",
+        "validation",
+        "xml.bind",
+        "el"
+]
+
+def jakartaRenamePattern = ~("\\bjavax\\.(" + jakartaPackages.collect { it.replace(".", "\\.") }.join("|") + ")\\b")
+
+def jakartaOverrideDir = file("${project.rootDir}/src-jakarta")
+def jakartaGeneratedDir = layout.buildDirectory.dir("generated/jakarta-src")
+
+/* Maven groups that hold javax APIs, which must never be on the jakarta classpath */
+def javaxApiGroups = [
+        "javax.servlet",
+        "javax.faces",
+        "javax.ws.rs",
+        "javax.validation",
+        "javax.xml.bind",
+        "javax.el",
+        "javax.inject",
+        "javax.annotation"
+]
+
+sourceSets {
+    jakarta {
+        java {
+            srcDir tasks.register("generateJakartaSource", Sync) {
+                group = "build"
+                description = "Generates the jakarta variant of the source from 'src' and 'src-jakarta'"
+
+                into jakartaGeneratedDir
+
+                from("src") {
+                    // Hand-kept versions in src-jakarta win over the generated copies
+                    exclude { details ->
+                        !details.directory && new File(jakartaOverrideDir, details.relativePath.pathString).exists()
+                    }
+
+                    filesMatching("**/*.java") {
+                        filter { String line -> line.replaceAll(jakartaRenamePattern, 'jakarta.$1') }
+                    }
+                }
+
+                from(jakartaOverrideDir)
+
+                includeEmptyDirs = false
+            }
+        }
+        resources {
+            // Matches the main source set, which also takes its resources from the source tree
+            srcDirs = [jakartaGeneratedDir]
+        }
+    }
+}
+
+/*
+ * IIQ's own jars decide whether this can compile: in 8.x their signatures use javax types
+ * (BaseResource.uriInfo, FacesContext, HttpSession...), which are deliberately absent from the
+ * jakarta classpath. Pass -Pidw.jakarta.iiqpath=<dir> to compile against a different set of IIQ
+ * jars (identityiq.jar, connector-bundle-identityiq.jar, pam-credential.jar) than the main build.
+ */
+def jakartaIiqPath = project.findProperty("idw.jakarta.iiqpath") ?: "${project.findProperty('idw.minimal.libpath') ?: 'lib'}/sailpoint"
+def jakartaIiqLib = fileTree(dir: jakartaIiqPath, includes: ["identityiq.jar", "connector-bundle-identityiq.jar", "pam-credential.jar"])
+def jakartaIncludeLib = fileTree(dir: "${project.findProperty('idw.minimal.libpath') ?: 'lib'}/included", includes: ["*.jar"])
+
+configurations {
+    jakartaImplementation.extendsFrom implementation
+
+    // The resolved classpaths are where the javax APIs get dropped, since 'implementation'
+    // is shared with the main build
+    matching { it.name in ["jakartaCompileClasspath", "jakartaRuntimeClasspath"] }.configureEach { configuration ->
+        javaxApiGroups.each { group ->
+            configuration.exclude group: group
+        }
+    }
+}
+
+dependencies {
+    // The same compile-only libraries as the main build, except for the IIQ jars
+    jakartaCompileOnly jakartaIiqLib
+    jakartaCompileOnly jakartaIncludeLib
+    jakartaCompileOnly group: 'org.aspectj', name: 'aspectjrt', version: '1.9.25.1'
+
+    // Matches the 9.0 WAR (see notes/iiq-9.0-migration-checklist.md)
+    jakartaImplementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
+    jakartaImplementation group: 'jakarta.ws.rs', name: 'jakarta.ws.rs-api', version: '3.1.0'
+    jakartaImplementation group: 'jakarta.xml.bind', name: 'jakarta.xml.bind-api', version: '3.0.0'
+    jakartaImplementation group: 'jakarta.validation', name: 'jakarta.validation-api', version: '3.0.0'
+    jakartaImplementation group: 'jakarta.faces', name: 'jakarta.faces-api', version: '4.0.1'
+    jakartaImplementation group: 'jakarta.el', name: 'jakarta.el-api', version: '5.0.1'
+    jakartaImplementation group: 'org.glassfish.jersey.bundles', name: 'jaxrs-ri', version: '3.1.10'
+}
+
+tasks.named("processJakartaResources") {
+    dependsOn "generateJakartaSource"
+}
+
+tasks.register("jakartaJar", Jar) {
+    group = "build"
+    description = "Assembles the jakarta variant of the library, for IIQ 9.0 and later"
+
+    archiveClassifier = "jakarta"
+
+    from sourceSets.jakarta.output
+}
+
+tasks.register("jakartaSourcesJar", Jar) {
+    group = "build"
+    description = "Assembles the generated jakarta source"
+
+    archiveClassifier = "jakarta-sources"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from sourceSets.jakarta.allJava
+}
+
+/*
+ * Compiling without the javax APIs on the classpath is not enough on its own, since
+ * IIQ's jar and the other shared libraries still might pull a javax type into the bytecode.
+ * Check the class files for it.
+ */
+tasks.register("verifyJakartaJar") {
+    group = "verification"
+    description = "Fails if the jakarta jar references a javax API that moved to jakarta"
+
+    def jar = tasks.named("jakartaJar")
+    dependsOn jar
+    inputs.files(jar)
+
+    doLast {
+        def pattern = ~("javax/(" + jakartaPackages.collect { it.replace(".", "/") }.join("|") + ")/")
+        def offenders = []
+
+        zipTree(jar.get().archiveFile).matching { include "**/*.class" }.each { classFile ->
+            // The constant pool stores names as plain UTF-8, so a byte-level search is enough
+            if (pattern.matcher(new String(classFile.bytes, "ISO-8859-1")).find()) {
+                offenders << classFile.name
+            }
+        }
+
+        if (!offenders.isEmpty()) {
+            throw new GradleException("The jakarta jar still references javax APIs in: " + offenders.sort().join(", "))
+        }
+    }
+}
+
+tasks.named("assemble") {
+    dependsOn "jakartaJar", "jakartaSourcesJar"
+}
+
+tasks.named("check") {
+    dependsOn "verifyJakartaJar"
+}

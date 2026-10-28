@@ -3,6 +3,7 @@ build/
 classes
 **/*.bak
 lib/sailpoint/
+lib-9.0/
 .gradle/
 .DS_Store
 .idea

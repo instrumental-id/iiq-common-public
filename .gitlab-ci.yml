@@ -26,12 +26,14 @@ before_script:
   # - git checkout "$CI_COMMIT_REF_NAME"
   - export JAVA_HOME=$JAVA_21
   - set_java_version
-  - get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
+  # The main (javax) jar builds against 8.4; the jakarta jar needs 9.0, which can't share a directory with it
+  - IIQ_VERSION=8.4 get_iiq_binaries ./lib/sailpoint/ identityiq connector-bundle-identityiq
+  - IIQ_VERSION=9.0 get_iiq_binaries ./lib-9.0/sailpoint/ identityiq connector-bundle-identityiq
 
 build:
   stage: build_reporting
   script: 
-    - ./gradlew build javadoc -x checkstyleMain -x checkstyleTest
+    - ./gradlew build javadoc -x checkstyleMain -x checkstyleTest -Pidw.jakarta.iiqpath=./lib-9.0/sailpoint
   artifacts:
     name: "iiqcommon-public-library"
     paths:
@@ -56,6 +58,6 @@ deploy:
     - job: build
       artifacts: true
   script:
-    - ./gradlew publish
+    - ./gradlew publish -Pidw.jakarta.iiqpath=./lib-9.0/sailpoint
   rules:
     - if: $CI_COMMIT_BRANCH == "main"

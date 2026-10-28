@@ -183,6 +183,16 @@ public class UnsupportedConnector implements Connector {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
     }
 
+    // Added to Connector in IIQ 9.0. Deliberately not @Override so that this still compiles against 8.x.
+    public CloseableIterator<ResourceObject> iterateDatasets(List<String> list, Filter filter, Map<String, Object> map) throws ConnectorException {
+        throw new UnsupportedOperationException("Connector operations are not available in this situation");
+    }
+
+    // Added to Connector in IIQ 9.0. Deliberately not @Override so that this still compiles against 8.x.
+    public CloseableIterator<ResourceObject> iterateDatasets(Partition partition) throws ConnectorException {
+        throw new UnsupportedOperationException("Connector operations are not available in this situation");
+    }
+
     @Override
     public CloseableIterator<ResourceObject> iterateObjects(String s, Filter filter, Map<String, Object> map) throws ConnectorException {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
@@ -195,6 +205,11 @@ public class UnsupportedConnector implements Connector {
 
     @Override
     public ProvisioningResult provision(ProvisioningPlan provisioningPlan) throws ConnectorException, GeneralException {
+        throw new UnsupportedOperationException("Connector operations are not available in this situation");
+    }
+
+    // Added to Connector in IIQ 9.0. Deliberately not @Override so that this still compiles against 8.x.
+    public List<Map<String, Object>> provisionResource(String s, String s1, String s2, String s3, Map<String, Object> map) throws ConnectorException {
         throw new UnsupportedOperationException("Connector operations are not available in this situation");
     }
 

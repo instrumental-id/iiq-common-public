@@ -195,6 +195,8 @@ test {
 
 apply from: "./scripts/build/java.include.gradle"
 
+apply from: "./scripts/build/jakarta.include.gradle"
+
 apply from: "./scripts/build/pub.include.gradle"
 
 apply from: "./scripts/build/checkstyle.build.gradle"
