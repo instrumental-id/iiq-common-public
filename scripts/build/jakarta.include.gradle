@@ -16,17 +16,19 @@
  *      libraries on its classpath.
  *   4. verifyJakartaJar fails the build if the jar still references a javax API.
  *
- * The variant is skipped entirely when the IIQ 9.x jars are not present.
+ * The variant is skipped entirely when the IIQ 9.x jars are not present. When the main
+ * build's own IIQ jars are 9.x ('jakartaOnly'), this is the only variant built.
  */
 
 /*
  * IIQ's own jars decide whether this can compile: in 8.x their signatures use javax types
  * (BaseResource.uriInfo, FacesContext, HttpSession...), which are deliberately absent from the
  * jakarta classpath. So this compiles against IIQ 9.x jars (identityiq.jar,
- * connector-bundle-identityiq.jar, pam-credential.jar) from lib-9.0/sailpoint, or from
- * -Pidw.jakarta.iiqpath=<dir> if given.
+ * connector-bundle-identityiq.jar, pam-credential.jar) from the main build's lib/sailpoint
+ * when those are 9.x, otherwise from lib-9.0/sailpoint, or from -Pidw.jakarta.iiqpath=<dir> if given.
  */
-def jakartaIiqPath = project.findProperty("idw.jakarta.iiqpath") ?: "lib-9.0/sailpoint"
+def mainIiqPath = "${project.findProperty('idw.minimal.libpath') ?: 'lib'}/sailpoint"
+def jakartaIiqPath = project.findProperty("idw.jakarta.iiqpath") ?: (jakartaOnly ? mainIiqPath : "lib-9.0/sailpoint")
 
 if (!file("${jakartaIiqPath}/identityiq.jar").exists()) {
     logger.lifecycle("Skipping the jakarta (IIQ 9.x) variant: no identityiq.jar in ${jakartaIiqPath}")
@@ -185,4 +187,22 @@ tasks.named("assemble") {
 
 tasks.named("check") {
     dependsOn "verifyJakartaJar"
+}
+
+/*
+ * With 9.x jars in lib/sailpoint, the javax build (and the tests, which are written against
+ * it) can't compile, so only the jakarta variant is built.
+ */
+if (jakartaOnly) {
+    logger.lifecycle("IIQ ${iiqVersion} found in ${mainIiqPath}: building only the jakarta variant")
+
+    def javaxTasks = [
+            "compileJava", "processResources", "classes", "jar", "sourcesJar",
+            "javadoc", "java11doc", "javadoc11Jar", "pluginTool",
+            "compileTestJava", "processTestResources", "testClasses", "test"
+    ]
+
+    tasks.matching { it.name in javaxTasks }.configureEach {
+        enabled = false
+    }
 }

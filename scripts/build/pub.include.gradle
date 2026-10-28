@@ -76,6 +76,15 @@ publishing {
     }
 }
 
+// The publication is built around the main (javax) jar, which isn't built when lib/sailpoint has IIQ 9.x
+tasks.withType(AbstractPublishToMaven).configureEach {
+    doFirst {
+        if (jakartaOnly) {
+            throw new GradleException("Can't publish when lib/sailpoint has IIQ 9.x, since the main jar isn't built; put the 9.x jars in lib-9.0/sailpoint instead")
+        }
+    }
+}
+
 signing {
     required { isReleaseVersion && gradle.taskGraph.hasTask("publish") }
 

@@ -94,6 +94,13 @@ sourceSets {
 
 def libRoot = project.getProperties().getOrDefault("idw.minimal.libpath", "lib")
 
+/*
+ * IIQ 9.0 moved to the jakarta namespace, so the javax build can't compile against its jars.
+ * With 9.x in lib/sailpoint, only the jakarta variant is built (see jakarta.include.gradle).
+ */
+def iiqMajorVersion = project.findProperty("iiqVersion")?.tokenize(".")?.first()
+ext.jakartaOnly = iiqMajorVersion?.isInteger() && (iiqMajorVersion as int) >= 9
+
 group 'com.identityworksllc.iiq.common.minimal'
 version getDistVersion()
 

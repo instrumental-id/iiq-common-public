@@ -1,0 +1,234 @@
+= IIQ 9.0 and the jakarta variant
+:toc:
+
+IIQ 9.0 moved from the Java EE `javax` APIs (Servlet, JAX-RS, JSF and friends) to their Jakarta EE replacements in the `jakarta` namespace. This document describes how *iiq-common-public* is built for both sides of that change, and what that means when you change or add code.
+
+For the short version (which JARs to put where), see _Building the library_ in the `README.adoc`.
+
+== Why there are two variants
+
+The renamed types appear in IIQ's own method signatures and fields. For example, `sailpoint.rest.BaseResource.getRequest()` returns a `javax.servlet.http.HttpServletRequest` in IIQ 8.x and a `jakarta.servlet.http.HttpServletRequest` in IIQ 9.0. A class that overrides or calls that method can only be compiled against one of them, so a single JAR can't serve both.
+
+The library is therefore built twice from the same source:
+
+[cols="1,2,2"]
+|===
+|Variant |Artifact |Runs on
+
+|Standard
+|`iiq-common-public-<version>.jar`
+|IIQ 8.x
+
+|`jakarta`
+|`iiq-common-public-<version>-jakarta.jar`
+|IIQ 9.0 and later
+|===
+
+Both are published under the same Maven coordinates. The `jakarta` variant uses the `jakarta` classifier, and its source is published with the `jakarta-sources` classifier.
+
+The `src` folder is written against the `javax` APIs, and remains the only place most code lives. The `jakarta` source is derived from it at build time.
+
+== Which variants get built
+
+The build looks at two sets of IIQ JARs: the main set in `lib/sailpoint`, and an optional IIQ 9.x set used only by the `jakarta` variant.
+
+[cols="2,1,2"]
+|===
+|`lib/sailpoint` contains |IIQ 9.x JARs for the jakarta variant |Result
+
+|IIQ 8.x
+|Not present
+|Standard only. The build logs `Skipping the jakarta (IIQ 9.x) variant`.
+
+|IIQ 8.x
+|Present
+|Standard and `jakarta`
+
+|IIQ 9.x
+|_(uses `lib/sailpoint`)_
+|`jakarta` only. The build logs `building only the jakarta variant`.
+|===
+
+The IIQ 9.x JARs for the `jakarta` variant are looked up in this order:
+
+. The folder given by `-Pidw.jakarta.iiqpath=<folder>`, if set
+. `lib/sailpoint`, if it holds IIQ 9.x (a _jakarta-only_ build)
+. `lib-9.0/sailpoint`
+
+The variant is built only if that folder contains an `identityiq.jar`. It is checked for presence only, not for its version. If an IIQ 8.x `identityiq.jar` ends up there, compilation fails with errors such as `return type jakarta.servlet.http.HttpServletRequest is not compatible with javax.servlet.http.HttpServletRequest`.
+
+The IIQ version of `lib/sailpoint` is read from the `Implementation-Version` attribute in `identityiq.jar`'s manifest, and exposed to the build as `iiqVersion`. A major version of 9 or higher sets `jakartaOnly`.
+
+NOTE: The version is always read from `./lib/sailpoint/identityiq.jar`, while the compile classpaths use `idw.minimal.libpath` (default `lib`). If you change `idw.minimal.libpath`, keep an `identityiq.jar` of the same version in `./lib/sailpoint` as well.
+
+All of this logic lives in `scripts/build/jakarta.include.gradle`, with the version detection in `build.gradle`.
+
+== How the jakarta variant is built
+
+[source]
+----
+src/  ──┐
+        ├─ generateJakartaSource ─> build/generated/jakarta-src/ ─> compileJakartaJava ─> jakartaJar ─> verifyJakartaJar
+src-jakarta/ ──┘
+----
+
+=== 1. Source generation
+
+The `generateJakartaSource` task is a Gradle `Sync` into `build/generated/jakarta-src`:
+
+* Every file in `src` is copied, except those that have a counterpart in `src-jakarta` (see below).
+* In each `.java` file, these package prefixes are renamed from `javax.` to `jakarta.`:
++
+[cols="1,1"]
+|===
+|From |To
+
+|`javax.servlet` |`jakarta.servlet`
+|`javax.faces` |`jakarta.faces`
+|`javax.ws.rs` |`jakarta.ws.rs`
+|`javax.validation` |`jakarta.validation`
+|`javax.xml.bind` |`jakarta.xml.bind`
+|`javax.el` |`jakarta.el`
+|===
++
+Each prefix is matched on a word boundary, so `javax.servlet` does not match `javax.servletfoo`. This is deliberately not a blanket `javax` to `jakarta` rename. Packages that stayed in the JDK or never moved, such as `javax.naming`, `javax.sql`, `javax.xml.transform` and `javax.annotation`, are left alone.
+* Every file in `src-jakarta` is then copied over the top.
+* Non-Java files (such as `overview.html` and templates) are copied unchanged. The `jakarta` source set takes its resources from the same generated folder, as the main source set takes them from `src`.
+
+The rename is a plain text substitution on each line. It also applies to comments and string literals, so a string containing `javax.servlet` will become `jakarta.servlet` in the `jakarta` variant.
+
+=== 2. Compilation
+
+The `jakarta` source set compiles the generated folder against:
+
+* The IIQ 9.x JARs (`identityiq.jar`, `connector-bundle-identityiq.jar`, and `pam-credential.jar` if present), compile-only
+* The JARs in `lib/included`, compile-only
+* The same third-party libraries as the standard build (`jakartaImplementation` extends `implementation`)
+* The Jakarta EE APIs matching the IIQ 9.0 WAR:
++
+[cols="1,1"]
+|===
+|Library |Version
+
+|`jakarta.servlet:jakarta.servlet-api` |6.0.0
+|`jakarta.ws.rs:jakarta.ws.rs-api` |3.1.0
+|`jakarta.xml.bind:jakarta.xml.bind-api` |3.0.0
+|`jakarta.validation:jakarta.validation-api` |3.0.0
+|`jakarta.faces:jakarta.faces-api` |4.0.1
+|`jakarta.el:jakarta.el-api` |5.0.1
+|`org.glassfish.jersey.bundles:jaxrs-ri` |3.1.10
+|===
+
+Because the third-party libraries are shared with the standard build, they would otherwise bring the `javax` APIs along. The resolved `jakartaCompileClasspath` and `jakartaRuntimeClasspath` exclude these Maven groups entirely: `javax.servlet`, `javax.faces`, `javax.ws.rs`, `javax.validation`, `javax.xml.bind`, `javax.el`, `javax.inject` and `javax.annotation`.
+
+As a result, any `javax` reference left in the generated source fails to compile rather than slipping through.
+
+=== 3. Verification
+
+A clean compile isn't enough on its own: the IIQ JARs or another library on the classpath can still pull a `javax` type into the bytecode. The `verifyJakartaJar` task (run by `check`) scans the constant pool of every class in the `jakarta` JAR for references to `javax/servlet/`, `javax/faces/`, `javax/ws/rs/`, `javax/validation/`, `javax/xml/bind/` or `javax/el/`, and fails the build with a list of offending classes.
+
+== src-jakarta vs. build/generated/jakarta-src
+
+These two folders are easy to confuse, and only one of them is meant to be edited.
+
+[cols="1,2,2"]
+|===
+| |`src-jakarta` |`build/generated/jakarta-src`
+
+|What it is
+|Hand-maintained `jakarta` versions of specific classes
+|The complete `jakarta` source tree that is actually compiled
+
+|Who writes it
+|Developers
+|The `generateJakartaSource` task, on every build
+
+|Checked in
+|Yes
+|No. It's under `build/`, which is ignored.
+
+|Contents
+|Only the few classes that can't be produced by renaming imports
+|Every file from `src` (renamed), plus everything from `src-jakarta`
+
+|Safe to edit
+|Yes
+|No. `Sync` deletes and replaces its contents on the next build, so any edit is lost.
+|===
+
+In short: `src-jakarta` is an input, and `build/generated/jakarta-src` is an output. To change how a class looks in the `jakarta` variant, change it in `src`, or in `src-jakarta` if it has a copy there. Look at `build/generated/jakarta-src` only to see what the compiler is given, for instance when a `compileJakartaJava` error points at a line there.
+
+=== When a class needs a src-jakarta copy
+
+Most classes only refer to the moved APIs, and the import rename is all they need. A class needs a hand-kept copy in `src-jakarta` when the `jakarta` API it _implements_ has a different set of methods, so renaming imports produces code that won't compile. Today those are the mock servlet and JAX-RS objects used to call plugin REST resources outside a real request:
+
+[cols="1,3"]
+|===
+|Class |Why it differs
+
+|`auth/DummyRequest`
+|Servlet 6 removed `HttpServletRequest.isRequestedSessionIdFromUrl()` and `ServletRequest.getRealPath()`, and added `getRequestId()`, `getProtocolRequestId()` and `getServletConnection()`.
+
+|`auth/DummyHttpSession`
+|Servlet 6 removed `HttpSession.getSessionContext()`, `getValue()`, `getValueNames()`, `putValue()` and `removeValue()`, along with the `HttpSessionContext` type.
+
+|`auth/DummyUriInfo`
+|Currently identical to the generated version. It doesn't need a copy unless a future JAX-RS version changes `UriInfo`.
+|===
+
+A copy in `src-jakarta` must use the same package path as the class it replaces in `src`, for example `src-jakarta/com/identityworksllc/iiq/common/auth/DummyRequest.java` replaces `src/com/identityworksllc/iiq/common/auth/DummyRequest.java`. A file in `src-jakarta` with no counterpart in `src` is added to the `jakarta` variant only.
+
+=== Keeping the copies in sync
+
+A class with a `src-jakarta` copy is a fork. A change to the `src` version does *not* reach the `jakarta` variant, and nothing warns you. When you change one of these classes, make the same change in both places.
+
+Keep `src-jakarta` as small as possible. Before adding a class to it, check whether the difference can live in `src` instead, for example by moving the API-dependent part into a small class of its own and forking only that.
+
+== Jakarta-only builds
+
+When `lib/sailpoint` holds IIQ 9.x, the standard build can't compile, so these tasks are disabled and show as `SKIPPED`:
+
+* `compileJava`, `processResources`, `classes`, `jar`, `sourcesJar`
+* `javadoc`, `java11doc`, `javadoc11Jar`
+* `pluginTool`
+* `compileTestJava`, `processTestResources`, `testClasses`, `test`
+
+The unit tests are written against the standard variant, so *no tests run* in a jakarta-only build. `checkstyleMain` still runs, since it only reads the source.
+
+Publishing is refused in this mode. The Maven publication is built from the standard JAR, so every `publish` and `publishToMavenLocal` task fails with an explanation instead of publishing a missing or stale JAR. To publish, put IIQ 8.x JARs in `lib/sailpoint` and IIQ 9.x JARs in `lib-9.0/sailpoint`, so that both variants are built.
+
+== Writing code for both variants
+
+* Write against the `javax` APIs in `src`. Don't import `jakarta` packages there, since the standard build has no `jakarta` APIs on its classpath.
+* Use only the `javax` packages in the rename table for anything that moved. A moved API that isn't in the table (for example `javax.inject`) has no rename and no library on the `jakarta` classpath, so it fails the `jakarta` compile. If you need one, add it to both `jakartaPackages` and the Jakarta API dependencies in `jakarta.include.gradle`.
+* Prefer calling the servlet and JAX-RS APIs over implementing their interfaces. Calls survive the rename, while implementations usually need a `src-jakarta` fork.
+* Code that branches on `VersionConstants.VERSION` must handle 9.x. A check such as `VERSION.startsWith("8")` is false on IIQ 9.0.
+* Build with IIQ 9.x JARs available before merging any change that touches servlet, JAX-RS or JSF code, so that `compileJakartaJava` and `verifyJakartaJar` run.
+
+== Gradle reference
+
+[cols="1,3"]
+|===
+|Item |Purpose
+
+|`generateJakartaSource`
+|Builds `build/generated/jakarta-src` from `src` and `src-jakarta`
+
+|`compileJakartaJava`
+|Compiles the `jakarta` source set
+
+|`jakartaJar`, `jakartaSourcesJar`
+|Assemble the `jakarta` and `jakarta-sources` JARs. Run by `assemble`.
+
+|`verifyJakartaJar`
+|Fails if the `jakarta` JAR references a moved `javax` API. Run by `check`.
+
+|`-Pidw.jakarta.iiqpath=<folder>`
+|Folder holding the IIQ 9.x JARs for the `jakarta` variant
+
+|`-Pidw.minimal.libpath=<folder>`
+|Folder holding `sailpoint` and `included` for the main build (default `lib`)
+
+|`lib-9.0/sailpoint`
+|Default location for the IIQ 9.x JARs. Their `*.jar` files are ignored by git, since SailPoint's binaries can't be redistributed.
+|===

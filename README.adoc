@@ -71,13 +71,53 @@ IDW cannot distribute SailPoint's proprietary IIQ binaries, so you must supply t
 Insert the following JAR files from your IIQ version in the `lib/sailpoint` folder. (These files can be found in any IIQ WAR file at `WEB-INF/lib`.)
 
 * identityiq.jar
-* connector-bundle-identity.jar
+* connector-bundle-identityiq.jar
+
+=== IIQ 8.x and IIQ 9.x
+
+IIQ 9.0 moved from the `javax` servlet, JAX-RS and JSF APIs to their `jakarta` replacements. A single JAR can't work on both sides of that change, so the library is built in two variants:
+
+* The standard variant, for IIQ 8.x
+* The `jakarta` variant, for IIQ 9.0 and later
+
+The build decides which variants to produce from the IIQ JARs you supply:
+
+[cols="1,1"]
+|===
+|IIQ JARs supplied |Variants built
+
+|IIQ 8.x in `lib/sailpoint`
+|Standard only
+
+|IIQ 8.x in `lib/sailpoint`, plus IIQ 9.x in `lib-9.0/sailpoint`
+|Standard and `jakarta`
+
+|IIQ 9.x in `lib/sailpoint`
+|`jakarta` only
+|===
+
+If you only run IIQ 9.0 or later, put your IIQ 9.x JARs in `lib/sailpoint`. The build will detect the version and produce only the `jakarta` variant. In that case:
+
+* The unit tests are skipped, since they are written against the standard variant.
+* The Javadocs are not generated. Use the link:https://instrumentalidentity.com/javadoc/iiq-common-public/index.html[published Javadocs] instead.
+* Publishing tasks such as `publishToMavenLocal` will fail, because the Maven publication is built around the standard JAR. To publish, supply IIQ 8.x JARs in `lib/sailpoint` and IIQ 9.x JARs in `lib-9.0/sailpoint`.
+
+To keep your IIQ 9.x JARs somewhere other than `lib-9.0/sailpoint`, pass their folder with `-Pidw.jakarta.iiqpath=<folder>`.
+
+For how the `jakarta` variant is generated and compiled, and what to watch for when changing the code, see link:doc/IIQ-9.0.adoc[IIQ 9.0 and the jakarta variant].
 
 === Library JAR build
 
 To build the library, execute `./gradlew build`. (On Windows, use `gradlew.bat build` instead.)
 
-The library will be assembled at `build/libs/iiq-common-public-<version>.jar`. For deployment into your environment, you may want to manually remove the version tag so that you can always update the file in place.
+The library will be assembled in `build/libs`:
+
+* `iiq-common-public-<version>.jar` is the standard variant, for IIQ 8.x.
+* `iiq-common-public-<version>-jakarta.jar` is the `jakarta` variant, for IIQ 9.0 and later. The standard variant will not work on IIQ 9.0.
+
+For deployment into your environment, you may want to manually remove the version tag so that you can always update the file in place.
+
+IMPORTANT: In the future (perhaps 2028), this will be switched. The standard variant with no suffix will target IIQ 9.x and higher, while a separate `legacy` variant will be published for older installations.
 
 === Javadocs
 
