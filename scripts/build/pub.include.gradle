@@ -7,6 +7,10 @@ publishing {
                 artifact tasks.named("javadoc11Jar")
             }
 
+            // The IIQ 9.0 (jakarta) variant is published alongside the main jar, under the same coordinates
+            artifact tasks.named("jakartaJar")
+            artifact tasks.named("jakartaSourcesJar")
+
             pom {
                 name = 'IIQ Common Public'
                 description = 'A library of common SailPoint IdentityIQ utilities for Rules and Java code'
