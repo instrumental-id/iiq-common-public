@@ -50,7 +50,7 @@ public class LogCapture {
 			} catch(Exception e) {
 				throw new GeneralException(e);
 			}
-		} else if (VersionConstants.VERSION.startsWith("8")) {
+		} else if (VersionConstants.VERSION.startsWith("8") || VersionConstants.VERSION.startsWith("9")) {
 			try {
 				CaptureLogs capturer = (CaptureLogs)Class.forName("com.identityworksllc.iiq.common.logging.CaptureLogs8", true, LogCapture.class.getClassLoader()).newInstance();
 				capturer.capture(loggerNames);
