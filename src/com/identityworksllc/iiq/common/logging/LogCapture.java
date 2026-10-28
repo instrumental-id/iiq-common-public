@@ -87,7 +87,7 @@ public class LogCapture {
 		try {
 			if (VersionConstants.VERSION.startsWith("7")) {
 				capturer = (CaptureLogs) Class.forName("com.identityworksllc.iiq.common.logging.CaptureLogs7", true, LogCapture.class.getClassLoader()).newInstance();
-			} else if (VersionConstants.VERSION.startsWith("8")) {
+			} else if (VersionConstants.VERSION.startsWith("8") || VersionConstants.VERSION.startsWith("9")) {
 				capturer = (CaptureLogs) Class.forName("com.identityworksllc.iiq.common.logging.CaptureLogs8", true, LogCapture.class.getClassLoader()).newInstance();
 			}
 		} catch(Exception e) {
