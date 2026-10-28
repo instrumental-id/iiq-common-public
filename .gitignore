@@ -3,7 +3,7 @@ build/
 classes
 **/*.bak
 lib/sailpoint/
-lib-9.0/
+lib-9.0/**/*.jar
 .gradle/
 .DS_Store
 .idea
@@ -19,3 +19,6 @@ sailpoint-catalog.xml
 .clinerules/
 .codex/
 .github/modernize/
+
+.vscode/
+.settings/
