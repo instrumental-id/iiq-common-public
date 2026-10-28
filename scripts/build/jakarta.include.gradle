@@ -15,7 +15,23 @@
  *   3. The 'jakarta' source set compiles the result without any of the javax API
  *      libraries on its classpath.
  *   4. verifyJakartaJar fails the build if the jar still references a javax API.
+ *
+ * The variant is skipped entirely when the IIQ 9.x jars are not present.
  */
+
+/*
+ * IIQ's own jars decide whether this can compile: in 8.x their signatures use javax types
+ * (BaseResource.uriInfo, FacesContext, HttpSession...), which are deliberately absent from the
+ * jakarta classpath. So this compiles against IIQ 9.x jars (identityiq.jar,
+ * connector-bundle-identityiq.jar, pam-credential.jar) from lib-9.0/sailpoint, or from
+ * -Pidw.jakarta.iiqpath=<dir> if given.
+ */
+def jakartaIiqPath = project.findProperty("idw.jakarta.iiqpath") ?: "lib-9.0/sailpoint"
+
+if (!file("${jakartaIiqPath}/identityiq.jar").exists()) {
+    logger.lifecycle("Skipping the jakarta (IIQ 9.x) variant: no identityiq.jar in ${jakartaIiqPath}")
+    return
+}
 
 /*
  * Package prefixes that moved to jakarta. Each is matched on a package boundary,
@@ -79,13 +95,6 @@ sourceSets {
     }
 }
 
-/*
- * IIQ's own jars decide whether this can compile: in 8.x their signatures use javax types
- * (BaseResource.uriInfo, FacesContext, HttpSession...), which are deliberately absent from the
- * jakarta classpath. Pass -Pidw.jakarta.iiqpath=<dir> to compile against a different set of IIQ
- * jars (identityiq.jar, connector-bundle-identityiq.jar, pam-credential.jar) than the main build.
- */
-def jakartaIiqPath = project.findProperty("idw.jakarta.iiqpath") ?: "${project.findProperty('idw.minimal.libpath') ?: 'lib'}/sailpoint"
 def jakartaIiqLib = fileTree(dir: jakartaIiqPath, includes: ["identityiq.jar", "connector-bundle-identityiq.jar", "pam-credential.jar"])
 def jakartaIncludeLib = fileTree(dir: "${project.findProperty('idw.minimal.libpath') ?: 'lib'}/included", includes: ["*.jar"])
 

@@ -8,8 +8,11 @@ publishing {
             }
 
             // The IIQ 9.0 (jakarta) variant is published alongside the main jar, under the same coordinates
-            artifact tasks.named("jakartaJar")
-            artifact tasks.named("jakartaSourcesJar")
+            // It is only built when the IIQ 9.x jars are present (see jakarta.include.gradle)
+            if (tasks.names.contains("jakartaJar")) {
+                artifact tasks.named("jakartaJar")
+                artifact tasks.named("jakartaSourcesJar")
+            }
 
             pom {
                 name = 'IIQ Common Public'
