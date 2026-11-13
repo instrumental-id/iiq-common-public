@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  # build.gradle derives release vs. -SNAPSHOT versions from this GitLab variable
+  CI_COMMIT_BRANCH: ${{ github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The main (javax) jar builds against 8.4; the jakarta jar needs 9.0,
+      # which can't share a directory with it. Fork PRs receive no secrets,
+      # so the JARs are unavailable there and the build is skipped.
+      - name: Set up IIQ build
+        id: iiq
+        uses: instrumental-id/iiq-build-setup@v1
+        with:
+          versions: "8.4:lib/sailpoint 9.0:lib-9.0/sailpoint"
+          app-id: ${{ vars.IIQ_BUILD_APP_ID }}
+          app-private-key: ${{ secrets.IIQ_BUILD_APP_PRIVATE_KEY }}
+          fail-if-unavailable: ${{ github.event_name != 'pull_request' }}
+
+      - name: Checkstyle
+        if: steps.iiq.outputs.available == 'true'
+        run: ./gradlew checkstyleMain
+
+      - name: Build and Javadoc
+        if: steps.iiq.outputs.available == 'true'
+        run: ./gradlew build javadoc -x checkstyleMain -x checkstyleTest -Pidw.jakarta.iiqpath=./lib-9.0/sailpoint
+
+      # Safe to upload: these are our own outputs, compiled against IIQ but not containing it.
+      # Never upload or cache lib/sailpoint or lib-9.0.
+      - name: Upload build outputs
+        if: steps.iiq.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iiqcommon-public-library
+          path: |
+            build/docs/**
+            build/libs/**
+            build/reports/**
