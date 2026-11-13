@@ -46,12 +46,33 @@ jobs:
 
       # Safe to upload: these are our own outputs, compiled against IIQ but not containing it.
       # Never upload or cache lib/sailpoint or lib-9.0.
+      # build/docs is left out because build/libs already has it as the -javadoc.jar.
       - name: Upload build outputs
         if: steps.iiq.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: iiqcommon-public-library
           path: |
-            build/docs/**
             build/libs/**
             build/reports/**
+
+      # The two library JARs on their own, for quick download without the bundle above
+      - name: Upload javax (IIQ 8.x) JAR
+        if: steps.iiq.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iiq-common-public-jar
+          if-no-files-found: error
+          path: |
+            build/libs/iiq-common-public-*.jar
+            !build/libs/*-sources.jar
+            !build/libs/*-javadoc.jar
+            !build/libs/*-jakarta*.jar
+
+      - name: Upload jakarta (IIQ 9.x) JAR
+        if: steps.iiq.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iiq-common-public-jakarta-jar
+          if-no-files-found: error
+          path: build/libs/iiq-common-public-*-jakarta.jar
